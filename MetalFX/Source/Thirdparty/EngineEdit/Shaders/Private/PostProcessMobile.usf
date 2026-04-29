@@ -1,0 +1,8 @@
+StructuredBuffer<float4> MobileEyeAdaptationBuffer;
+RWTexture2D<float4> RWMobileEyeAdaptationTexture;
+
+[numthreads(1, 1, 1)]
+void CopyMobileEyeAdaptationToTextureCS(uint2 DispatchThreadId : SV_DispatchThreadID)
+{
+	RWMobileEyeAdaptationTexture[DispatchThreadId] = MobileEyeAdaptationBuffer[0];
+}
