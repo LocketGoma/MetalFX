@@ -29,7 +29,7 @@ public class MetalFX : ModuleRules
 				"Projects"
 			});
 		
-		if (Target.Platform == UnrealTargetPlatform.IOS)
+		if (Target.Platform == UnrealTargetPlatform.IOS || Target.Platform == UnrealTargetPlatform.Mac)
 		{
 			PrivateDependencyModuleNames.Add("MetalCPP");
 			PrivateDependencyModuleNames.Add("MetalRHI");
