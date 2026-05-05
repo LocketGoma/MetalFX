@@ -12,13 +12,15 @@ DECLARE_LOG_CATEGORY_EXTERN(LogMetalFX, Verbose, All);
 
 #define METALFX_METALCPP 1
 
-enum class EMetalSupport : uint8
+//=Metal이 지원되는 Apple 기기인지 아닌지
+enum class EMetalSupportDevice : uint8
 {
 	Supported,
 	NotSupported
 };
 
-enum class EMetalFXSupport : uint8
+//=MetalFX 가능한 환경인지 여부
+enum class EMetalFXSupportReason : uint8
 {
 	Supported,
 	NotSupported,
@@ -27,6 +29,27 @@ enum class EMetalFXSupport : uint8
 	NotSupportedMetalFXFrameworkMissing,
 	NotSupportedMetalFXCreationFailed,
 };
+
+//=MetalFX 관련 최종 판단 (SpatialType / TemporalType 인 경우에만 MetalFX 정상 작동)
+enum class EMetalFXServiceReason : uint8
+{
+	//Something Wrong
+	Error,
+	
+	//=aka Intel System or Windows OS or... other.
+	NotAppleDevice,
+	
+	//=aka Apple Device but not AppleSilicon or Very Very Older Device
+	AppleDeviceButNotSupported,
+	
+	//=aka Apple Device but Older Device 
+	SpatialType,
+	
+	//=aka Apple Device & (like) flagship devices.
+	TemporalType
+}
+
+
 
 BEGIN_SHADER_PARAMETER_STRUCT(FMetalFXParameters, )
 	RDG_TEXTURE_ACCESS(ColorTexture, ERHIAccess::SRVMask)
