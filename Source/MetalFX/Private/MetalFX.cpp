@@ -50,7 +50,7 @@ void FMetalFXModule::StartupModule()
 
 			if (IConsoleVariable* CvarMetalFXMode = IConsoleManager::Get().FindConsoleVariable(TEXT("r.MetalFX.UpscalerMode")))
 			{				
-				CvarMetalFXMode->Set(Settings->Mode, ECVF_SetByCode);
+				CvarMetalFXMode->Set(Settings->UpscalerMode, ECVF_SetByCode);
 			}
 			
 			if (IConsoleVariable* CvarMetalFSharpness = IConsoleManager::Get().FindConsoleVariable(TEXT("r.MetalFX.Sharpness")))

@@ -12,12 +12,17 @@ TAutoConsoleVariable<float> CVarMetalFXSharpness(
 	TEXT("Range from 0.0 to 1.0, when greater than 0 this enables Robust Contrast Adaptive Sharpening Filter to sharpen the output image. Default is 0."),
 	ECVF_RenderThreadSafe);
 
+TAutoConsoleVariable<int32> CVarMetalFXUpscalerMode(
+	TEXT("r.MetalFX.UpscalerMode"),
+	1,
+	TEXT("Upscaler mode to be used when upscaling with MetalFX"),
+	ECVF_RenderThreadSafe);
+
 TAutoConsoleVariable<int32> CVarMetalFXQualityMode(
 	TEXT("r.MetalFX.QualityMode"),
 	1,
 	TEXT("Quality mode to be used when upscaling with MetalFX"),
-	ECVF_RenderThreadSafe
-);
+	ECVF_RenderThreadSafe);
 
 //------------------------
 UMetalFXSettings::UMetalFXSettings(const FObjectInitializer& ObjectInitializer)

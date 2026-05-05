@@ -55,7 +55,7 @@ public:
 	bool bEnabled;
 	
 	UPROPERTY(Config, EditAnywhere, Category = "General Settings", meta = (ConsoleVariable = "r.MetalFX.UpscalerMode", DisplayName = "UpscalerMode"))
-	int32 bEnabled;
+	int32 UpscalerMode;
 
 	UPROPERTY(Config, EditAnywhere, Category = "Quality Settings", meta = (ConsoleVariable = "r.MetalFX.Sharpness", DisplayName = "Sharpness", ClampMin = 0, ClampMax = 1, ToolTip = "When greater than 0.0 this enables Robust Contrast Adaptive Sharpening Filter to sharpen the output image."))
 	float Sharpness;

@@ -47,7 +47,7 @@ static BOOL IsMetalFXSupported()
 extern "C"
 int32 MetalFXQuerySupportReason()
 {
-	using Reason = EMetalFXSupport;
+	using Reason = EMetalFXSupportReason;
 
 	id<MTLDevice> MetalDevice = (id<MTLDevice>)GDynamicRHI->RHIGetNativeDevice();
 
