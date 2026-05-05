@@ -41,7 +41,7 @@ id<MTLFXTemporalScaler> MetalFXCreateTemporalUpscaler(id<MTLDevice> Device, int 
 extern "C"
 #endif
 //Note. "Output 해상도 바뀜" = Actual Output Resolution 바뀜 (=출력 해상도 바뀜) 이라서 이때는 그냥 업스케일러 다시 만들어야됨
-//근데 우리는 iOS는 해상도 변경할 일이 없으니 처리 X
+//근데 iOS는 해상도 변경할 일이 없으니 처리 X... 라지만 Mac에서는 변경될 일 있지 않을까?
 //해당 함수는 input이 바뀐 경우 (r.ScreenPercentage 등으로 변경된 경우) 에만 해당
 bool MetalFXUpdateScalerResolution(id<MTLFXTemporalScaler> Scaler, int InputWidth, int InputHeight)
 {

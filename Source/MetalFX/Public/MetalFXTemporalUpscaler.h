@@ -1,5 +1,3 @@
-//Copyright Hound13 (nothappa)
-
 #pragma once
 
 #include "TemporalUpscaler.h"

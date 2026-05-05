@@ -1,5 +1,3 @@
-//Copyright Hound13 (nothappa)
-
 #pragma once
 #include "SceneViewExtension.h"
 #if WITH_METAL_PLATFORM

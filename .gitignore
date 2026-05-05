@@ -78,3 +78,4 @@ DerivedDataCache/*
 **/.DS_Store
 **/._.DS_Store
 MetalFX/Source/MetalFX/.idea
+.idea

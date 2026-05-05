@@ -1,4 +1,3 @@
-//Copyright Hound13 (nothappa)
 #pragma once
 #include "CoreMinimal.h"
 #include "CustomResourcePool.h"
