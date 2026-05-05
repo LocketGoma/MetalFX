@@ -1,6 +1,6 @@
 #pragma once
 
-#if WITH_METAL_PLATFORM
+#if METALFX_PLUGIN_ENABLED
 //Obj-C 쓰면 import - .h
 //C++ Wrapper면 include - .hpp
 #import <Foundation/Foundation.h>
@@ -40,4 +40,4 @@ int32 MetalFXQuerySupportReason();
 
 static BOOL IsSystemVersionAtLeast(NSString* MinVersion);
 
-#endif
+#endif //METALFX_PLUGIN_ENABLED

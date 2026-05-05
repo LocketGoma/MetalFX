@@ -1,16 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-
-//MetalFX Type 0 = Obj-C Wrapper
-//iOS Version이 급격히 바뀐 경우 등에 사용
-
-//MetalFX Type 1 = MetalCPP Wrapper
-//안정된 디버그가 필요한 경우 등의 상황에서 사용
-
 DECLARE_LOG_CATEGORY_EXTERN(LogMetalFX, Verbose, All);
-
-#define METALFX_METALCPP 1
 
 //= Metal이 지원되는 Apple 기기인지 아닌지
 enum class EMetalSupportDevice : uint8
@@ -48,8 +39,6 @@ enum class EMetalFXServiceReason : uint8
 	//=aka Apple Device & (like) flagship devices.
 	TemporalType
 };
-
-
 
 BEGIN_SHADER_PARAMETER_STRUCT(FMetalFXParameters, )
 	RDG_TEXTURE_ACCESS(ColorTexture, ERHIAccess::SRVMask)

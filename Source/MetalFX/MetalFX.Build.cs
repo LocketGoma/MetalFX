@@ -28,8 +28,26 @@ public class MetalFX : ModuleRules
 				"RHI",
 				"Projects"
 			});
-		
-		if (Target.Platform == UnrealTargetPlatform.IOS || Target.Platform == UnrealTargetPlatform.Mac)
+
+		//------------------MetalFX Handling Branch------------------
+
+		//해당 플러그인에서 지원하는 Apple Platfrom에서만 True 되도록 처리
+		bool bApplePlatfrom = false;
+
+		if (Target.Platform == UnrealTargetPlatform.IOS)
+		{
+			bApplePlatfrom = true;
+    		PublicDefinitions.Add("WITH_METALFX_TARGET_MAC=1");
+    		PublicDefinitions.Add("WITH_METALFX_TARGET_IOS=0");
+		}
+		if (Target.Platform == UnrealTargetPlatform.Mac)
+		{
+			bApplePlatfrom = true;
+    		PublicDefinitions.Add("WITH_METALFX_TARGET_MAC=0");
+    		PublicDefinitions.Add("WITH_METALFX_TARGET_IOS=1");
+		}
+
+		if(bApplePlatfrom)
 		{
 			PrivateDependencyModuleNames.Add("MetalCPP");
 			PrivateDependencyModuleNames.Add("MetalRHI");
@@ -39,12 +57,22 @@ public class MetalFX : ModuleRules
                 "MetalFX"   
             });
 
-			PublicDefinitions.Add("WITH_METAL_PLATFORM = 1");
+			PublicDefinitions.Add("METALFX_PLUGIN_ENABLED=1");
+
+			//MetalFX Type 0 = Obj-C Wrapper
+			//iOS Version이 급격히 바뀐 경우 등에 사용
+
+			//MetalFX Type 1 = MetalCPP Wrapper
+			//안정된 디버그가 필요한 경우 등의 상황에서 사용
+			PublicDefinitions.Add("METALFX_METALCPP=1");
 		}
 		else
 		{
-			PublicDefinitions.Add("WITH_METAL_PLATFORM = 0");
+			PublicDefinitions.Add("METALFX_PLUGIN_ENABLED=0");
+  			PublicDefinitions.Add("WITH_METALFX_TARGET_MAC=0");
+    		PublicDefinitions.Add("WITH_METALFX_TARGET_IOS=0");
 		}
-			
+		
+		//------------------MetalFX Handling Branch------------------ (End)
 	}
 }

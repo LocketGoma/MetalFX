@@ -51,7 +51,7 @@ public:
 };
 IMPLEMENT_GLOBAL_SHADER(FMetalFXConvertVelocityCS, "/Plugin/MetalFX/Private/PostProcessFFX_FSR2ConvertVelocity.usf", "MainCS", SF_Compute);
 
-#if WITH_METAL_PLATFORM
+#if METALFX_PLUGIN_ENABLED
 
 const void FMetalFXTemporalUpscaler::CheckValidate() const
 {

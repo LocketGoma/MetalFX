@@ -12,6 +12,17 @@ IMPLEMENT_MODULE(FMetalFXModule, MetalFX)
 #define LOCTEXT_NAMESPACE "FMetalFXModule"
 DEFINE_LOG_CATEGORY(LogMetalFX);
 
+//----------------------Macro Checker--------------------
+#if METALFX_PLUGIN_ENABLED
+	#if (WITH_METALFX_TARGET_MAC && !PLATFORM_MAC) || (!WITH_METALFX_TARGET_MAC && PLATFORM_MAC)
+		#error "Setting on Mac Platform, but Plugin and Platfrom Validation Failed."
+	#endif
+
+	#if (WITH_METALFX_TARGET_IOS && !PLATFORM_IOS) || (!WITH_METALFX_TARGET_IOS && PLATFORM_IOS)
+		#error "Setting on ios Platform, but Plugin and Platfrom Validation Failed."
+	#endif
+#endif
+
 void FMetalFXModule::StartupModule()
 {
 	OnPostRHIInitialized = FCoreDelegates::OnPostEngineInit.AddRaw(this, &FMetalFXModule::HandlePostRHIInitialized);
@@ -35,6 +46,11 @@ void FMetalFXModule::StartupModule()
 			if (IConsoleVariable* CvarMetalFXEnable = IConsoleManager::Get().FindConsoleVariable(TEXT("r.MetalFX.Enabled")))
 			{				
 				CvarMetalFXEnable->Set(Settings->bEnabled, ECVF_SetByCode);
+			}
+
+			if (IConsoleVariable* CvarMetalFXMode = IConsoleManager::Get().FindConsoleVariable(TEXT("r.MetalFX.UpscalerMode")))
+			{				
+				CvarMetalFXMode->Set(Settings->Mode, ECVF_SetByCode);
 			}
 			
 			if (IConsoleVariable* CvarMetalFSharpness = IConsoleManager::Get().FindConsoleVariable(TEXT("r.MetalFX.Sharpness")))
@@ -74,7 +90,7 @@ EMetalFXSupportReason FMetalFXModule::QueryMetalFXSupport() const
 
 FMetalFXUpscalerCore* FMetalFXModule::GetMetalFXUpscaler() const
 {
-#if WITH_METAL_PLATFORM
+#if METALFX_PLUGIN_ENABLED
 		return MetalFXUpscaler.Get();
 #endif
 	return nullptr;
@@ -103,7 +119,7 @@ void FMetalFXModule::HandlePostRHIInitialized()
 	if (MetalSupport == EMetalSupportDevice::Supported)
 	{
 		MetalFXSupport = FMetalFXUpscalerCore::GetIsSupportedDevice();
-#if WITH_METAL_PLATFORM		
+#if METALFX_PLUGIN_ENABLED		
 		if (MetalSupport == EMetalSupport::Supported)
 		{
 			MetalFXUpscaler = MakeShared<FMetalFXUpscalerCore, ESPMode::ThreadSafe>();
@@ -130,7 +146,7 @@ void FMetalFXModule::HandlePostRHIInitialized()
 
 void FMetalFXModule::HandleWorldBeginPlay(UWorld* World, const UWorld::InitializationValues InitValue)
 {
-#if !UE_BUILD_SHIPPING && WITH_METAL_PLATFORM
+#if !UE_BUILD_SHIPPING && METALFX_PLUGIN_ENABLED
 	if (World->IsGameWorld())
 	{
 		GEngine->AddOnScreenDebugMessage(-1, 15.f, GetIsSupportedByRHI() ? FColor::Emerald : FColor::Red, FString::Printf(TEXT("Apple MetaFX %s"), GetIsSupportedByRHI() ? TEXT("Enabled") : TEXT("Disabled")), true);

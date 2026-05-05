@@ -1,8 +1,8 @@
 #pragma once
 #include "SceneViewExtension.h"
-#if WITH_METAL_PLATFORM
+#if METALFX_PLUGIN_ENABLED
 #include "MetalFXTemporalUpscaler.h"
-#endif
+#endif //METALFX_PLUGIN_ENABLED
 
 typedef FRDGBuilder FRenderGraphType;
 
@@ -23,13 +23,12 @@ public:
 protected:
 	virtual bool IsActiveThisFrame_Internal(const FSceneViewExtensionContext& Context) const override;
 private:
-
 	const bool IsMetalFXEnable() const { return bMetalFXEnabled;}
 
 private:
-#if WITH_METAL_PLATFORM
+#if METALFX_PLUGIN_ENABLED
 	TUniquePtr<FMetalFXTemporalUpscaler> m_Upscaler;
-#endif
+#endif //METALFX_PLUGIN_ENABLED
 
 	//애초에 Not Supported면 ViewExtension 생성 자체가 안됨
 	bool bMetalFXEnabled = false;

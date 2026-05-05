@@ -35,7 +35,7 @@ void FMetalFXViewExtension::BeginRenderViewFamily(FSceneViewFamily& InViewFamily
 		return;
 	}
 	
-#if WITH_METAL_PLATFORM
+#if METALFX_PLUGIN_ENABLED
 	FMetalFXModule& MetalFXModule = FModuleManager::GetModuleChecked<FMetalFXModule>(TEXT("MetalFX"));
 	FMetalFXUpscalerCore* Upscaler = MetalFXModule.GetMetalFXUpscaler();
 	bool IsTemporalUpscalingRequested = false;
@@ -56,7 +56,7 @@ void FMetalFXViewExtension::BeginRenderViewFamily(FSceneViewFamily& InViewFamily
 	{
 		InViewFamily.SetTemporalUpscalerInterface(new FMetalFXTemporalUpscaler(Upscaler));
 	}
-#endif
+#endif //METALFX_PLUGIN_ENABLED
 }
 
 void FMetalFXViewExtension::PreRenderViewFamily_RenderThread(FRenderGraphType& GraphBuilder, FSceneViewFamily& InViewFamily)

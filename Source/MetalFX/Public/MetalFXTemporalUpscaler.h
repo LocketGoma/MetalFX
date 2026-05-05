@@ -59,7 +59,7 @@ private:
 	}
 };
 
-#if WITH_METAL_PLATFORM
+#if METALFX_PLUGIN_ENABLED
 class FMetalFXTemporalUpscaler final : public ITemporalUpscaler
 {
 public:
@@ -83,4 +83,4 @@ private:
 	FIntRect ViewRect;
 	FIntRect OutputRect;
 };
-#endif
+#endif //METALFX_PLUGIN_ENABLED

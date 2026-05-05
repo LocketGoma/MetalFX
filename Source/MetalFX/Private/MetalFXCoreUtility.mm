@@ -1,14 +1,14 @@
 #include "MetalFXCoreUtility.h"
 #include "MetalFXHelper.h"
 
-#if PLATFORM_IOS || PLATFORM_MAC
+#if PLATFORM_IOS || PLATFORM_MAC || PLAYFORM_APPLE
 #define METAL_PLATFORM_TARGET 1
 #else
 #define METAL_PLATFORM_TARGET 0
 #endif
 
 //= Enabled If MetalFX Plugin Enabled
-#if WITH_METAL_PLATFORM
+#if METALFX_PLUGIN_ENABLED
 
 //------------Checker Utility Functions For MetalFX----------------
 
@@ -84,6 +84,10 @@ int32 MetalFXQuerySupportReason()
 }
 
 
+//------------Checker Utility Functions For MetalFX---------------- (End)
+
+
+//------------MetalFX System Utility Functions--------------------
 
 #ifdef __cplusplus
 extern "C"
@@ -119,10 +123,8 @@ id<MTLFXTemporalScaler> MetalFXCreateTemporalUpscaler(id<MTLDevice> Device, int 
 	return nil;
 }
 
-//------------Checker Utility Functions For MetalFX---------------- (End)
 
 
-//------------MetalFX System Utility Functions--------------------
 
 #ifdef __cplusplus
 extern "C"
@@ -223,4 +225,4 @@ void MetalFXSetMotionVectorScale(id<MTLFXTemporalScaler> Scaler, int OffsetX, in
 
 
 
-#endif //WITH_METAL_PLATFORM
+#endif //METALFX_PLUGIN_ENABLED

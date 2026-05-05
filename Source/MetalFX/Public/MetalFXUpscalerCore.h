@@ -16,7 +16,7 @@ public:
 
 	static EMetalFXSupportReason GetIsSupportedDevice();
 	
-#if WITH_METAL_PLATFORM
+#if METALFX_PLUGIN_ENABLED
 	float GetMinUpsampleResolutionFraction() const;
 	float GetMaxUpsampleResolutionFraction() const;
 	
@@ -47,5 +47,5 @@ private:
 
 	uint32_t m_InW, m_InH;
 	uint32_t m_OutW, m_OutH;
-#endif
+#endif //METALFX_PLUGIN_ENABLED
 };

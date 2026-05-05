@@ -2,7 +2,7 @@
 
 #include "MetalFXSettings.h"
 
-#if WITH_METAL_PLATFORM
+#if METALFX_PLUGIN_ENABLED
 #include "MetalRHI.h"
 #include "MetalFXCoreUtility.h"
 #include <Foundation/Foundation.hpp>
@@ -23,7 +23,7 @@ struct MetalFXModule
 #endif
 };
 
-#endif	//WITH_METAL_PLATFORM 
+#endif	//METALFX_PLUGIN_ENABLED 
 
 void FMetalFXUpscalerCore::Tick(FRHICommandListImmediate& RHICmdList)
 {
@@ -31,7 +31,7 @@ void FMetalFXUpscalerCore::Tick(FRHICommandListImmediate& RHICmdList)
 }
 FMetalFXUpscalerCore::FMetalFXUpscalerCore()
 {
-#if WITH_METAL_PLATFORM
+#if METALFX_PLUGIN_ENABLED
 	pModules = std::make_unique<MetalFXModule>();
 
 	//정해지지 않았을때의 디폴트 값.
@@ -39,12 +39,12 @@ FMetalFXUpscalerCore::FMetalFXUpscalerCore()
 	m_OutW = 2560;
 	m_InH = 1440; 
 	m_OutH = 1440;
-#endif //WITH_METAL_PLATFORM 
+#endif //METALFX_PLUGIN_ENABLED 
 }
 
 FMetalFXUpscalerCore::~FMetalFXUpscalerCore()
 {
-#if WITH_METAL_PLATFORM
+#if METALFX_PLUGIN_ENABLED
 #if METALFX_METALCPP
 	pModules->m_CppCommandQueue.reset();
 	pModules->m_CppScaler.reset();
@@ -57,10 +57,10 @@ FMetalFXUpscalerCore::~FMetalFXUpscalerCore()
 	
 	pModules.reset();
 #endif
-#endif	//WITH_METAL_PLATFORM
+#endif	//METALFX_PLUGIN_ENABLED
 }
 
-#if WITH_METAL_PLATFORM
+#if METALFX_PLUGIN_ENABLED
 namespace MTL
 {
 	class Texture;
@@ -315,11 +315,11 @@ void FMetalFXUpscalerCore::Encode()
 	}
 #endif
 }
-#endif  //WITH_METAL_PLATFORM 
+#endif  //METALFX_PLUGIN_ENABLED 
 
 EMetalFXSupportReason FMetalFXUpscalerCore::GetIsSupportedDevice()
 {
-#if WITH_METAL_PLATFORM
+#if METALFX_PLUGIN_ENABLED
 	switch (MetalFXQuerySupportReason())
 	{
 		case static_cast<int32>(EMetalFXSupportReason::Supported) :

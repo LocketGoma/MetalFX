@@ -40,8 +40,6 @@ private:
 	TSharedPtr<FMetalFXUpscalerCore, ESPMode::ThreadSafe> MetalFXUpscaler;
 	TSharedPtr<FMetalFXViewExtension, ESPMode::ThreadSafe> MetalFXViewExtension;
 
-#if WITH_METAL_PLATFORM
-#endif
 	EMetalSupportDevice MetalSupport = EMetalSupportDevice::NotSupported;
 	EMetalFXSupportReason MetalFXSupport = EMetalFXSupportReason::NotSupported;
 };
