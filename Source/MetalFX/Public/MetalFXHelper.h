@@ -12,14 +12,14 @@ DECLARE_LOG_CATEGORY_EXTERN(LogMetalFX, Verbose, All);
 
 #define METALFX_METALCPP 1
 
-//=Metal이 지원되는 Apple 기기인지 아닌지
+//= Metal이 지원되는 Apple 기기인지 아닌지
 enum class EMetalSupportDevice : uint8
 {
 	Supported,
 	NotSupported
 };
 
-//=MetalFX 가능한 환경인지 여부
+//= MetalFX 가능한 환경인지 여부
 enum class EMetalFXSupportReason : uint8
 {
 	Supported,
@@ -30,7 +30,7 @@ enum class EMetalFXSupportReason : uint8
 	NotSupportedMetalFXCreationFailed,
 };
 
-//=MetalFX 관련 최종 판단 (SpatialType / TemporalType 인 경우에만 MetalFX 정상 작동)
+//= MetalFX 관련 최종 판단 (SpatialType / TemporalType 인 경우에만 MetalFX 정상 작동)
 enum class EMetalFXServiceReason : uint8
 {
 	//Something Wrong
@@ -47,7 +47,7 @@ enum class EMetalFXServiceReason : uint8
 	
 	//=aka Apple Device & (like) flagship devices.
 	TemporalType
-}
+};
 
 
 

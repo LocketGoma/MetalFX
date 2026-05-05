@@ -14,7 +14,7 @@ public:
 	FMetalFXUpscalerCore();
 	virtual ~FMetalFXUpscalerCore() override;
 
-	static EMetalFXSupport GetIsSupportedDevice();
+	static EMetalFXSupportReason GetIsSupportedDevice();
 	
 #if WITH_METAL_PLATFORM
 	float GetMinUpsampleResolutionFraction() const;

@@ -53,8 +53,8 @@ void FMetalFXModule::StartupModule()
 
 void FMetalFXModule::ShutdownModule()
 {
-	MetalSupport = EMetalSupport::NotSupported;
-	MetalFXSupport = EMetalFXSupport::NotSupported;
+	MetalSupport = EMetalSupportDevice::NotSupported;
+	MetalFXSupport = EMetalFXSupportReason::NotSupported;
 	MetalFXViewExtension = nullptr;
 	FCoreDelegates::OnPostEngineInit.Remove(OnPostRHIInitialized);
 	FWorldDelegates::OnPostWorldInitialization.Remove(OnPostWorldBeginPlay);
@@ -62,12 +62,12 @@ void FMetalFXModule::ShutdownModule()
 	UE_LOG(LogMetalFX, Log, TEXT("MetalFX Temporal Upscaling Module Shutdown"));
 }
 
-EMetalSupport FMetalFXModule::QueryMetalSupport() const
+EMetalSupportDevice FMetalFXModule::QueryMetalSupport() const
 {
 	return MetalSupport;
 }
 
-EMetalFXSupport FMetalFXModule::QueryMetalFXSupport() const
+EMetalFXSupportReason FMetalFXModule::QueryMetalFXSupport() const
 {
 	return MetalFXSupport;
 }
@@ -82,7 +82,7 @@ FMetalFXUpscalerCore* FMetalFXModule::GetMetalFXUpscaler() const
 
 bool FMetalFXModule::GetIsSupportedByRHI() const
 {
-	return ((MetalSupport == EMetalSupport::Supported) && (MetalFXSupport == EMetalFXSupport::Supported));	
+	return ((MetalSupport == EMetalSupportDevice::Supported) && (MetalFXSupport == EMetalFXSupportReason::Supported));	
 }
 
 void FMetalFXModule::SetMetalFXUpscaler(TSharedPtr<FMetalFXUpscalerCore, ESPMode::ThreadSafe> Upscaler)
@@ -94,13 +94,13 @@ void FMetalFXModule::HandlePostRHIInitialized()
 {
 	if (!GDynamicRHI)
 	{
-		UE_LOG(LogMetalFX, Log, TEXT("Apple MetalFX requires an RHI"));
-		MetalSupport = EMetalSupport::NotSupported;
+		UE_LOG(LogMetalFX, Log, TEXT("Apple MetalFX requires an Apple's RHI"));
+		MetalSupport = EMetalSupportDevice::NotSupported;
 	}
 	
-	MetalSupport = (IsMetalPlatform(GMaxRHIShaderPlatform) ? EMetalSupport::Supported : EMetalSupport::NotSupported);
+	MetalSupport = (IsMetalPlatform(GMaxRHIShaderPlatform) ? EMetalSupportDevice::Supported : EMetalSupportDevice::NotSupported);
 	
-	if (MetalSupport == EMetalSupport::Supported)
+	if (MetalSupport == EMetalSupportDevice::Supported)
 	{
 		MetalFXSupport = FMetalFXUpscalerCore::GetIsSupportedDevice();
 #if WITH_METAL_PLATFORM		
@@ -112,7 +112,7 @@ void FMetalFXModule::HandlePostRHIInitialized()
 	}
 	else
 	{
-		MetalFXSupport = EMetalFXSupport::NotSupported;
+		MetalFXSupport = EMetalFXSupportReason::NotSupported;
 	}
 
 	if (GetIsSupportedByRHI())

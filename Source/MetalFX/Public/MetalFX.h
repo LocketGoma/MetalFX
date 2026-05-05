@@ -24,8 +24,8 @@ public:
 	virtual void StartupModule() override;
 	virtual void ShutdownModule() override;	
 	
-	EMetalSupport QueryMetalSupport() const;
-	EMetalFXSupport QueryMetalFXSupport() const;
+	EMetalSupportDevice QueryMetalSupport() const;
+	EMetalFXSupportReason QueryMetalFXSupport() const;
 
 	FMetalFXUpscalerCore* GetMetalFXUpscaler() const;
 	bool GetIsSupportedByRHI() const;
@@ -42,6 +42,6 @@ private:
 
 #if WITH_METAL_PLATFORM
 #endif
-	EMetalSupport MetalSupport = EMetalSupport::NotSupported;
-	EMetalFXSupport MetalFXSupport = EMetalFXSupport::NotSupported;
+	EMetalSupportDevice MetalSupport = EMetalSupportDevice::NotSupported;
+	EMetalFXSupportReason MetalFXSupport = EMetalFXSupportReason::NotSupported;
 };

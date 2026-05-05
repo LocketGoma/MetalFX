@@ -317,38 +317,38 @@ void FMetalFXUpscalerCore::Encode()
 }
 #endif  //WITH_METAL_PLATFORM 
 
-EMetalFXSupport FMetalFXUpscalerCore::GetIsSupportedDevice()
+EMetalFXSupportReason FMetalFXUpscalerCore::GetIsSupportedDevice()
 {
 #if WITH_METAL_PLATFORM
 	switch (MetalFXQuerySupportReason())
 	{
-		case static_cast<int32>(EMetalFXSupport::Supported) :
+		case static_cast<int32>(EMetalFXSupportReason::Supported) :
 		{
 			UE_LOG(LogRHI, Log, TEXT("MetalFX Supported Device."));
-			return EMetalFXSupport::Supported;
+			return EMetalFXSupportReason::Supported;
 		}
-		case static_cast<int32>(EMetalFXSupport::NotSupportedOldDiviceType) :
+		case static_cast<int32>(EMetalFXSupportReason::NotSupportedOldDiviceType) :
 		{
 			UE_LOG(LogRHI, Warning, TEXT("MetalFX Not Supported this Device. Device is Too old"));
-			return EMetalFXSupport::NotSupportedOldDiviceType;
+			return EMetalFXSupportReason::NotSupportedOldDiviceType;
 		}
-		case static_cast<int32>(EMetalFXSupport::NotSupportediOSOutOfDate) :
+		case static_cast<int32>(EMetalFXSupportReason::NotSupportediOSOutOfDate) :
 		{
 			UE_LOG(LogRHI, Warning, TEXT("MetalFX Not Supported, iOS version is Too old"));
-			return EMetalFXSupport::NotSupportediOSOutOfDate;
+			return EMetalFXSupportReason::NotSupportediOSOutOfDate;
 		}
-		case static_cast<int32>(EMetalFXSupport::NotSupportedMetalFXFrameworkMissing) :
+		case static_cast<int32>(EMetalFXSupportReason::NotSupportedMetalFXFrameworkMissing) :
 		{
 			UE_LOG(LogRHI, Warning, TEXT("MetalFX Not Supported, Framework Missing."));
-			return EMetalFXSupport::NotSupportedMetalFXFrameworkMissing;
+			return EMetalFXSupportReason::NotSupportedMetalFXFrameworkMissing;
 		}
-		case static_cast<int32>(EMetalFXSupport::NotSupportedMetalFXCreationFailed) :
+		case static_cast<int32>(EMetalFXSupportReason::NotSupportedMetalFXCreationFailed) :
 		{
 			UE_LOG(LogRHI, Warning, TEXT("MetalFX Not Supported, MetalFX Creation Failed"));
-			return EMetalFXSupport::NotSupportedMetalFXCreationFailed;
+			return EMetalFXSupportReason::NotSupportedMetalFXCreationFailed;
 		}
 	}
 #endif
 	UE_LOG(LogRHI, Warning, TEXT("MetalFX Not Supported this Environment."));
-	return EMetalFXSupport::NotSupported;
+	return EMetalFXSupportReason::NotSupported;
 }
