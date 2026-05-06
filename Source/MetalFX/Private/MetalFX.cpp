@@ -22,8 +22,9 @@ DEFINE_LOG_CATEGORY(LogMetalFX);
 		#error "Setting on ios Platform, but Plugin and Platfrom Validation Failed."
 	#endif
 
-#if (METALFX_NATIVE && METALFX_METALCPP)
-	#error "You Must select SPECPIC METAL SDK TYPE. Can not use Multiple Types."
+	#if (METALFX_NATIVE && METALFX_METALCPP)
+		#error "You Must select SPECPIC METAL SDK TYPE. Can not use Multiple Types."
+	#endif
 #endif
 
 void FMetalFXModule::StartupModule()
@@ -32,9 +33,9 @@ void FMetalFXModule::StartupModule()
 	OnPostWorldBeginPlay = FWorldDelegates::OnPostWorldInitialization.AddRaw(this, &FMetalFXModule::HandleWorldBeginPlay);
 
 	//Shader 부착
-	FString BaseDir = IPluginManager::Get().FindPlugin("MetalFX")->GetBaseDir();
-	FString ShaderDir = FPaths::Combine(BaseDir, TEXT("Shaders"));
-	AddShaderSourceDirectoryMapping(TEXT("/Plugin/MetalFX"), ShaderDir);
+	//FString BaseDir = IPluginManager::Get().FindPlugin("MetalFX")->GetBaseDir();
+	//FString ShaderDir = FPaths::Combine(BaseDir, TEXT("Shaders"));
+	//AddShaderSourceDirectoryMapping(TEXT("/Plugin/MetalFX"), ShaderDir);
 	
 //콘솔 설정 추가
 	FCoreDelegates::OnPostEngineInit.AddLambda([]()

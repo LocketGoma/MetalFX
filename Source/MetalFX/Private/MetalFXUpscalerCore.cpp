@@ -285,6 +285,7 @@ void FMetalFXUpscalerCore::Encode(const FMetalFXParameters& Parameters)
 {
 #if !METALFX_NATIVE
 	UE_LOG(LogMetalFX, Error, TEXT("You Try Call [Objective-C++ Version], but this Enviroment is MetalCPP."));
+#else
    CheckValidate();
    @autoreleasepool
    {
@@ -332,10 +333,10 @@ EMetalFXSupportReason FMetalFXUpscalerCore::GetIsSupportedDevice()
 			UE_LOG(LogRHI, Warning, TEXT("MetalFX Not Supported this Device. Device is Too old"));
 			return EMetalFXSupportReason::NotSupportedOldDiviceType;
 		}
-		case static_cast<int32>(EMetalFXSupportReason::NotSupportediOSOutOfDate) :
+		case static_cast<int32>(EMetalFXSupportReason::NotSupportedOSVersionOutOfDate) :
 		{
-			UE_LOG(LogRHI, Warning, TEXT("MetalFX Not Supported, iOS version is Too old"));
-			return EMetalFXSupportReason::NotSupportediOSOutOfDate;
+			UE_LOG(LogRHI, Warning, TEXT("MetalFX Not Supported, OS version is Too old"));
+			return EMetalFXSupportReason::NotSupportedOSVersionOutOfDate;
 		}
 		case static_cast<int32>(EMetalFXSupportReason::NotSupportedMetalFXFrameworkMissing) :
 		{

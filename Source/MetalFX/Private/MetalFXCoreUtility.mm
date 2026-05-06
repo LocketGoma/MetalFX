@@ -1,21 +1,20 @@
 #include "MetalFXCoreUtility.h"
 #include "MetalFXHelper.h"
 
-#if PLATFORM_IOS || PLATFORM_MAC || PLAYFORM_APPLE
-#define METAL_PLATFORM_TARGET 1
-#else
-#define METAL_PLATFORM_TARGET 0
-#endif
-
 //= Enabled If MetalFX Plugin Enabled
 #if METALFX_PLUGIN_ENABLED
 
 //------------Checker Utility Functions For MetalFX----------------
 
+//------------Inner Utility Functions------------
+//aka Obj-C Utility Function
+//현재 파일 안에서만 작동되는 유틸리티 함수들
+
 //(if Metal RHI) Get Metal Device Info From RHI.
+//예기치 못한 RHI 정보 유실을 방지하기 위해 매번 새로 얻어오도록 처리
 static id<MTLDevice> GetMetalFXDevice()
 {
-#if METAL_PLATFORM_TARGET
+#if METALFX_PLUGIN_ENABLED
 	if (GDynamicRHI == nullptr)
 	{
 		return nil;
@@ -28,42 +27,95 @@ static id<MTLDevice> GetMetalFXDevice()
 }
 
 
-static BOOL IsSystemVersionAtLeast(NSString* MinVersion)
+static BOOL IsSystemVersionAtLeast(NSInteger Major, NSInteger Minor = 0, NSInteger Patch = 0)
 {
-#if WITH_METALFX_TARGET_IOS
-	if(@available(iOS 17.0, *))
-	{
-		NSString* cur = [[UIDevice currentDevice] systemVersion];
-		NSComparisonResult r = [cur compare:MinVersion options:NSNumericSearch];
-		return (r == NSOrderedSame || r == NSOrderedDescending);
-	}
+#if METALFX_PLUGIN_ENABLED
+	NSOperatingSystemVersion RequiredVersion;
+	RequiredVersion.majorVersion = Major;
+	RequiredVersion.minorVersion = Minor;
+	RequiredVersion.patchVersion = Patch;
+
+	return [[NSProcessInfo processInfo] isOperatingSystemAtLeastVersion:RequiredVersion];
+
 #endif
-	return false;
+	return NO;
 }
 
+//내부 함수 - MetalFX 기동 조건 체크
 static BOOL IsMetalFXSupported()
 {
-	return false;
+#if METALFX_PLUGIN_ENABLED
+	id<MTLDevice> MetalDevice = GetMetalFXDevice();
+
+	// 1. MetalDevice가 없음 = 아예 실패
+	if (MetalDevice == nil)
+	{
+		return NO;
+	}
+	
+#if WITH_METALFX_TARGET_MAC
+	// Mac인 경우 = OS 조건 + Apple SoC
+	BOOL bIsAppleSoC = [MetalDevice supportsFamily:MTLGPUFamilyApple1];
+	
+	return IsSystemVersionAtLeast(13, 0) && bIsAppleSoC;
+#endif
+	
+#if WITH_METALFX_TARGET_IOS
+	// iOS인 경우 = OS 조건만 (짜피 그 이하 OS밖에 못쓰면 돌아가지도 않을테니)
+	return IsSystemVersionAtLeast(18, 0);
+#endif
+	
+#endif
+	return NO;
 }
 
+//MetalFX 는 가능한데, Temporal 이 가능한지 체크 여부 (Mac - M3 / iPhone&iPad - A17Pro)
+static BOOL IsMetalFXTemporalPolicyGPU()
+{
+#if METALFX_PLUGIN_ENABLED
+	id<MTLDevice> MetalDevice = GetMetalFXDevice();
+
+	// 1. MetalDevice가 없음 = 아예 실패
+	if (MetalDevice == nil)
+	{
+		return NO;
+	}
+	
+	if (IsMetalFXSupported())
+	{		
+		return MetalDevice != nil && [MetalDevice supportsFamily:MTLGPUFamilyApple9];
+	}
+#endif
+	return NO;
+}
+
+//------------Inner Utility Functions------------ (End)
+
+//------------Outer Utility Functions------------
+// aka. Obj-C Wrapper for UE Native
+
+//어떤 타입의 MetalFX 기동이 가능한지 확인하는 유틸함수
 extern "C"
 int32 MetalFXQuerySupportReason()
 {
 	using Reason = EMetalFXSupportReason;
 
-	id<MTLDevice> MetalDevice = (id<MTLDevice>)GDynamicRHI->RHIGetNativeDevice();
-
-	// 1. MetalDevice가 없음 = 아예 실패
-	if (MetalDevice == nil)
+	// 2. OS 버전 체크
+#if WITH_METALFX_TARGET_MAC
+	// Mac OS - 최소 Mac OS 13 이상에서만 MetalFX 시도 (정책에 맞게 조절 가능)
+	if (!IsSystemVersionAtLeast(13, 0))
 	{
-		return static_cast<int32>(Reason::NotSupportedOldDiviceType);
+		return static_cast<int32>(Reason::NotSupportedOSVersionOutOfDate);
 	}
-
-	// 2. OS 버전: 최소 iOS 18 이상에서만 MetalFX 시도 (정책에 맞게 조정 가능)
-	if (!IsSystemVersionAtLeast(@"18.0"))
+#endif
+	
+#if WITH_METALFX_TARGET_IOS
+	// iOS - 최소 iOS 18 이상에서만 MetalFX 시도 (정책에 맞게 조정 가능)
+	if (!IsSystemVersionAtLeast(18.0))
 	{
-		return static_cast<int32>(Reason::NotSupportediOSOutOfDate);
+		return static_cast<int32>(Reason::NotSupportedOSVersionOutOfDate);
 	}
+#endif
 
 	// 3. MetalFX 클래스 존재 여부 (헤더/런타임 불일치 or 프레임워크 미포함) - 보통 발생하면 안됨
 	Class DescClass = NSClassFromString(@"MTLFXTemporalScalerDescriptor");
@@ -73,6 +125,14 @@ int32 MetalFXQuerySupportReason()
 	}
 
 	// 4. 실제 TemporalScaler 생성이 가능한지 확인
+	id<MTLDevice> MetalDevice = GetMetalFXDevice();
+
+	// 1. MetalDevice가 없음 = 아예 실패
+	if (MetalDevice == nil)
+	{
+		return static_cast<int32>(Reason::NotSupported);
+	}
+	
 	id<MTLFXTemporalScaler> TestScaler = MetalFXCreateTemporalUpscaler(MetalDevice, 64, 64, 64, 64);
 	
 	if (TestScaler == nil)
@@ -86,6 +146,7 @@ int32 MetalFXQuerySupportReason()
 }
 
 
+//------------Outer Utility Functions------------ (End)
 //------------Checker Utility Functions For MetalFX---------------- (End)
 
 
@@ -96,11 +157,11 @@ extern "C"
 #endif
 id<MTLFXTemporalScaler> MetalFXCreateTemporalUpscaler(id<MTLDevice> Device, int InputWidth, int InputHeight, int OutputWidth, int OutputHeight) 
 {
-#if METAL_PLATFORM_TARGET
+#if METALFX_PLUGIN_ENABLED
 	// 이 버전 이하에선 MetalFX 자체를 못쓰도록 처리
-	if (!IsSystemVersionAtLeast(@"18.0"))
+	if (!IsMetalFXTemporalPolicyGPU())
 	{
-		NSLog(@"MetalFX Upscaler Can not Activate this OS Version. Please Check.");
+		NSLog(@"CAN NOT Active MetalFX Temporal Upscaler for this Envioment. Please Check.");
 	}
 
 	MTLFXTemporalScalerDescriptor* Desc = [MTLFXTemporalScalerDescriptor new];
@@ -121,12 +182,9 @@ id<MTLFXTemporalScaler> MetalFXCreateTemporalUpscaler(id<MTLDevice> Device, int 
 	
 	return Scaler;
 
-#endif // METAL_PLATFORM_TARGET
+#endif // METALFX_PLUGIN_ENABLED
 	return nil;
 }
-
-
-
 
 #ifdef __cplusplus
 extern "C"
@@ -169,7 +227,7 @@ extern "C"
 #endif
 void MetalFXEncode(id<MTLFXTemporalScaler> Scaler, id<MTLCommandBuffer> CmdBuffer, id<MTLTexture> Color, id<MTLTexture> Depth, id<MTLTexture> Motion, id<MTLTexture> Output, bool bReset)
 {
-#if METAL_PLATFORM_TARGET
+#if METALFX_PLUGIN_ENABLED
 	if (!Scaler || !CmdBuffer)
 	{
 		NSLog(@"MetalFX Upscaler or CommandBuffer is Invalidate.");
@@ -185,9 +243,12 @@ void MetalFXEncode(id<MTLFXTemporalScaler> Scaler, id<MTLCommandBuffer> CmdBuffe
 		Scaler.reset = YES;
 	}
 
+	NSLog(@"[MetalFX] CmdBuffer class = %@", NSStringFromClass([CmdBuffer class]));
+	NSLog(@"[MetalFX] Scaler class = %@", NSStringFromClass([Scaler class]));
+	
 	[Scaler encodeToCommandBuffer:CmdBuffer];
-	[CmdBuffer commit];
-#endif //METAL_PLATFORM_TARGET
+	//[CmdBuffer commit];
+#endif //METALFX_PLUGIN_ENABLED
 }
 
 #ifdef __cplusplus
@@ -212,7 +273,7 @@ extern "C"
 #endif
 void MetalFXSetMotionVectorScale(id<MTLFXTemporalScaler> Scaler, int OffsetX, int OffsetY)
 {
-#if METAL_PLATFORM_TARGET
+#if METALFX_PLUGIN_ENABLED
 	if (!Scaler)
 	{
 		NSLog(@"MetalFX Upscaler is Invalidate.");
@@ -221,7 +282,7 @@ void MetalFXSetMotionVectorScale(id<MTLFXTemporalScaler> Scaler, int OffsetX, in
 
 	Scaler.motionVectorScaleX	= OffsetX;
 	Scaler.motionVectorScaleY	= OffsetY;
-#endif //METAL_PLATFORM_TARGET
+#endif //METALFX_PLUGIN_ENABLED
 }
 //------------MetalFX System Utility Functions-------------------- (End)
 
