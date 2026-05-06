@@ -77,7 +77,7 @@ const bool FMetalFXTemporalUpscaler::GetIsSupportedDevice()
 {
 	if (m_FxUpscaler)
 	{
-		return (m_FxUpscaler->GetIsSupportedDevice() == EMetalFXSupport::Supported);
+		return (m_FxUpscaler->GetIsSupportedDevice() == EMetalFXSupportReason::Supported);
 	}
 	return false;
 }
@@ -140,7 +140,7 @@ ITemporalUpscaler::FOutputs FMetalFXTemporalUpscaler::AddPasses(FRDGBuilder& Gra
 #if METALFX_METALCPP
 			m_FxUpscaler->SetTextures(*PassParams);
 			m_FxUpscaler->Encode();
-#else
+#elif METALFX_NATIVE
 			m_FxUpscaler->Encode(*PassParams);
 #endif
 		});

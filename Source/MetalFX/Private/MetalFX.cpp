@@ -21,6 +21,9 @@ DEFINE_LOG_CATEGORY(LogMetalFX);
 	#if (WITH_METALFX_TARGET_IOS && !PLATFORM_IOS) || (!WITH_METALFX_TARGET_IOS && PLATFORM_IOS)
 		#error "Setting on ios Platform, but Plugin and Platfrom Validation Failed."
 	#endif
+
+#if (METALFX_NATIVE && METALFX_METALCPP)
+	#error "You Must select SPECPIC METAL SDK TYPE. Can not use Multiple Types."
 #endif
 
 void FMetalFXModule::StartupModule()
@@ -120,7 +123,7 @@ void FMetalFXModule::HandlePostRHIInitialized()
 	{
 		MetalFXSupport = FMetalFXUpscalerCore::GetIsSupportedDevice();
 #if METALFX_PLUGIN_ENABLED		
-		if (MetalSupport == EMetalSupport::Supported)
+		if (MetalSupport == EMetalSupportDevice::Supported)
 		{
 			MetalFXUpscaler = MakeShared<FMetalFXUpscalerCore, ESPMode::ThreadSafe>();
 		}

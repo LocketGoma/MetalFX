@@ -1,6 +1,7 @@
 #include "MetalFXUpscalerCore.h"
-
 #include "MetalFXSettings.h"
+#include "RenderGraphBuilder.h"
+#include "RenderGraphUtils.h"
 
 #if METALFX_PLUGIN_ENABLED
 #include "MetalRHI.h"
@@ -17,7 +18,7 @@ struct MetalFXModule
 	NS::SharedPtr<MTL::Device> m_CppDevice;
 	NS::SharedPtr<MTL::CommandQueue> m_CppCommandQueue;
 	NS::SharedPtr<MTLFX::TemporalScaler> m_CppScaler;
-#else
+#elif METALFX_NATIVE
 	id<MTLDevice> m_Device;
 	id<MTLFXTemporalScaler> m_Scaler;
 #endif
@@ -50,7 +51,7 @@ FMetalFXUpscalerCore::~FMetalFXUpscalerCore()
 	pModules->m_CppScaler.reset();
 	//RHI에서 직접 가져온거라 reset 하면 터질듯... 테스트 필요함.
 	//pModules->m_CppDevice.reset();
-#else
+#elif METALFX_NATIVE
 	//[pModules->m_Device release]
 	[pModules->m_Scaler release];
 	pModules->m_Scaler = nil;
@@ -83,7 +84,7 @@ MTL::Texture* ToMTLTexture(const FRDGTextureRef& In)
    FRHITexture*     HiTex  = RdgTex->GetRHI();
    return static_cast<MTL::Texture *>(HiTex->GetNativeResource());
 }
-#else
+#elif METALFX_NATIVE
 id<MTLTexture> ToOBJCTexture(const FRDGTextureRef& In)
 {
    // 1) RDG 텍스처 가져오기
@@ -173,7 +174,7 @@ bool FMetalFXUpscalerCore::Initialize()
 	}
 	bSuccess = (pModules->m_CppScaler.get() != nullptr);
 
-#else
+#elif METALFX_NATIVE
 	if (pModules->m_Scaler != nil)
 	{
 		//메모리 해제 대기상태로 만듬
@@ -207,7 +208,7 @@ void FMetalFXUpscalerCore::UpdateInputRect(FIntPoint InRect)
 #if METALFX_METALCPP
 	pModules->m_CppScaler->setInputContentWidth(m_InW);
 	pModules->m_CppScaler->setInputContentHeight(m_InW);
-#else
+#elif METALFX_NATIVE
 	MetalFXUpdateScalerResolution(pModules->m_Scaler, m_InW, m_InH);
 #endif
 }
@@ -233,7 +234,7 @@ const void FMetalFXUpscalerCore::CheckValidate() const
 	bool bValidate = false;
 #if METALFX_METALCPP
 	bValidate = (pModules != nullptr) && (pModules->m_CppScaler.get() != nullptr);
-#else
+#elif METALFX_NATIVE
 	bValidate = (pModules != nullptr) && (pModules->m_Scaler != nil);
 #endif	
    checkf(bValidate, TEXT("You Trying To Using MetalFX. but MetalFX Upscaler Core Not Ready or Crashed. You Must Check MetalFX Upscaler Logics. see MetalFXUpscalerCore Class For More Infomations."));
@@ -260,7 +261,7 @@ void FMetalFXUpscalerCore::SetJitterOffset(FVector2D Offset)
 	  CheckValidate();
 	  pModules->m_CppScaler->setJitterOffsetX(static_cast<float>(Offset.X));
 	  pModules->m_CppScaler->setJitterOffsetY(static_cast<float>(Offset.Y));
-#else
+#elif METALFX_NATIVE
 	MetalFXSetJitterOffset(pModules->m_Scaler, Offset.X, Offset.Y);
 #endif
    }
@@ -274,7 +275,7 @@ void FMetalFXUpscalerCore::SetMotionVectorScale(FVector2D Scale)
 #if METALFX_METALCPP	
 		pModules->m_CppScaler->setMotionVectorScaleX(static_cast<float>(Scale.X));
 		pModules->m_CppScaler->setMotionVectorScaleY(static_cast<float>(Scale.Y));
-#else
+#elif METALFX_NATIVE
 		MetalFXSetMotionVectorScale(pModules->m_Scaler, Scale.X, Scale.Y);
 #endif
 	}	
@@ -282,9 +283,8 @@ void FMetalFXUpscalerCore::SetMotionVectorScale(FVector2D Scale)
 
 void FMetalFXUpscalerCore::Encode(const FMetalFXParameters& Parameters)
 {
-#if METALFX_METALCPP
+#if !METALFX_NATIVE
 	UE_LOG(LogMetalFX, Error, TEXT("You Try Call [Objective-C++ Version], but this Enviroment is MetalCPP."));
-#else
    CheckValidate();
    @autoreleasepool
    {

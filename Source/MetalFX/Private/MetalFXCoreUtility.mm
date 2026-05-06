@@ -30,18 +30,20 @@ static id<MTLDevice> GetMetalFXDevice()
 
 static BOOL IsSystemVersionAtLeast(NSString* MinVersion)
 {
+#if WITH_METALFX_TARGET_IOS
 	if(@available(iOS 17.0, *))
 	{
 		NSString* cur = [[UIDevice currentDevice] systemVersion];
 		NSComparisonResult r = [cur compare:MinVersion options:NSNumericSearch];
 		return (r == NSOrderedSame || r == NSOrderedDescending);
 	}
+#endif
 	return false;
 }
 
 static BOOL IsMetalFXSupported()
 {
-	
+	return false;
 }
 
 extern "C"
