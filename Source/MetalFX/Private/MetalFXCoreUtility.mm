@@ -155,7 +155,7 @@ int32 MetalFXQuerySupportReason()
 #ifdef __cplusplus
 extern "C"
 #endif
-id<MTLFXTemporalScaler> MetalFXCreateTemporalUpscaler(id<MTLDevice> Device, int InputWidth, int InputHeight, int OutputWidth, int OutputHeight) 
+id<MTLFXTemporalScaler> MetalFXCreateTemporalUpscaler(id<MTLDevice> Device, const FMetalFXTextureFormatGroup Formats, int InputWidth, int InputHeight, int OutputWidth, int OutputHeight) 
 {
 #if METALFX_PLUGIN_ENABLED
 	// 이 버전 이하에선 MetalFX 자체를 못쓰도록 처리
@@ -171,11 +171,10 @@ id<MTLFXTemporalScaler> MetalFXCreateTemporalUpscaler(id<MTLDevice> Device, int 
 	Desc.outputWidth  = OutputWidth;
 	Desc.outputHeight = OutputHeight;
 	
-	//Format은 https://developer.apple.com/documentation/Metal/MTLPixelFormat?language=objc 참고
-	Desc.colorTextureFormat = MTLPixelFormat::MTLPixelFormatRGBA16Float;
-	Desc.depthTextureFormat = MTLPixelFormat::MTLPixelFormatDepth32Float;
-	Desc.motionTextureFormat = MTLPixelFormat::MTLPixelFormatRGBA16Float;
-	Desc.outputTextureFormat = MTLPixelFormat::MTLPixelFormatRGBA16Float;
+	Desc.colorTextureFormat  = (MTLPixelFormat)Formats.Color;
+	Desc.depthTextureFormat  = (MTLPixelFormat)Formats.Depth;
+	Desc.motionTextureFormat = (MTLPixelFormat)Formats.Motion;
+	Desc.outputTextureFormat = (MTLPixelFormat)Formats.Output;
 	Desc.autoExposureEnabled = true;
 	
 	id<MTLFXTemporalScaler> Scaler = [Desc newTemporalScalerWithDevice:Device];

@@ -39,6 +39,7 @@ public:
 	{
 		return IsMobilePlatform(Parameters.Platform) && IsMetalPlatform(Parameters.Platform);
 	}
+
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 	{
 		OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZEX"), ThreadgroupSizeX);
@@ -135,6 +136,7 @@ ITemporalUpscaler::FOutputs FMetalFXTemporalUpscaler::AddPasses(FRDGBuilder& Gra
 				return;
 			}
 			//받아오는 CommandBuffer 안쓰고 Metal에서 활성화중인 CommandBuffer 직접 가져오는것으로 로직 변경함
+			//-> 변경 예정
 			m_FxUpscaler->SetJitterOffset(DispatchParams.JitterOffset);
 			m_FxUpscaler->SetMotionVectorScale(DispatchParams.MotionVectorScale);
 #if METALFX_METALCPP

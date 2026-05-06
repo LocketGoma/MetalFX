@@ -291,6 +291,8 @@ struct MetalFXModule
 	id<MTLFXTemporalScaler> m_Scaler;
 	FMetalFXObjCTextureGroup TextureGroup;	
 #endif
+	//공용 (텍스쳐 포멧)
+	FMetalFXTextureFormatGroup Formats;
 };
 
 void FMetalFXUpscalerCore::Tick(FRHICommandListImmediate& RHICmdList)
@@ -386,10 +388,10 @@ bool FMetalFXUpscalerCore::Initialize()
 		Desc->setInputHeight(m_InH);
 		Desc->setOutputWidth(m_OutW);
 		Desc->setOutputHeight(m_OutH);
-		Desc->setColorTextureFormat(MTL::PixelFormat::PixelFormatRGBA16Float);
-		Desc->setDepthTextureFormat(MTL::PixelFormat::PixelFormatDepth32Float);
-		Desc->setMotionTextureFormat(MTL::PixelFormatRG16Float);
-		Desc->setOutputTextureFormat(MTL::PixelFormat::PixelFormatRGBA16Float);
+		Desc->setColorTextureFormat(static_cast<MTL::PixelFormat>(pModules.Formats.Color));
+		Desc->setDepthTextureFormat(static_cast<MTL::PixelFormat>(pModules.Formats.Depth));
+		Desc->setMotionTextureFormat(static_cast<MTL::PixelFormat>(pModules.Formats.Motion));
+		Desc->setOutputTextureFormat(static_cast<MTL::PixelFormat>(pModules.Formats.Output));
 		Desc->setAutoExposureEnabled(true);
    	
 		pModules->m_CppScaler = NS::RetainPtr(Desc->newTemporalScaler(pModules->m_CppDevice.get()));
@@ -410,7 +412,7 @@ bool FMetalFXUpscalerCore::Initialize()
 		pModules->m_Scaler = nil;
 	}
 	
-	pModules->m_Scaler = MetalFXCreateTemporalUpscaler(MetalDevice, m_InW, m_InH, m_OutW, m_OutH);
+	pModules->m_Scaler = MetalFXCreateTemporalUpscaler(MetalDevice, pModules.Formats, m_InW, m_InH, m_OutW, m_OutH);
 	bSuccess = pModules->m_Scaler != nil;
 #endif
 	
@@ -457,6 +459,7 @@ void FMetalFXUpscalerCore::UpdateResolution(FIntPoint InRect, FIntPoint OutRect)
    		Initialize();
 	}
 }
+
 const void FMetalFXUpscalerCore::CheckValidate() const
 {
 	bool bValidate = false;
@@ -471,38 +474,62 @@ const void FMetalFXUpscalerCore::CheckValidate() const
 void FMetalFXUpscalerCore::SetTextures(const FMetalFXParameters& Parameters)
 {
 #if METALFX_METALCPP
-   if (pModules)
-   {
-	  CheckValidate();
-	  //Color Texture
-	  pModules->TextureGroup.ColorTexture = GetMetalFX2DTextureView(ToMTLTexture(Parameters.ColorTexture));
-	  
-	  //Depth Texture 
-	  pModules->TextureGroup.DepthTexture = GetMetalFX2DTextureView(ToMTLTexture(Parameters.DepthTexture));
-	  
-	  //Velocity Texture 
-	  pModules->TextureGroup.VelocityTexture = GetMetalFX2DTextureView(ToMTLTexture(Parameters.VelocityTexture));
-	   
-	  //Output Texture 
-	  pModules->TextureGroup.OutputTexture = GetMetalFX2DTextureView(ToMTLTexture(Parameters.OutputTexture));
-   }
+	if (pModules)
+	{
+        CheckValidate();
+        //Color Texture
+        pModules->TextureGroup.ColorTexture = GetMetalFX2DTextureView(ToMTLTexture(Parameters.ColorTexture));
+        
+        //Depth Texture 
+        pModules->TextureGroup.DepthTexture = GetMetalFX2DTextureView(ToMTLTexture(Parameters.DepthTexture));
+        
+        //Velocity Texture 
+        pModules->TextureGroup.VelocityTexture = GetMetalFX2DTextureView(ToMTLTexture(Parameters.VelocityTexture));
+         
+        //Output Texture 
+        pModules->TextureGroup.OutputTexture = GetMetalFX2DTextureView(ToMTLTexture(Parameters.OutputTexture));
+        
+        FMetalFXTextureFormatGroup TempFormats;
+	  	TempFormats.Color = pModules->TextureGroup.ColorTexture.GetTexture()->pixelFormat();
+	  	TempFormats.Depth = pModules->TextureGroup.DepthTexture.GetTexture()->pixelFormat();
+	  	TempFormats.Motion = pModules->TextureGroup.VelocityTexture.GetTexture()->pixelFormat();
+	  	TempFormats.Output = pModules->TextureGroup.OutputTexture.GetTexture()->pixelFormat();
+
+		if (!pModules->Formats.IsValidFormat(TempFormats))
+        {
+			pModules->Formats = TempFormats;
+			Initialize();
+        }
+	}
 #endif
 	
 #if METALFX_NATIVE
-	if (pModules)
-	{
-	   CheckValidate();
-	   //Color Texture
-	   pModules->TextureGroup.ColorTexture = GetMetalFX2DTextureView(ToOBJCTexture(Parameters.ColorTexture));
-	   
-	   //Depth Texture 
-	   pModules->TextureGroup.DepthTexture = GetMetalFX2DTextureView(ToOBJCTexture(Parameters.DepthTexture));
-	   
-	   //Velocity Texture 
-	   pModules->TextureGroup.VelocityTexture = GetMetalFX2DTextureView(ToOBJCTexture(Parameters.VelocityTexture));
-		
-	   //Output Texture 
-	   pModules->TextureGroup.OutputTexture = GetMetalFX2DTextureView(ToOBJCTexture(Parameters.OutputTexture));
+    if (pModules)
+    {
+        CheckValidate();
+        //Color Texture
+        pModules->TextureGroup.ColorTexture = GetMetalFX2DTextureView(ToOBJCTexture(Parameters.ColorTexture));
+        
+        //Depth Texture 
+        pModules->TextureGroup.DepthTexture = GetMetalFX2DTextureView(ToOBJCTexture(Parameters.DepthTexture));
+        
+        //Velocity Texture 
+        pModules->TextureGroup.VelocityTexture = GetMetalFX2DTextureView(ToOBJCTexture(Parameters.VelocityTexture));
+        
+        //Output Texture 
+        pModules->TextureGroup.OutputTexture = GetMetalFX2DTextureView(ToOBJCTexture(Parameters.OutputTexture));
+
+        FMetalFXTextureFormatGroup TempFormats;
+	  	TempFormats.Color = (FMetalFXPixelFormat)[pModules->TextureGroup.ColorTexture.GetTexture() pixelFormat];
+	  	TempFormats.Depth = (FMetalFXPixelFormat)[pModules->TextureGroup.DepthTexture.GetTexture() pixelFormat];
+	  	TempFormats.Motion = (FMetalFXPixelFormat)[pModules->TextureGroup.VelocityTexture.GetTexture() pixelFormat];
+	  	TempFormats.Output = (FMetalFXPixelFormat)[pModules->TextureGroup.OutputTexture.GetTexture() pixelFormat];
+
+		if (!pModules->Formats.IsValidFormat(TempFormats))
+        {
+			pModules->Formats = TempFormats;
+			Initialize();
+        }
 	}
 #endif
 }
@@ -549,7 +576,6 @@ void FMetalFXUpscalerCore::Encode(const FMetalFXParameters& Parameters)
 		id<MTLDevice> MetalDevice = (id<MTLDevice>)GDynamicRHI->RHIGetNativeDevice();
 		id<MTLCommandQueue> CmdQueue = [MetalDevice newCommandQueue];	   
 		id<MTLCommandBuffer> CommandBuffer = [CmdQueue commandBuffer];
-
 	   
    		id<MTLTexture> ColorTex = pModules->TextureGroup.ColorTexture.GetTexture();
 		id<MTLTexture> DepthTex = pModules->TextureGroup.DepthTexture.GetTexture();

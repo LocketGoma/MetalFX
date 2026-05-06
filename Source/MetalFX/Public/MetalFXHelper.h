@@ -40,6 +40,36 @@ enum class EMetalFXServiceReason : uint8
 	TemporalType
 };
 
+using FMetalFXPixelFormat = uint64_t;
+struct FMetalFXTextureFormatGroup
+{
+	FMetalFXTextureFormatGroup()
+	{
+#if WITH_METALFX_TARGET_IOS
+        Color  = MTLPixelFormatRGBA16Float;
+        Depth  = MTLPixelFormatDepth32Float;          // or Depth32Float_Stencil8 
+        Motion = MTLPixelFormatRG16Float;
+        Output = MTLPixelFormatRGBA16Float;
+#endif
+#if WITH_METALFX_TARGET_MAC
+        Color  = MTLPixelFormatRGBA16Float;
+        Depth  = MTLPixelFormatDepth32Float;          // or Depth32Float_Stencil8 가능
+        Motion = MTLPixelFormatRG16Float;             
+        Output = MTLPixelFormatRGBA16Float;
+#endif
+	}
+
+	FMetalFXPixelFormat Color = 0;
+	FMetalFXPixelFormat Depth = 0;
+	FMetalFXPixelFormat Motion = 0;
+	FMetalFXPixelFormat Output = 0;
+
+	const bool IsValidFormat(FMetalFXTextureFormatGroup& Formats) const
+	{
+		return Color ==	Formats.Color && Depth == Formats.Depth && Motion == Formats.Motion && Output == Formats.Output;
+	}
+};
+
 BEGIN_SHADER_PARAMETER_STRUCT(FMetalFXParameters, )
 	RDG_TEXTURE_ACCESS(ColorTexture, ERHIAccess::SRVMask)
 	RDG_TEXTURE_ACCESS(DepthTexture, ERHIAccess::SRVMask)
