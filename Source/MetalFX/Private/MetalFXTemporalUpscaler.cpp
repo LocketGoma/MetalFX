@@ -49,7 +49,7 @@ public:
 		OutEnvironment.SetDefine(TEXT("UNREAL_ENGINE_MINOR_VERSION"), ENGINE_MINOR_VERSION);
 	}
 };
-IMPLEMENT_GLOBAL_SHADER(FMetalFXConvertVelocityCS, "/Plugin/MetalFX/Private/PostProcessFFX_FSR2ConvertVelocity.usf", "MainCS", SF_Compute);
+//IMPLEMENT_GLOBAL_SHADER(FMetalFXConvertVelocityCS, "/Plugin/MetalFX/Private/PostProcessFFX_FSR2ConvertVelocity.usf", "MainCS", SF_Compute);
 
 #if METALFX_PLUGIN_ENABLED
 

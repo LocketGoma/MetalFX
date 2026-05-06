@@ -10,6 +10,271 @@
 #include <Metal/Metal.hpp>
 #include <MetalFX/MetalFX.hpp>
 #import <MetalPerformanceShaders/MetalPerformanceShaders.h>
+#endif	//METALFX_PLUGIN_ENABLED 
+
+#if METALFX_PLUGIN_ENABLED
+namespace MTL
+{
+	class Texture;
+	class CommandQueue;
+	class CommandBuffer;
+	class Device;
+}
+
+namespace MTLFX
+{
+	class TemporalScaler;
+	class TemporalScalerDescriptor;
+}
+
+#if METALFX_METALCPP
+MTL::Texture* ToMTLTexture(const FRDGTextureRef& In)
+{
+	if (In == nullptr) { return nullptr; }
+   // 1) RDG 텍스처 가져오기
+   FRDGTextureRef   RdgTex = In;
+   // 2) RHI 텍스처 → Metal 네이티브
+   FRHITexture*     HiTex  = RdgTex->GetRHI();
+   return static_cast<MTL::Texture *>(HiTex->GetNativeResource());
+}
+
+//2차 변환 처리를 위한 중간 구조체
+struct FMetalFXCppTextureView
+{	
+	//FMetalFXCppTextureView() = default;
+	//FMetalFXCppTextureView(const FMetalFXCppTextureView&) = delete;
+	
+	//To do. Command Buffer 진행 이후 릴리즈가 필요한 경우 보완필요함!
+public:
+	void SetTexture(MTL::Texture* inTexture, bool isNeedRelease = false)
+	{
+		//기존 텍스쳐 정리
+		ReleaseTexture();
+		
+		Texture = inTexture;
+		bNeedsRelease = isNeedRelease;
+		bIsValid = true;
+	}
+	
+	MTL::Texture* GetTexture()
+	{
+		return Texture;
+	}
+	
+	void ReleaseTexture()
+	{
+		if (bNeedsRelease && Texture != nullptr)
+		{
+			Texture->release();
+		}
+		
+		Texture = nullptr;
+		bNeedsRelease = false;
+		bIsValid = false;
+	}
+	
+	bool IsValid() const
+	{
+		return bIsValid && Texture != nullptr;
+	}
+	
+private:	
+	MTL::Texture* Texture = nullptr;
+	bool bNeedsRelease = false;
+	bool bIsValid = false;
+};
+
+//해제 일괄처리
+struct FMetalFXCppTextureGroup
+{
+	~FMetalFXCppTextureGroup()
+	{
+		ReleaseAllTexture();
+	}
+	
+public:
+	void ReleaseAllTexture()
+	{
+		TextureRelease(ColorTexture);
+		TextureRelease(DepthTexture);
+		TextureRelease(VelocityTexture);
+		TextureRelease(OutputTexture);
+	}
+
+	void TextureRelease(FMetalFXCppTextureView TargetTexture)
+	{
+		TargetTexture.ReleaseTexture();
+	}
+	
+	FMetalFXCppTextureView ColorTexture;
+	FMetalFXCppTextureView DepthTexture;
+	FMetalFXCppTextureView VelocityTexture;
+	FMetalFXCppTextureView OutputTexture;
+};
+
+static FMetalFXCppTextureView GetMetalFX2DTextureView(MTL::Texture* SourceTexture)
+{
+	FMetalFXCppTextureView Result;
+
+	if (SourceTexture == nullptr)
+	{
+		return Result;
+	}
+
+	//1) 현재 텍스쳐 타입이 이미 MetalFX에서 사용하는 2D인 경우
+	if (SourceTexture->textureType() == MTL::TextureType2D)
+	{
+		Result.SetTexture(SourceTexture, false);
+		return Result;
+	}
+
+	//2) 현재 텍스쳐 타입이 2D Array인 경우
+	if (SourceTexture->textureType() == MTL::TextureType2DArray)
+	{
+		NS::Range LevelRange = NS::Range::Make(0, 1);
+		NS::Range SliceRange = NS::Range::Make(0, 1);
+
+		MTL::Texture* Temp = SourceTexture->newTextureView(
+			SourceTexture->pixelFormat(),
+			MTL::TextureType2D,
+			LevelRange,
+			SliceRange
+		);
+
+		Result.SetTexture(Temp, Temp != nullptr);
+		return Result;
+	}
+
+	return Result;
+}
+#endif
+
+#if METALFX_NATIVE
+id<MTLTexture> ToOBJCTexture(const FRDGTextureRef& In)
+{
+   // 1) RDG 텍스처 가져오기
+   FRDGTextureRef   RdgTex = In;
+   // 2) RHI 텍스처 → Metal 네이티브
+   FRHITexture*     HiTex  = RdgTex->GetRHI();
+	
+	void* Native = HiTex->GetNativeResource();
+	if (!Native)
+	{
+		return nil;
+	}
+	
+	return (__bridge id<MTLTexture>)Native;
+}
+
+//2차 변환 처리를 위한 중간 구조체
+struct FMetalFXObjCTextureView
+{	
+	//FMetalFXObjCTextureView() = default;
+	//FMetalFXObjCTextureView(const FMetalFXCppTextureView&) = delete;
+	
+	//To do. Command Buffer 진행 이후 릴리즈가 필요한 경우 보완필요함!
+public:
+	void SetTexture(id<MTLTexture> inTexture, bool isNeedRelease = false)
+	{
+		//기존 텍스쳐 정리
+		ReleaseTexture();
+		
+		Texture = inTexture;
+		bNeedsRelease = isNeedRelease;
+		bIsValid = true;
+	}
+	
+	id<MTLTexture> GetTexture()
+	{
+		return Texture;
+	}
+	
+	void ReleaseTexture()
+	{
+		if (bNeedsRelease && Texture != nil)
+		{
+			[Texture release];
+		}
+		
+		Texture = nil;
+		bNeedsRelease = false;
+		bIsValid = false;
+	}
+	
+	bool IsValid() const
+	{
+		return bIsValid && Texture != nil;
+	}
+	
+private:	
+	id<MTLTexture> Texture = nil;
+	bool bNeedsRelease = false;
+	bool bIsValid = false;
+};
+
+//해제 일괄처리
+struct FMetalFXObjCTextureGroup
+{
+	~FMetalFXObjCTextureGroup()
+	{
+		ReleaseAllTexture();
+	}
+	
+public:
+	void ReleaseAllTexture()
+	{
+		TextureRelease(ColorTexture);
+		TextureRelease(DepthTexture);
+		TextureRelease(VelocityTexture);
+		TextureRelease(OutputTexture);
+	}
+
+	void TextureRelease(FMetalFXObjCTextureView TargetTexture)
+	{
+		TargetTexture.ReleaseTexture();
+	}
+	
+	FMetalFXObjCTextureView ColorTexture;
+	FMetalFXObjCTextureView DepthTexture;
+	FMetalFXObjCTextureView VelocityTexture;
+	FMetalFXObjCTextureView OutputTexture;
+};
+
+static FMetalFXObjCTextureView GetMetalFX2DTextureView(id<MTLTexture> SourceTexture)
+{
+	FMetalFXObjCTextureView Result;
+
+	if (SourceTexture == nil)
+	{
+		return Result;
+	}
+
+	if ([SourceTexture textureType] == MTLTextureType2D)
+	{
+		Result.SetTexture(SourceTexture, false);
+		return Result;
+	}
+
+	if ([SourceTexture textureType] == MTLTextureType2DArray)
+	{
+		NSRange LevelRange = NSMakeRange(0, 1);
+		NSRange SliceRange = NSMakeRange(0, 1);
+
+		id<MTLTexture> temp = [SourceTexture newTextureViewWithPixelFormat:[SourceTexture pixelFormat]
+											 textureType:MTLTextureType2D
+												  levels:LevelRange
+												  slices:SliceRange];
+	
+		Result.SetTexture(temp, (temp != nil));
+		return Result;
+	}
+
+	return Result;
+}
+#endif
+
+
+#endif
 
 //내부 변수 컨트롤용 구조체
 struct MetalFXModule
@@ -18,13 +283,15 @@ struct MetalFXModule
 	NS::SharedPtr<MTL::Device> m_CppDevice;
 	NS::SharedPtr<MTL::CommandQueue> m_CppCommandQueue;
 	NS::SharedPtr<MTLFX::TemporalScaler> m_CppScaler;
-#elif METALFX_NATIVE
+	FMetalFXCppTextureGroup TextureGroup;
+#endif
+	
+#if METALFX_NATIVE
 	id<MTLDevice> m_Device;
 	id<MTLFXTemporalScaler> m_Scaler;
+	FMetalFXObjCTextureGroup TextureGroup;	
 #endif
 };
-
-#endif	//METALFX_PLUGIN_ENABLED 
 
 void FMetalFXUpscalerCore::Tick(FRHICommandListImmediate& RHICmdList)
 {
@@ -49,6 +316,7 @@ FMetalFXUpscalerCore::~FMetalFXUpscalerCore()
 #if METALFX_METALCPP
 	pModules->m_CppCommandQueue.reset();
 	pModules->m_CppScaler.reset();
+	
 	//RHI에서 직접 가져온거라 reset 하면 터질듯... 테스트 필요함.
 	//pModules->m_CppDevice.reset();
 #elif METALFX_NATIVE
@@ -62,46 +330,6 @@ FMetalFXUpscalerCore::~FMetalFXUpscalerCore()
 }
 
 #if METALFX_PLUGIN_ENABLED
-namespace MTL
-{
-	class Texture;
-	class CommandQueue;
-	class CommandBuffer;
-	class Device;
-}
-namespace MTLFX
-{
-	class TemporalScaler;
-	class TemporalScalerDescriptor;
-}
-
-#if METALFX_METALCPP
-MTL::Texture* ToMTLTexture(const FRDGTextureRef& In)
-{
-   // 1) RDG 텍스처 가져오기
-   FRDGTextureRef   RdgTex = In;
-   // 2) RHI 텍스처 → Metal 네이티브
-   FRHITexture*     HiTex  = RdgTex->GetRHI();
-   return static_cast<MTL::Texture *>(HiTex->GetNativeResource());
-}
-#elif METALFX_NATIVE
-id<MTLTexture> ToOBJCTexture(const FRDGTextureRef& In)
-{
-   // 1) RDG 텍스처 가져오기
-   FRDGTextureRef   RdgTex = In;
-   // 2) RHI 텍스처 → Metal 네이티브
-   FRHITexture*     HiTex  = RdgTex->GetRHI();
-	
-	void* Native = HiTex->GetNativeResource();
-	if (!Native)
-	{
-		return nil;
-	}
-	
-	return (__bridge id<MTLTexture>)Native;
-}
-#endif
-
 float FMetalFXUpscalerCore::GetMinUpsampleResolutionFraction() const
 {
 	//SupportedInputContextMinScale
@@ -239,17 +467,43 @@ const void FMetalFXUpscalerCore::CheckValidate() const
 #endif	
    checkf(bValidate, TEXT("You Trying To Using MetalFX. but MetalFX Upscaler Core Not Ready or Crashed. You Must Check MetalFX Upscaler Logics. see MetalFXUpscalerCore Class For More Infomations."));
 }
+
 void FMetalFXUpscalerCore::SetTextures(const FMetalFXParameters& Parameters)
 {
 #if METALFX_METALCPP
    if (pModules)
    {
 	  CheckValidate();
-	  pModules->m_CppScaler->setColorTexture(ToMTLTexture(Parameters.ColorTexture));
-	  pModules->m_CppScaler->setDepthTexture(ToMTLTexture(Parameters.DepthTexture));
-	  pModules->m_CppScaler->setMotionTexture(ToMTLTexture(Parameters.VelocityTexture));
-	  pModules->m_CppScaler->setOutputTexture(ToMTLTexture(Parameters.OutputTexture));
+	  //Color Texture
+	  pModules->TextureGroup.ColorTexture = GetMetalFX2DTextureView(ToMTLTexture(Parameters.ColorTexture));
+	  
+	  //Depth Texture 
+	  pModules->TextureGroup.DepthTexture = GetMetalFX2DTextureView(ToMTLTexture(Parameters.DepthTexture));
+	  
+	  //Velocity Texture 
+	  pModules->TextureGroup.VelocityTexture = GetMetalFX2DTextureView(ToMTLTexture(Parameters.VelocityTexture));
+	   
+	  //Output Texture 
+	  pModules->TextureGroup.OutputTexture = GetMetalFX2DTextureView(ToMTLTexture(Parameters.OutputTexture));
    }
+#endif
+	
+#if METALFX_NATIVE
+	if (pModules)
+	{
+	   CheckValidate();
+	   //Color Texture
+	   pModules->TextureGroup.ColorTexture = GetMetalFX2DTextureView(ToOBJCTexture(Parameters.ColorTexture));
+	   
+	   //Depth Texture 
+	   pModules->TextureGroup.DepthTexture = GetMetalFX2DTextureView(ToOBJCTexture(Parameters.DepthTexture));
+	   
+	   //Velocity Texture 
+	   pModules->TextureGroup.VelocityTexture = GetMetalFX2DTextureView(ToOBJCTexture(Parameters.VelocityTexture));
+		
+	   //Output Texture 
+	   pModules->TextureGroup.OutputTexture = GetMetalFX2DTextureView(ToOBJCTexture(Parameters.OutputTexture));
+	}
 #endif
 }
 
@@ -287,17 +541,30 @@ void FMetalFXUpscalerCore::Encode(const FMetalFXParameters& Parameters)
 	UE_LOG(LogMetalFX, Error, TEXT("You Try Call [Objective-C++ Version], but this Enviroment is MetalCPP."));
 #else
    CheckValidate();
+   SetTextures(Parameters);
+	
    @autoreleasepool
-   {
+   {	   
 		//CommandQueue&CommandBuffer를 외부에서 가져오는것으로 변경시 아래 3줄 주석처리
 		id<MTLDevice> MetalDevice = (id<MTLDevice>)GDynamicRHI->RHIGetNativeDevice();
 		id<MTLCommandQueue> CmdQueue = [MetalDevice newCommandQueue];	   
 		id<MTLCommandBuffer> CommandBuffer = [CmdQueue commandBuffer];
 
-   		id<MTLTexture> ColorTex = ToOBJCTexture(Parameters.ColorTexture);
-		id<MTLTexture> DepthTex = ToOBJCTexture(Parameters.DepthTexture);
-		id<MTLTexture> MotionTex = ToOBJCTexture(Parameters.VelocityTexture);
-		id<MTLTexture> OutTex = ToOBJCTexture(Parameters.OutputTexture);
+	   
+   		id<MTLTexture> ColorTex = pModules->TextureGroup.ColorTexture.GetTexture();
+		id<MTLTexture> DepthTex = pModules->TextureGroup.DepthTexture.GetTexture();
+		id<MTLTexture> MotionTex = pModules->TextureGroup.VelocityTexture.GetTexture();
+		id<MTLTexture> OutTex = pModules->TextureGroup.OutputTexture.GetTexture();
+	   
+	   UE_LOG(LogTemp, Warning,
+		   TEXT("[MetalFX] ColorTexture.pixelFormat=%lu"),
+		   (unsigned long)[pModules->TextureGroup.ColorTexture.GetTexture() pixelFormat]);
+	   
+	   UE_LOG(LogTemp, Warning,
+		   TEXT("[MetalFX] ViewType=%lu ViewPixelFormat=%lu"),
+		   (unsigned long)[pModules->TextureGroup.ColorTexture.GetTexture() textureType],
+		   (unsigned long)[pModules->TextureGroup.ColorTexture.GetTexture() pixelFormat]);
+	   
 		MetalFXEncode(pModules->m_Scaler, CommandBuffer, ColorTex, DepthTex, MotionTex, OutTex, true);
    }
 #endif
@@ -309,6 +576,22 @@ void FMetalFXUpscalerCore::Encode()
 	UE_LOG(LogMetalFX, Error, TEXT("You Try Call [MetalCPP Version], but this Enviroment is Objective-C++."));
 #else
 	CheckValidate();
+	
+	if (pModules)
+	{
+	   //Color Texture
+	   pModules->m_CppScaler->setColorTexture(pModules->TextureGroup.ColorTexture.GetTexture());
+	   
+	   //Depth Texture 
+	   pModules->m_CppScaler->setDepthTexture(pModules->TextureGroup.DepthTexture.GetTexture());
+	   
+	   //Velocity Texture 
+	   pModules->m_CppScaler->setMotionTexture(pModules->TextureGroup.VelocityTexture.GetTexture());
+		
+	   //Output Texture 
+	   pModules->m_CppScaler->setOutputTexture(pModules->TextureGroup.OutputTexture.GetTexture());
+	}
+	
 	@autoreleasepool
 	{
 		NS::SharedPtr<MTL::CommandBuffer> CommandBuffer = NS::RetainPtr(pModules->m_CppCommandQueue->commandBuffer());
