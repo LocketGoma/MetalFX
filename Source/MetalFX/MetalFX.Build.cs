@@ -34,17 +34,18 @@ public class MetalFX : ModuleRules
 		//해당 플러그인에서 지원하는 Apple Platfrom에서만 True 되도록 처리
 		bool bApplePlatfrom = false;
 
-		if (Target.Platform == UnrealTargetPlatform.IOS)
-		{
-			bApplePlatfrom = true;
-    		PublicDefinitions.Add("WITH_METALFX_TARGET_MAC=1");
-    		PublicDefinitions.Add("WITH_METALFX_TARGET_IOS=0");
-		}
 		if (Target.Platform == UnrealTargetPlatform.Mac)
 		{
 			bApplePlatfrom = true;
-    		PublicDefinitions.Add("WITH_METALFX_TARGET_MAC=0");
-    		PublicDefinitions.Add("WITH_METALFX_TARGET_IOS=1");
+    		PublicDefinitions.Add("WITH_METALFX_TARGET_MAC = 1");
+    		PublicDefinitions.Add("WITH_METALFX_TARGET_IOS = 0");
+		}
+		
+		if (Target.Platform == UnrealTargetPlatform.IOS)
+		{
+			bApplePlatfrom = true;
+    		PublicDefinitions.Add("WITH_METALFX_TARGET_MAC = 0");
+    		PublicDefinitions.Add("WITH_METALFX_TARGET_IOS = 1");
 		}
 
 		if(bApplePlatfrom)
