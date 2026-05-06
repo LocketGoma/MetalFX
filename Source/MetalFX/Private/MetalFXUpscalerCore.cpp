@@ -388,10 +388,10 @@ bool FMetalFXUpscalerCore::Initialize()
 		Desc->setInputHeight(m_InH);
 		Desc->setOutputWidth(m_OutW);
 		Desc->setOutputHeight(m_OutH);
-		Desc->setColorTextureFormat(static_cast<MTL::PixelFormat>(pModules.Formats.Color));
-		Desc->setDepthTextureFormat(static_cast<MTL::PixelFormat>(pModules.Formats.Depth));
-		Desc->setMotionTextureFormat(static_cast<MTL::PixelFormat>(pModules.Formats.Motion));
-		Desc->setOutputTextureFormat(static_cast<MTL::PixelFormat>(pModules.Formats.Output));
+		Desc->setColorTextureFormat(static_cast<MTL::PixelFormat>(pModules->Formats.Color));
+		Desc->setDepthTextureFormat(static_cast<MTL::PixelFormat>(pModules->Formats.Depth));
+		Desc->setMotionTextureFormat(static_cast<MTL::PixelFormat>(pModules->Formats.Motion));
+		Desc->setOutputTextureFormat(static_cast<MTL::PixelFormat>(pModules->Formats.Output));
 		Desc->setAutoExposureEnabled(true);
    	
 		pModules->m_CppScaler = NS::RetainPtr(Desc->newTemporalScaler(pModules->m_CppDevice.get()));
@@ -412,7 +412,7 @@ bool FMetalFXUpscalerCore::Initialize()
 		pModules->m_Scaler = nil;
 	}
 	
-	pModules->m_Scaler = MetalFXCreateTemporalUpscaler(MetalDevice, pModules.Formats, m_InW, m_InH, m_OutW, m_OutH);
+	pModules->m_Scaler = MetalFXCreateTemporalUpscaler(MetalDevice, pModules->Formats, m_InW, m_InH, m_OutW, m_OutH);
 	bSuccess = pModules->m_Scaler != nil;
 #endif
 	
@@ -498,6 +498,7 @@ void FMetalFXUpscalerCore::SetTextures(const FMetalFXParameters& Parameters)
 		if (!pModules->Formats.IsValidFormat(TempFormats))
         {
 			pModules->Formats = TempFormats;
+			bIsInitalized = false;
 			Initialize();
         }
 	}
@@ -518,7 +519,7 @@ void FMetalFXUpscalerCore::SetTextures(const FMetalFXParameters& Parameters)
         
         //Output Texture 
         pModules->TextureGroup.OutputTexture = GetMetalFX2DTextureView(ToOBJCTexture(Parameters.OutputTexture));
-
+	
         FMetalFXTextureFormatGroup TempFormats;
 	  	TempFormats.Color = (FMetalFXPixelFormat)[pModules->TextureGroup.ColorTexture.GetTexture() pixelFormat];
 	  	TempFormats.Depth = (FMetalFXPixelFormat)[pModules->TextureGroup.DepthTexture.GetTexture() pixelFormat];
@@ -528,6 +529,7 @@ void FMetalFXUpscalerCore::SetTextures(const FMetalFXParameters& Parameters)
 		if (!pModules->Formats.IsValidFormat(TempFormats))
         {
 			pModules->Formats = TempFormats;
+			bIsInitalized = false;
 			Initialize();
         }
 	}
@@ -552,8 +554,8 @@ void FMetalFXUpscalerCore::SetMotionVectorScale(FVector2D Scale)
 {
 	if (pModules)
 	{
-   		CheckValidate();
-#if METALFX_METALCPP	
+		CheckValidate();
+#if METALFX_METALCPP		
 		pModules->m_CppScaler->setMotionVectorScaleX(static_cast<float>(Scale.X));
 		pModules->m_CppScaler->setMotionVectorScaleY(static_cast<float>(Scale.Y));
 #elif METALFX_NATIVE
@@ -569,6 +571,19 @@ void FMetalFXUpscalerCore::Encode(const FMetalFXParameters& Parameters)
 #else
    CheckValidate();
    SetTextures(Parameters);
+	
+	uint64 ColorTexWidth = (unsigned long)[pModules->TextureGroup.ColorTexture.GetTexture() width];
+	uint64 ColorTexHeight = (unsigned long)[pModules->TextureGroup.ColorTexture.GetTexture() height];
+	uint64 VeloTexWidth = (unsigned long)[pModules->TextureGroup.VelocityTexture.GetTexture() width];
+	uint64 VeloTexHeight = (unsigned long)[pModules->TextureGroup.VelocityTexture.GetTexture() height];
+
+	if (!((ColorTexWidth == VeloTexWidth) && (ColorTexHeight == VeloTexHeight)))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[MetalFX] Color: %lux%lu Motion: %lux%lu"), ColorTexWidth, ColorTexHeight, VeloTexWidth, VeloTexHeight);
+		
+		UE_LOG(LogMetalFX, Error, TEXT("Texture Size Mismatch! Skip."));
+		return;
+	}
 	
    @autoreleasepool
    {	   

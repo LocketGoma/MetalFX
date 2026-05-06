@@ -1,5 +1,4 @@
 #include "MetalFXCoreUtility.h"
-#include "MetalFXHelper.h"
 
 //= Enabled If MetalFX Plugin Enabled
 #if METALFX_PLUGIN_ENABLED
@@ -132,8 +131,8 @@ int32 MetalFXQuerySupportReason()
 	{
 		return static_cast<int32>(Reason::NotSupported);
 	}
-	
-	id<MTLFXTemporalScaler> TestScaler = MetalFXCreateTemporalUpscaler(MetalDevice, 64, 64, 64, 64);
+	FMetalFXTextureFormatGroup TempFormats;
+	id<MTLFXTemporalScaler> TestScaler = MetalFXCreateTemporalUpscaler(MetalDevice, TempFormats, 64, 64, 64, 64);
 	
 	if (TestScaler == nil)
 	{

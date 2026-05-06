@@ -1,4 +1,5 @@
 #pragma once
+#include "MetalFXHelper.h"
 
 #if METALFX_PLUGIN_ENABLED
 //Obj-C 쓰면 import - .h
@@ -10,7 +11,7 @@
 #ifdef __cplusplus
 extern "C"
 #endif
-id<MTLFXTemporalScaler> MetalFXCreateTemporalUpscaler(id<MTLDevice> Device, int InputWidth, int InputHeight, int OutputWidth, int OutputHeight);
+id<MTLFXTemporalScaler> MetalFXCreateTemporalUpscaler(id<MTLDevice> Device, const FMetalFXTextureFormatGroup Formats, int InputWidth, int InputHeight, int OutputWidth, int OutputHeight);
 
 #ifdef __cplusplus
 extern "C"
