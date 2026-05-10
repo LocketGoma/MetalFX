@@ -29,18 +29,11 @@ public:
 	void SetJitterOffset(FVector2D Offset);
 	void SetMotionVectorScale(FVector2D Scale);
 
-	//-----구버전----
-	//Object-C 직접 호출식
-	void Encode(const FMetalFXParameters& Parameters);
-
-	//MetalCPP Wrapper 호출식
-	void Encode();
-	//-----구버전----
-
 	//DLSS 기반 통합 Encoder (외부에서는 얘만 호출)
 	void ExecuteMetalFX(FRHICommandList& CmdList, const FMetalFXParameters& Parameters);
 private:
-	bool TextureSizeValidation(const FMetalFXCppTextureGroup& TextureGroup);
+	bool TextureSizeValidation_Cpp(struct FMetalFXCppTextureGroup& TextureGroup);
+	bool TextureSizeValidation_Native(struct FMetalFXObjCTextureGroup& TextureGroup);
 	void Encode(FRHICommandList& CmdList);
 	
 	void GenerateUpscaler();

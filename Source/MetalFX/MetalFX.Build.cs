@@ -1,6 +1,7 @@
 //@Locketgoma
 
 using UnrealBuildTool;
+using System.IO;
 
 public class MetalFX : ModuleRules
 {
@@ -26,6 +27,7 @@ public class MetalFX : ModuleRules
 				"Renderer",
 				"SlateCore",
 				"RHI",
+				"RHICore",
 				"Projects"
 			});
 
@@ -57,6 +59,13 @@ public class MetalFX : ModuleRules
                 "Metal",
 	            "Foundation",
                 "MetalFX"   
+            });
+            
+            PrivateIncludePaths.AddRange(new string[]
+            {
+                Path.Combine(EngineDirectory, "Source/Runtime/Apple/MetalRHI/Public"),
+                Path.Combine(EngineDirectory, "Source/Runtime/Apple/MetalRHI/Private"),
+                Path.Combine(EngineDirectory, "Source/ThirdParty/Apple/MetalShaderConverter/Include/common")
             });
 
 			PublicDefinitions.Add("METALFX_PLUGIN_ENABLED = 1");

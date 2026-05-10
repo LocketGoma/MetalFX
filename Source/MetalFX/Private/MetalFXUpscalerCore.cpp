@@ -1,12 +1,16 @@
 #include "MetalFXUpscalerCore.h"
 #include "MetalFXSettings.h"
+#include "MetalFXCoreUtility.h"
 #include "RenderGraphBuilder.h"
 #include "RenderGraphUtils.h"
 #include "ColorManagement/TransferFunctions.h"
 
 #if METALFX_PLUGIN_ENABLED
 #include "MetalRHI.h"
-#include "MetalFXCoreUtility.h"
+#include "MetalRHIPrivate.h"
+#include "MetalRHIContext.h"
+#include "MetalCommandBuffer.h"
+
 #include <Foundation/Foundation.hpp>
 #include <Metal/Metal.hpp>
 #include <MetalFX/MetalFX.hpp>
@@ -563,103 +567,14 @@ void FMetalFXUpscalerCore::SetMotionVectorScale(FVector2D Scale)
 	}	
 }
 
-#pragma region Encode_OldType
-
-//Native Objective-C++ Version
-void FMetalFXUpscalerCore::Encode(const FMetalFXParameters& Parameters)
-{
-#if !METALFX_NATIVE
-	UE_LOG(LogMetalFX, Error, TEXT("You Try Call [Objective-C++ Version], but this Enviroment is MetalCPP."));
-#else
-   CheckValidate();
-   SetTextures(Parameters);
-	
-	uint64 ColorTexWidth = (unsigned long)[pModules->TextureGroup.ColorTexture.GetTexture() width];
-	uint64 ColorTexHeight = (unsigned long)[pModules->TextureGroup.ColorTexture.GetTexture() height];
-	uint64 VeloTexWidth = (unsigned long)[pModules->TextureGroup.VelocityTexture.GetTexture() width];
-	uint64 VeloTexHeight = (unsigned long)[pModules->TextureGroup.VelocityTexture.GetTexture() height];
-
-	if (!((ColorTexWidth == VeloTexWidth) && (ColorTexHeight == VeloTexHeight)))
-	{
-		UE_LOG(LogMetalFX, Warning, TEXT("[MetalFX] Color: %lux%lu Motion: %lux%lu"), ColorTexWidth, ColorTexHeight, VeloTexWidth, VeloTexHeight);
-		
-		UE_LOG(LogMetalFX, Error, TEXT("Texture Size Mismatch! Skip."));
-		return;
-	}
-	
-   @autoreleasepool
-   {	   
-		//CommandQueue&CommandBuffer를 외부에서 가져오는것으로 변경시 아래 3줄 주석처리
-		//id<MTLDevice> MetalDevice = (id<MTLDevice>)GDynamicRHI->RHIGetNativeDevice();
-		//id<MTLCommandQueue> CmdQueue = [MetalDevice newCommandQueue];	   
-		//id<MTLCommandBuffer> CommandBuffer = [CmdQueue commandBuffer];
-	   
-   		id<MTLTexture> ColorTex = pModules->TextureGroup.ColorTexture.GetTexture();
-		id<MTLTexture> DepthTex = pModules->TextureGroup.DepthTexture.GetTexture();
-		id<MTLTexture> MotionTex = pModules->TextureGroup.VelocityTexture.GetTexture();
-		id<MTLTexture> OutTex = pModules->TextureGroup.OutputTexture.GetTexture();
-	   
-	   UE_LOG(LogMetalFX, Warning,
-		   TEXT("[MetalFX] ColorTexture.pixelFormat=%lu"),
-		   (unsigned long)[pModules->TextureGroup.ColorTexture.GetTexture() pixelFormat]);
-	   
-	   UE_LOG(LogMetalFX, Warning,
-		   TEXT("[MetalFX] ViewType=%lu ViewPixelFormat=%lu"),
-		   (unsigned long)[pModules->TextureGroup.ColorTexture.GetTexture() textureType],
-		   (unsigned long)[pModules->TextureGroup.ColorTexture.GetTexture() pixelFormat]);
-	   
-		MetalFXEncode(pModules->m_Scaler, CommandBuffer, ColorTex, DepthTex, MotionTex, OutTex, true);
-   }
-#endif
-}
-
-//MetalCPP Version
-void FMetalFXUpscalerCore::Encode()
-{
-#if !METALFX_METALCPP
-	UE_LOG(LogMetalFX, Error, TEXT("You Try Call [MetalCPP Version], but this Enviroment is Objective-C++."));
-#else
-	CheckValidate();
-	
-	if (pModules)
-	{
-	   //Color Texture
-	   pModules->m_CppScaler->setColorTexture(pModules->TextureGroup.ColorTexture.GetTexture());
-	   
-	   //Depth Texture 
-	   pModules->m_CppScaler->setDepthTexture(pModules->TextureGroup.DepthTexture.GetTexture());
-	   
-	   //Velocity Texture 
-	   pModules->m_CppScaler->setMotionTexture(pModules->TextureGroup.VelocityTexture.GetTexture());
-		
-	   //Output Texture 
-	   pModules->m_CppScaler->setOutputTexture(pModules->TextureGroup.OutputTexture.GetTexture());
-	}
-	
-	@autoreleasepool
-	{
-		NS::SharedPtr<MTL::CommandBuffer> CommandBuffer = NS::RetainPtr(pModules->m_CppCommandQueue->commandBuffer());
-		pModules->m_CppScaler->encodeToCommandBuffer(CommandBuffer.get());	  
-	}
-#endif
-}
-#pragma endregion
-
-bool FMetalFXUpscalerCore::TextureSizeValidation(const FMetalFXCppTextureGroup& TextureGroup)
+bool FMetalFXUpscalerCore::TextureSizeValidation_Cpp(FMetalFXCppTextureGroup& TextureGroup)
 {
 	bool Result = true;
 	uint64 ColorTexWidth = 0;
 	uint64 ColorTexHeight = 0;
 	uint64 VeloTexWidth = 0;
 	uint64 VeloTexHeight = 0;
-	
-#if METALFX_NATIVE
-	ColorTexWidth	= (unsigned long)[TextureGroup.ColorTexture.GetTexture() width];
-	ColorTexHeight	= (unsigned long)[TextureGroup.ColorTexture.GetTexture() height];
-	VeloTexWidth	= (unsigned long)[TextureGroup.VelocityTexture.GetTexture() width];
-	VeloTexHeight	= (unsigned long)[TextureGroup.VelocityTexture.GetTexture() height];
-#endif
-	
+
 #if METALFX_METALCPP
 	ColorTexWidth	= static_cast<uint64>(TextureGroup.ColorTexture.GetTexture()->width());
 	ColorTexHeight	= static_cast<uint64>(TextureGroup.ColorTexture.GetTexture()->height());
@@ -678,9 +593,37 @@ bool FMetalFXUpscalerCore::TextureSizeValidation(const FMetalFXCppTextureGroup& 
 	return Result;
 }
 
+bool FMetalFXUpscalerCore::TextureSizeValidation_Native(FMetalFXObjCTextureGroup& TextureGroup)
+{
+	bool Result = true;
+	uint64 ColorTexWidth = 0;
+	uint64 ColorTexHeight = 0;
+	uint64 VeloTexWidth = 0;
+	uint64 VeloTexHeight = 0;
+	
+#if METALFX_NATIVE
+	ColorTexWidth	= (unsigned long)[TextureGroup.ColorTexture.GetTexture() width];
+	ColorTexHeight	= (unsigned long)[TextureGroup.ColorTexture.GetTexture() height];
+	VeloTexWidth	= (unsigned long)[TextureGroup.VelocityTexture.GetTexture() width];
+	VeloTexHeight	= (unsigned long)[TextureGroup.VelocityTexture.GetTexture() height];
+#endif
+	
+	Result = ((ColorTexWidth == VeloTexWidth) && (ColorTexHeight == VeloTexHeight));
+	
+	if (!Result)
+	{
+		UE_LOG(LogMetalFX, Warning, TEXT("[MetalFX] TextureSize Mismatch! - Color: %llux%llu Motion: %llux%llu"), ColorTexWidth, ColorTexHeight, VeloTexWidth, VeloTexHeight);
+		Result = false;
+	}
+	
+	return Result;
+}
+
+
+
 void FMetalFXUpscalerCore::ExecuteMetalFX(FRHICommandList& CmdList, const FMetalFXParameters& Parameters)
 {
-	if (!pModule)
+	if (!pModules)
 	{
 		UE_LOG(LogMetalFX, Error, TEXT("MetalFX Upscaler Module was broken! skip Upscaling this frame."));
 		
@@ -694,12 +637,23 @@ void FMetalFXUpscalerCore::ExecuteMetalFX(FRHICommandList& CmdList, const FMetal
 		return;
 	}
 	
-	if (!TextureSizeValidation(pModules->TextureGroup))
+#if METALFX_METALCPP
+	if (!TextureSizeValidation_Cpp(pModules->TextureGroup))
+	{
+		UE_LOG(LogMetalFX, Warning, TEXT("Texture Rect mismatch found. skip Upscaling this frame."));
+		
+		return;
+	}	
+#endif
+	
+#if METALFX_NATIVE
+	if (!TextureSizeValidation_Native(pModules->TextureGroup))
 	{
 		UE_LOG(LogMetalFX, Warning, TEXT("Texture Rect mismatch found. skip Upscaling this frame."));
 		
 		return;
 	}
+#endif
 	
 	Encode(CmdList);	
 }
@@ -710,7 +664,7 @@ void FMetalFXUpscalerCore::Encode(FRHICommandList& CmdList)
 	//TRHICommandList_RecursiveHazardous<IRHICommandContext> RHICmdList(&CmdList.GetContext());
 	
 	FMetalRHICommandContext& MetalContext = FMetalRHICommandContext::Get(CmdList);
-	FMetalCommandBuffer* CurrentCommandBuffer =	MetalContext.GetCurrentCommandBuffer();
+	FMetalCommandBuffer* CurrentCommandBuffer =	MetalContext.GetCurrentCommandBufferWarning();
 	
 	if (CurrentCommandBuffer == nullptr)
 	{
