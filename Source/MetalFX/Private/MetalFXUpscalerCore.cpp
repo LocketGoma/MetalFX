@@ -2,6 +2,7 @@
 #include "MetalFXSettings.h"
 #include "RenderGraphBuilder.h"
 #include "RenderGraphUtils.h"
+#include "ColorManagement/TransferFunctions.h"
 
 #if METALFX_PLUGIN_ENABLED
 #include "MetalRHI.h"
@@ -471,42 +472,36 @@ const void FMetalFXUpscalerCore::CheckValidate() const
    checkf(bValidate, TEXT("You Trying To Using MetalFX. but MetalFX Upscaler Core Not Ready or Crashed. You Must Check MetalFX Upscaler Logics. see MetalFXUpscalerCore Class For More Infomations."));
 }
 
-void FMetalFXUpscalerCore::SetTextures(const FMetalFXParameters& Parameters)
+bool FMetalFXUpscalerCore::SetTextures(const FMetalFXParameters& Parameters)
 {
-#if METALFX_METALCPP
+	bool bIsSuccess = false;
+#if METALFX_METALCPP || METALFX_NATIVE
+	FMetalFXTextureFormatGroup TempFormats;
+	
 	if (pModules)
 	{
-        CheckValidate();
-        //Color Texture
-        pModules->TextureGroup.ColorTexture = GetMetalFX2DTextureView(ToMTLTexture(Parameters.ColorTexture));
+		CheckValidate();
+		
+#if METALFX_METALCPP        
+		//Color Texture
+		pModules->TextureGroup.ColorTexture = GetMetalFX2DTextureView(ToMTLTexture(Parameters.ColorTexture));
         
-        //Depth Texture 
-        pModules->TextureGroup.DepthTexture = GetMetalFX2DTextureView(ToMTLTexture(Parameters.DepthTexture));
+		//Depth Texture 
+		pModules->TextureGroup.DepthTexture = GetMetalFX2DTextureView(ToMTLTexture(Parameters.DepthTexture));
         
-        //Velocity Texture 
-        pModules->TextureGroup.VelocityTexture = GetMetalFX2DTextureView(ToMTLTexture(Parameters.VelocityTexture));
+		//Velocity Texture 
+		pModules->TextureGroup.VelocityTexture = GetMetalFX2DTextureView(ToMTLTexture(Parameters.VelocityTexture));
          
-        //Output Texture 
-        pModules->TextureGroup.OutputTexture = GetMetalFX2DTextureView(ToMTLTexture(Parameters.OutputTexture));
-        
-        FMetalFXTextureFormatGroup TempFormats;
-	  	TempFormats.Color = pModules->TextureGroup.ColorTexture.GetTexture()->pixelFormat();
-	  	TempFormats.Depth = pModules->TextureGroup.DepthTexture.GetTexture()->pixelFormat();
-	  	TempFormats.Motion = pModules->TextureGroup.VelocityTexture.GetTexture()->pixelFormat();
-	  	TempFormats.Output = pModules->TextureGroup.OutputTexture.GetTexture()->pixelFormat();
-
-		if (!pModules->Formats.IsValidFormat(TempFormats))
-        {
-			pModules->Formats = TempFormats;
-			bIsInitalized = false;
-			Initialize();
-        }
-	}
+		//Output Texture 
+		pModules->TextureGroup.OutputTexture = GetMetalFX2DTextureView(ToMTLTexture(Parameters.OutputTexture));
+		
+		TempFormats.Color = pModules->TextureGroup.ColorTexture.GetTexture()->pixelFormat();
+		TempFormats.Depth = pModules->TextureGroup.DepthTexture.GetTexture()->pixelFormat();
+		TempFormats.Motion = pModules->TextureGroup.VelocityTexture.GetTexture()->pixelFormat();
+		TempFormats.Output = pModules->TextureGroup.OutputTexture.GetTexture()->pixelFormat();
 #endif
-	
+		
 #if METALFX_NATIVE
-    if (pModules)
-    {
         CheckValidate();
         //Color Texture
         pModules->TextureGroup.ColorTexture = GetMetalFX2DTextureView(ToOBJCTexture(Parameters.ColorTexture));
@@ -519,21 +514,25 @@ void FMetalFXUpscalerCore::SetTextures(const FMetalFXParameters& Parameters)
         
         //Output Texture 
         pModules->TextureGroup.OutputTexture = GetMetalFX2DTextureView(ToOBJCTexture(Parameters.OutputTexture));
+		
+		TempFormats.Color = (FMetalFXPixelFormat)[pModules->TextureGroup.ColorTexture.GetTexture() pixelFormat];
+		TempFormats.Depth = (FMetalFXPixelFormat)[pModules->TextureGroup.DepthTexture.GetTexture() pixelFormat];
+		TempFormats.Motion = (FMetalFXPixelFormat)[pModules->TextureGroup.VelocityTexture.GetTexture() pixelFormat];
+		TempFormats.Output = (FMetalFXPixelFormat)[pModules->TextureGroup.OutputTexture.GetTexture() pixelFormat];
+#endif
+		
+		bIsSuccess =(pModules->Formats.IsValidFormat(TempFormats));   
 	
-        FMetalFXTextureFormatGroup TempFormats;
-	  	TempFormats.Color = (FMetalFXPixelFormat)[pModules->TextureGroup.ColorTexture.GetTexture() pixelFormat];
-	  	TempFormats.Depth = (FMetalFXPixelFormat)[pModules->TextureGroup.DepthTexture.GetTexture() pixelFormat];
-	  	TempFormats.Motion = (FMetalFXPixelFormat)[pModules->TextureGroup.VelocityTexture.GetTexture() pixelFormat];
-	  	TempFormats.Output = (FMetalFXPixelFormat)[pModules->TextureGroup.OutputTexture.GetTexture() pixelFormat];
-
-		if (!pModules->Formats.IsValidFormat(TempFormats))
-        {
+		if (!bIsSuccess)
+		{
 			pModules->Formats = TempFormats;
 			bIsInitalized = false;
 			Initialize();
-        }
+		}
 	}
 #endif
+	
+	return bIsSuccess;
 }
 
 void FMetalFXUpscalerCore::SetJitterOffset(FVector2D Offset)
@@ -564,6 +563,9 @@ void FMetalFXUpscalerCore::SetMotionVectorScale(FVector2D Scale)
 	}	
 }
 
+#pragma region Encode_OldType
+
+//Native Objective-C++ Version
 void FMetalFXUpscalerCore::Encode(const FMetalFXParameters& Parameters)
 {
 #if !METALFX_NATIVE
@@ -579,7 +581,7 @@ void FMetalFXUpscalerCore::Encode(const FMetalFXParameters& Parameters)
 
 	if (!((ColorTexWidth == VeloTexWidth) && (ColorTexHeight == VeloTexHeight)))
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[MetalFX] Color: %lux%lu Motion: %lux%lu"), ColorTexWidth, ColorTexHeight, VeloTexWidth, VeloTexHeight);
+		UE_LOG(LogMetalFX, Warning, TEXT("[MetalFX] Color: %lux%lu Motion: %lux%lu"), ColorTexWidth, ColorTexHeight, VeloTexWidth, VeloTexHeight);
 		
 		UE_LOG(LogMetalFX, Error, TEXT("Texture Size Mismatch! Skip."));
 		return;
@@ -588,20 +590,20 @@ void FMetalFXUpscalerCore::Encode(const FMetalFXParameters& Parameters)
    @autoreleasepool
    {	   
 		//CommandQueue&CommandBuffer를 외부에서 가져오는것으로 변경시 아래 3줄 주석처리
-		id<MTLDevice> MetalDevice = (id<MTLDevice>)GDynamicRHI->RHIGetNativeDevice();
-		id<MTLCommandQueue> CmdQueue = [MetalDevice newCommandQueue];	   
-		id<MTLCommandBuffer> CommandBuffer = [CmdQueue commandBuffer];
+		//id<MTLDevice> MetalDevice = (id<MTLDevice>)GDynamicRHI->RHIGetNativeDevice();
+		//id<MTLCommandQueue> CmdQueue = [MetalDevice newCommandQueue];	   
+		//id<MTLCommandBuffer> CommandBuffer = [CmdQueue commandBuffer];
 	   
    		id<MTLTexture> ColorTex = pModules->TextureGroup.ColorTexture.GetTexture();
 		id<MTLTexture> DepthTex = pModules->TextureGroup.DepthTexture.GetTexture();
 		id<MTLTexture> MotionTex = pModules->TextureGroup.VelocityTexture.GetTexture();
 		id<MTLTexture> OutTex = pModules->TextureGroup.OutputTexture.GetTexture();
 	   
-	   UE_LOG(LogTemp, Warning,
+	   UE_LOG(LogMetalFX, Warning,
 		   TEXT("[MetalFX] ColorTexture.pixelFormat=%lu"),
 		   (unsigned long)[pModules->TextureGroup.ColorTexture.GetTexture() pixelFormat]);
 	   
-	   UE_LOG(LogTemp, Warning,
+	   UE_LOG(LogMetalFX, Warning,
 		   TEXT("[MetalFX] ViewType=%lu ViewPixelFormat=%lu"),
 		   (unsigned long)[pModules->TextureGroup.ColorTexture.GetTexture() textureType],
 		   (unsigned long)[pModules->TextureGroup.ColorTexture.GetTexture() pixelFormat]);
@@ -611,6 +613,7 @@ void FMetalFXUpscalerCore::Encode(const FMetalFXParameters& Parameters)
 #endif
 }
 
+//MetalCPP Version
 void FMetalFXUpscalerCore::Encode()
 {
 #if !METALFX_METALCPP
@@ -640,7 +643,113 @@ void FMetalFXUpscalerCore::Encode()
 	}
 #endif
 }
+#pragma endregion
+
+bool FMetalFXUpscalerCore::TextureSizeValidation(const FMetalFXCppTextureGroup& TextureGroup)
+{
+	bool Result = true;
+	uint64 ColorTexWidth = 0;
+	uint64 ColorTexHeight = 0;
+	uint64 VeloTexWidth = 0;
+	uint64 VeloTexHeight = 0;
+	
+#if METALFX_NATIVE
+	ColorTexWidth	= (unsigned long)[TextureGroup.ColorTexture.GetTexture() width];
+	ColorTexHeight	= (unsigned long)[TextureGroup.ColorTexture.GetTexture() height];
+	VeloTexWidth	= (unsigned long)[TextureGroup.VelocityTexture.GetTexture() width];
+	VeloTexHeight	= (unsigned long)[TextureGroup.VelocityTexture.GetTexture() height];
+#endif
+	
+#if METALFX_METALCPP
+	ColorTexWidth	= static_cast<uint64>(TextureGroup.ColorTexture.GetTexture()->width());
+	ColorTexHeight	= static_cast<uint64>(TextureGroup.ColorTexture.GetTexture()->height());
+	VeloTexWidth	= static_cast<uint64>(TextureGroup.VelocityTexture.GetTexture()->width());
+	VeloTexHeight	= static_cast<uint64>(TextureGroup.VelocityTexture.GetTexture()->height());
+	
+#endif
+	Result = ((ColorTexWidth == VeloTexWidth) && (ColorTexHeight == VeloTexHeight));
+	
+	if (!Result)
+	{
+		UE_LOG(LogMetalFX, Warning, TEXT("[MetalFX] TextureSize Mismatch! - Color: %llux%llu Motion: %llux%llu"), ColorTexWidth, ColorTexHeight, VeloTexWidth, VeloTexHeight);
+		Result = false;
+	}
+	
+	return Result;
+}
+
+void FMetalFXUpscalerCore::ExecuteMetalFX(FRHICommandList& CmdList, const FMetalFXParameters& Parameters)
+{
+	if (!pModule)
+	{
+		UE_LOG(LogMetalFX, Error, TEXT("MetalFX Upscaler Module was broken! skip Upscaling this frame."));
+		
+		return;		
+	}
+	
+	if (!SetTextures(Parameters))
+	{
+		UE_LOG(LogMetalFX, Warning, TEXT("Texture Format mismatch found. skip Upscaling this frame."));
+		
+		return;
+	}
+	
+	if (!TextureSizeValidation(pModules->TextureGroup))
+	{
+		UE_LOG(LogMetalFX, Warning, TEXT("Texture Rect mismatch found. skip Upscaling this frame."));
+		
+		return;
+	}
+	
+	Encode(CmdList);	
+}
+
+//텍스쳐 등 모든 세팅이 끝났을때 마지막으로 호출
+void FMetalFXUpscalerCore::Encode(FRHICommandList& CmdList)
+{
+	//TRHICommandList_RecursiveHazardous<IRHICommandContext> RHICmdList(&CmdList.GetContext());
+	
+	FMetalRHICommandContext& MetalContext = FMetalRHICommandContext::Get(CmdList);
+	FMetalCommandBuffer* CurrentCommandBuffer =	MetalContext.GetCurrentCommandBuffer();
+	
+	if (CurrentCommandBuffer == nullptr)
+	{
+		UE_LOG(LogMetalFX, Warning, TEXT("Can not found current activate Metal command buffer."));
+		return;
+	}
+	
+#if METALFX_NATIVE
+	
+	id<MTLTexture> ColorTex = pModules->TextureGroup.ColorTexture.GetTexture();
+	id<MTLTexture> DepthTex = pModules->TextureGroup.DepthTexture.GetTexture();
+	id<MTLTexture> MotionTex = pModules->TextureGroup.VelocityTexture.GetTexture();
+	id<MTLTexture> OutTex = pModules->TextureGroup.OutputTexture.GetTexture();
+	
+	id<MTLCommandBuffer> MetalNativeCommandBuffer = (__bridge id<MTLCommandBuffer>)CurrentCommandBuffer;
+	
+	MetalFXEncode(pModules->m_Scaler, MetalNativeCommandBuffer, ColorTex, DepthTex, MotionTex, OutTex, true);
+	
+#endif
+	
+#if METALFX_METALCPP
+	
+	pModules->m_CppScaler->setColorTexture(pModules->TextureGroup.ColorTexture.GetTexture());
+	pModules->m_CppScaler->setDepthTexture(pModules->TextureGroup.DepthTexture.GetTexture());
+	pModules->m_CppScaler->setMotionTexture(pModules->TextureGroup.VelocityTexture.GetTexture());
+	pModules->m_CppScaler->setOutputTexture(pModules->TextureGroup.OutputTexture.GetTexture());
+	
+	@autoreleasepool
+	{
+		//NS::SharedPtr<MTL::CommandBuffer> MetalCppCommandBuffer = NS::RetainPtr(CurrentCommandBuffer->GetMTLCmdBuffer());
+		//pModules->m_CppScaler->encodeToCommandBuffer(MetalCppCommandBuffer.get());	  
+		
+		MTL::CommandBuffer* MetalCppCommandBuffer = CurrentCommandBuffer->GetMTLCmdBuffer();
+		pModules->m_CppScaler->encodeToCommandBuffer(MetalCppCommandBuffer);	  
+	}	
+#endif
+}
 #endif  //METALFX_PLUGIN_ENABLED 
+
 
 EMetalFXSupportReason FMetalFXUpscalerCore::GetIsSupportedDevice()
 {

@@ -23,7 +23,7 @@ DEFINE_LOG_CATEGORY(LogMetalFX);
 	#endif
 
 	#if (METALFX_NATIVE && METALFX_METALCPP)
-		#error "You Must select SPECPIC METAL SDK TYPE. Can not use Multiple Types."
+		#error "You must select a specific Metal SDK type. Cannot use multiple types."
 	#endif
 #endif
 

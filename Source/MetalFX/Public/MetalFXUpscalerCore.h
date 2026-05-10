@@ -24,17 +24,27 @@ public:
 	void SetCommandQueue();
 	void UpdateInputRect(FIntPoint InRect);
 	void UpdateResolution(FIntPoint InRect, FIntPoint OutRect);
-	void SetTextures(const FMetalFXParameters& Parameters);
+	bool SetTextures(const FMetalFXParameters& Parameters);
 
 	void SetJitterOffset(FVector2D Offset);
 	void SetMotionVectorScale(FVector2D Scale);
 
+	//-----구버전----
 	//Object-C 직접 호출식
 	void Encode(const FMetalFXParameters& Parameters);
 
 	//MetalCPP Wrapper 호출식
 	void Encode();
+	//-----구버전----
 
+	//DLSS 기반 통합 Encoder (외부에서는 얘만 호출)
+	void ExecuteMetalFX(FRHICommandList& CmdList, const FMetalFXParameters& Parameters);
+private:
+	bool TextureSizeValidation(const FMetalFXCppTextureGroup& TextureGroup);
+	void Encode(FRHICommandList& CmdList);
+	
+	void GenerateUpscaler();
+	
 public:
 	//유틸 함수
 	const void CheckValidate() const;
