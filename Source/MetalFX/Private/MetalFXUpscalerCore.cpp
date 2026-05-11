@@ -10,6 +10,7 @@
 #include "MetalRHIPrivate.h"
 #include "MetalRHIContext.h"
 #include "MetalCommandBuffer.h"
+#include "MetalRHIUtility.h"
 
 #include <Foundation/Foundation.hpp>
 #include <Metal/Metal.hpp>
@@ -664,7 +665,7 @@ void FMetalFXUpscalerCore::Encode(FRHICommandList& CmdList)
 	//TRHICommandList_RecursiveHazardous<IRHICommandContext> RHICmdList(&CmdList.GetContext());
 	
 	FMetalRHICommandContext& MetalContext = FMetalRHICommandContext::Get(CmdList);
-	FMetalCommandBuffer* CurrentCommandBuffer =	MetalContext.GetCurrentCommandBufferWarning();
+	FMetalCommandBuffer* CurrentCommandBuffer = FMetalRHIUtility::GetCurrentCommandBuffer(&MetalContext);
 	
 	if (CurrentCommandBuffer == nullptr)
 	{

@@ -16,6 +16,7 @@ RESOLVED_EDITED_FILE=""
 RESOLVED_TARGET_FILE=""
 
 declare -a MODIFIED_FILES=()
+declare -a ADDED_FILES=()
 declare -a SKIPPED_FILES=()
 
 log() {
@@ -38,6 +39,16 @@ add_modified_file() {
         fi
     done
     MODIFIED_FILES+=("$file")
+}
+
+add_added_file() {
+    local file="$1"
+    for existing in "${ADDED_FILES[@]:-}"; do
+        if [[ "$existing" == "$file" ]]; then
+            return
+        fi
+    done
+    ADDED_FILES+=("$file")
 }
 
 add_skipped_file() {
@@ -211,6 +222,19 @@ resolve_target_from_relative_path() {
     RESOLVED_TARGET_FILE="$target_file"
 }
 
+resolve_source_for_new_file() {
+    local relative_path="$1"
+    local edited_file="$EDITED_DIR/$relative_path"
+
+    if [[ ! -f "$edited_file" ]]; then
+        err "Edited file not found: $edited_file"
+        return 1
+    fi
+
+    RESOLVED_EDITED_FILE="$edited_file"
+    RESOLVED_TARGET_FILE="$ENGINE_DIR/$relative_path"
+}
+
 has_marker_keyword() {
     local target_file="$1"
     grep -Fq "$MARKER_KEYWORD" "$target_file"
@@ -283,10 +307,50 @@ replace_function_by_signature() {
     echo "Function replacement completed."
 }
 
+add_file_if_missing() {
+    local relative_path="$1"
+
+    resolve_source_for_new_file "$relative_path" || return 1
+
+    local edited_file="$RESOLVED_EDITED_FILE"
+    local target_file="$RESOLVED_TARGET_FILE"
+    local target_dir
+    target_dir="$(dirname "$target_file")"
+
+    echo ""
+    echo "----------------------------------------"
+    echo "Adding or overwriting file"
+    echo "Edited file : $edited_file"
+    echo "Target file : $target_file"
+    echo "----------------------------------------"
+
+    if [[ ! -d "$target_dir" ]]; then
+        mkdir -p "$target_dir"
+    fi
+
+    if [[ -f "$target_file" ]]; then
+        warn "Target file already exists. It will be overwritten: $target_file"
+        cp "$edited_file" "$target_file"
+        add_modified_file "$target_file"
+        echo "File overwrite completed."
+        return 0
+    fi
+
+    cp "$edited_file" "$target_file"
+    add_added_file "$target_file"
+
+    echo "File add completed."
+}
+
 run_updates() {
     append_file_bottom "Shaders/Private/PostProcessMobile.usf"
     append_file_bottom "Source/Runtime/Renderer/Private/PostProcess/PostProcessMobile.h"
     append_file_bottom "Source/Runtime/Renderer/Private/PostProcess/PostProcessMobile.cpp"
+
+    # Add files if missing
+    # Example:
+    add_file_if_missing "Source/Runtime/Apple/MetalRHI/Public/MetalRHIUtility.h"
+    add_file_if_missing "Source/Runtime/Apple/MetalRHI/Private/MetalRHIUtility.cpp"
 
     # Must Check For newer version engine // Change "FRDGTextureRef" to "Void"
     #replace_function_by_signature \
@@ -304,6 +368,17 @@ print_modified_files() {
         echo "(none)"
     else
         printf '%s\n' "${MODIFIED_FILES[@]}"
+    fi
+
+    echo ""
+    echo "============================"
+    echo "Added files"
+    echo "============================"
+
+    if [[ ${#ADDED_FILES[@]} -eq 0 ]]; then
+        echo "(none)"
+    else
+        printf '%s\n' "${ADDED_FILES[@]}"
     fi
 
     echo ""

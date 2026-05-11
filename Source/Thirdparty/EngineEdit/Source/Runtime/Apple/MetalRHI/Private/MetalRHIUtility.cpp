@@ -1,4 +1,8 @@
 #include "MetalRHIUtility.h"
+#include "MetalRHI.h"
+#include "MetalRHIPrivate.h"
+#include "MetalRHIContext.h"
+#include "MetalCommandBuffer.h"
 
 FMetalCommandBuffer* FMetalRHIUtility::GetCurrentCommandBuffer(FMetalRHICommandContext* Context)
 {
@@ -6,4 +10,5 @@ FMetalCommandBuffer* FMetalRHIUtility::GetCurrentCommandBuffer(FMetalRHICommandC
 	{
 		return Context->GetCurrentCommandBuffer();
 	}
+	return nullptr;
 }
