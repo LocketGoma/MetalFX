@@ -410,6 +410,8 @@ bool FMetalFXUpscalerCore::GenerateUpscaler()
 			Desc->setAutoExposureEnabled(true);
 			
 			pModules->m_CppScaler = NS::RetainPtr(Desc->newTemporalScaler(MetalDevice));
+			
+			bSuccess = pModules->m_CppScaler != nullptr;
 		}
 	}
 	else 
@@ -441,7 +443,6 @@ bool FMetalFXUpscalerCore::GenerateUpscaler()
 	
 	if (!bSuccess)
 	{
-		
 		UE_LOG(LogMetalFX, Error, TEXT("MetalFX TemporalScaler API Generated Failed."));
 	}
 	
