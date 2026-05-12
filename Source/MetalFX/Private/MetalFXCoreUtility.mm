@@ -223,7 +223,7 @@ bool MetalFXUpdateScalerResolution(id<MTLFXTemporalScaler> Scaler, int InputWidt
 #ifdef __cplusplus
 extern "C"
 #endif
-void MetalFXEncode(id<MTLFXTemporalScaler> Scaler, id<MTLCommandBuffer> CmdBuffer, id<MTLTexture> Color, id<MTLTexture> Depth, id<MTLTexture> Motion, id<MTLTexture> Output, bool bReset)
+void MetalFXEncode(id<MTLFXTemporalScaler> Scaler, id<MTLCommandBuffer> CmdBuffer, id<MTLTexture> Color, id<MTLTexture> Depth, id<MTLTexture> Motion, id<MTLTexture> Output)
 {
 #if METALFX_PLUGIN_ENABLED
 	if (!Scaler || !CmdBuffer)
@@ -236,10 +236,6 @@ void MetalFXEncode(id<MTLFXTemporalScaler> Scaler, id<MTLCommandBuffer> CmdBuffe
 	Scaler.depthTexture		= Depth;
 	Scaler.motionTexture	= Motion;	//Motion, Velocity Texture
 	Scaler.outputTexture	= Output;
-	if (bReset)
-	{
-		Scaler.reset = YES;
-	}
 
 	NSLog(@"[MetalFX] CmdBuffer class = %@", NSStringFromClass([CmdBuffer class]));
 	NSLog(@"[MetalFX] Scaler class = %@", NSStringFromClass([Scaler class]));

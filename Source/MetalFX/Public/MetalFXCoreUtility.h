@@ -21,7 +21,7 @@ bool MetalFXUpdateScalerResolution(id<MTLFXTemporalScaler> Scaler, int InputWidt
 #ifdef __cplusplus
 extern "C"
 #endif
-void MetalFXEncode(id<MTLFXTemporalScaler> Scaler, id<MTLCommandBuffer> CmdBuffer, id<MTLTexture> Color, id<MTLTexture> Depth, id<MTLTexture> Motion, id<MTLTexture> Output, bool bReset);
+void MetalFXEncode(id<MTLFXTemporalScaler> Scaler, id<MTLCommandBuffer> CmdBuffer, id<MTLTexture> Color, id<MTLTexture> Depth, id<MTLTexture> Motion, id<MTLTexture> Output);
 
 #ifdef __cplusplus
 extern "C"

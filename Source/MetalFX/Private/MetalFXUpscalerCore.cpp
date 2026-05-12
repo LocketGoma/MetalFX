@@ -330,6 +330,8 @@ FMetalFXUpscalerCore::FMetalFXUpscalerCore()
 	m_OutW = 2560;
 	m_InH = 1440; 
 	m_OutH = 1440;
+	
+	Initialize();
 #endif //METALFX_PLUGIN_ENABLED 
 }
 
@@ -390,6 +392,7 @@ bool FMetalFXUpscalerCore::GenerateUpscaler()
 	{
 		pModules->m_CppScaler.reset();
 	}
+	
 	MTL::Device* MetalDevice = (MTL::Device*)GDynamicRHI->RHIGetNativeDevice();
 	if (MetalDevice)
 	{
@@ -545,7 +548,7 @@ bool FMetalFXUpscalerCore::SetTextures(const FMetalFXParameters& Parameters)
 		TempFormats.Output = (FMetalFXPixelFormat)[pModules->TextureGroup.OutputTexture.GetTexture() pixelFormat];
 #endif
 		
-		bIsSuccess &= (pModules->Formats.IsValidFormat(TempFormats));   
+		bIsSuccess = (pModules->Formats.IsValidFormat(TempFormats));   
 	
 		if (!bIsSuccess)
 		{
@@ -716,7 +719,7 @@ void FMetalFXUpscalerCore::Encode(FRHICommandList& CmdList)
 	
 	id<MTLCommandBuffer> MetalNativeCommandBuffer = (__bridge id<MTLCommandBuffer>)CurrentCommandBuffer;
 	
-	MetalFXEncode(pModules->m_Scaler, MetalNativeCommandBuffer, ColorTex, DepthTex, MotionTex, OutTex, true);
+	MetalFXEncode(pModules->m_Scaler, MetalNativeCommandBuffer, ColorTex, DepthTex, MotionTex, OutTex);
 	
 #endif
 	
