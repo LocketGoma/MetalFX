@@ -366,7 +366,7 @@ float FMetalFXUpscalerCore::GetMaxUpsampleResolutionFraction() const
 
 bool FMetalFXUpscalerCore::Initialize()
 {
-	if (bIsInitalized)
+	if (bIsInitialized)
 	{
 		return true;
 	}
@@ -376,9 +376,9 @@ bool FMetalFXUpscalerCore::Initialize()
 		return false;
 	}
 
-	bIsInitalized = GenerateUpscaler();
+	bIsInitialized = GenerateUpscaler();
   
-	return bIsInitalized;
+	return bIsInitialized;
 }
 bool FMetalFXUpscalerCore::GenerateUpscaler()
 {
@@ -452,27 +452,31 @@ void FMetalFXUpscalerCore::UpdateInputRect(FIntPoint InRect)
 
 #if METALFX_METALCPP
 	pModules->m_CppScaler->setInputContentWidth(m_InW);
-	pModules->m_CppScaler->setInputContentHeight(m_InW);
+	pModules->m_CppScaler->setInputContentHeight(m_InH);
 #elif METALFX_NATIVE
 	MetalFXUpdateScalerResolution(pModules->m_Scaler, m_InW, m_InH);
 #endif
 }
 
-//Resolution 자체가 바뀌는 경우엔 아예 다시 생성해야됨.
-void FMetalFXUpscalerCore::UpdateResolution(FIntPoint InRect, FIntPoint OutRect)
+//Output Resolution 자체가 바뀌는 경우엔 아예 다시 생성해야됨.
+bool FMetalFXUpscalerCore::UpdateResolution(FIntPoint InRect, FIntPoint OutRect)
 {
 	//하나라도 기존과 다르면 업데이트 & 재생성
-	if (!((m_InW == InRect.X) && (m_InH == InRect.Y) && (m_OutW == OutRect.X) && (m_OutH = OutRect.Y)))
+	if ((m_OutW != OutRect.X) || (m_OutH != OutRect.Y))
 	{
 		m_InW = InRect.X;
 		m_InH = InRect.Y;
 		m_OutW = OutRect.X;
 		m_OutH = OutRect.Y;
-   	
-		bIsInitalized = false;
-
-		GenerateUpscaler();
+		
+		return false;
 	}
+	else if ((m_InW != InRect.X) || (m_InH != InRect.Y))
+	{
+		UpdateInputRect(InRect);
+	}
+	
+	return true;
 }
 
 const bool FMetalFXUpscalerCore::CheckValidate()
@@ -541,7 +545,7 @@ bool FMetalFXUpscalerCore::SetTextures(const FMetalFXParameters& Parameters)
 		TempFormats.Output = (FMetalFXPixelFormat)[pModules->TextureGroup.OutputTexture.GetTexture() pixelFormat];
 #endif
 		
-		bIsSuccess = (pModules->Formats.IsValidFormat(TempFormats));   
+		bIsSuccess &= (pModules->Formats.IsValidFormat(TempFormats));   
 	
 		if (!bIsSuccess)
 		{
@@ -636,8 +640,10 @@ bool FMetalFXUpscalerCore::TextureSizeValidation_Native(FMetalFXObjCTextureGroup
 
 
 
-void FMetalFXUpscalerCore::ExecuteMetalFX(FRHICommandList& CmdList, const FMetalFXParameters& Parameters)
+void FMetalFXUpscalerCore::ExecuteMetalFX(FRHICommandList& CmdList, const FMetalFXParameters& Parameters, FIntPoint InRect, FIntPoint OutRect)
 {
+	bool bSuccess = true;
+	
 	if (!pModules)
 	{
 		UE_LOG(LogMetalFX, Error, TEXT("MetalFX Upscaler Module was broken! skip Upscaling this frame."));
@@ -645,11 +651,18 @@ void FMetalFXUpscalerCore::ExecuteMetalFX(FRHICommandList& CmdList, const FMetal
 		return;		
 	}
 	
+	if (!UpdateResolution(InRect, OutRect))
+	{
+		UE_LOG(LogMetalFX, Warning, TEXT("Output Texture size mismatch found. skip Upscaling this frame."));
+		
+		bSuccess = false;
+	}
+	
 	if (!SetTextures(Parameters))
 	{
 		UE_LOG(LogMetalFX, Warning, TEXT("Texture Format mismatch found. skip Upscaling this frame."));
 		
-		return;
+		bSuccess = false;
 	}
 	
 #if METALFX_METALCPP
@@ -657,7 +670,7 @@ void FMetalFXUpscalerCore::ExecuteMetalFX(FRHICommandList& CmdList, const FMetal
 	{
 		UE_LOG(LogMetalFX, Warning, TEXT("Texture Rect mismatch found. skip Upscaling this frame."));
 		
-		return;
+		bSuccess = false;
 	}	
 #endif
 	
@@ -666,9 +679,16 @@ void FMetalFXUpscalerCore::ExecuteMetalFX(FRHICommandList& CmdList, const FMetal
 	{
 		UE_LOG(LogMetalFX, Warning, TEXT("Texture Rect mismatch found. skip Upscaling this frame."));
 		
-		return;
+		bSuccess = false;
 	}
 #endif
+	
+	if (bSuccess == false)
+	{
+		GenerateUpscaler();
+		UE_LOG(LogMetalFX, Warning, TEXT("Upscaler ReGenerated. skip Upscaling this frame."));
+		return;
+	}
 	
 	Encode(CmdList);	
 }

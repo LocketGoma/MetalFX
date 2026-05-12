@@ -20,20 +20,21 @@ public:
 	float GetMinUpsampleResolutionFraction() const;
 	float GetMaxUpsampleResolutionFraction() const;
 
-	void UpdateInputRect(FIntPoint InRect);
-	void UpdateResolution(FIntPoint InRect, FIntPoint OutRect);
 	bool SetTextures(const FMetalFXParameters& Parameters);
 
 	void SetJitterOffset(FVector2D Offset);
 	void SetMotionVectorScale(FVector2D Scale);
 
 	//DLSS 기반 통합 Encoder (외부에서는 얘만 호출)
-	void ExecuteMetalFX(FRHICommandList& CmdList, const FMetalFXParameters& Parameters);
+	void ExecuteMetalFX(FRHICommandList& CmdList, const FMetalFXParameters& Parameters, FIntPoint InRect, FIntPoint OutRect);
 	
 private:
 	bool TextureSizeValidation_Cpp(struct FMetalFXCppTextureGroup& TextureGroup);
 	bool TextureSizeValidation_Native(struct FMetalFXObjCTextureGroup& TextureGroup);
 	void Encode(FRHICommandList& CmdList);
+	
+	void UpdateInputRect(FIntPoint InRect);
+	bool UpdateResolution(FIntPoint InRect, FIntPoint OutRect);
 	
 	bool Initialize();
 	bool GenerateUpscaler();
@@ -46,7 +47,7 @@ private:
 	//DLSS의 NGXRHI 클래스 포지션 (UStruct 아님)
 	std::unique_ptr<struct MetalFXModule> pModules;
 
-	bool bIsInitalized;
+	bool bIsInitialized;
 
 	uint32_t m_InW, m_InH;
 	uint32_t m_OutW, m_OutH;

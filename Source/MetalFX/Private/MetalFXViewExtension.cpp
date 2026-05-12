@@ -45,8 +45,6 @@ void FMetalFXViewExtension::BeginRenderViewFamily(FSceneViewFamily& InViewFamily
 		return;
 	}
 	
-	Upscaler->UpdateResolution(InputRect, OutputRect);
-	
 	for (auto* InView : InViewFamily.Views)
 	{
 		IsTemporalUpscalingRequested |= (InView->PrimaryScreenPercentageMethod == EPrimaryScreenPercentageMethod::TemporalUpscale);

@@ -40,15 +40,15 @@ public class MetalFX : ModuleRules
 		if (Target.Platform == UnrealTargetPlatform.Mac)
 		{
 			bApplePlatfrom = true;
-    		PublicDefinitions.Add("WITH_METALFX_TARGET_MAC = 1");
-    		PublicDefinitions.Add("WITH_METALFX_TARGET_IOS = 0");
+    		PublicDefinitions.Add("WITH_METALFX_TARGET_MAC=1");
+    		PublicDefinitions.Add("WITH_METALFX_TARGET_IOS=0");
 		}
 		
 		if (Target.Platform == UnrealTargetPlatform.IOS)
 		{
 			bApplePlatfrom = true;
-    		PublicDefinitions.Add("WITH_METALFX_TARGET_MAC = 0");
-    		PublicDefinitions.Add("WITH_METALFX_TARGET_IOS = 1");
+    		PublicDefinitions.Add("WITH_METALFX_TARGET_MAC=0");
+    		PublicDefinitions.Add("WITH_METALFX_TARGET_IOS=1");
 		}
 
 		if(bApplePlatfrom)
@@ -77,16 +77,16 @@ public class MetalFX : ModuleRules
 			//안정된 디버그가 필요한 경우 등의 상황에서 사용
 			
 			//Must Select ONE, Not TOGETHER.
-			PublicDefinitions.Add("METALFX_NATIVE = 0");
-			PublicDefinitions.Add("METALFX_METALCPP = 1");
+			PublicDefinitions.Add("METALFX_NATIVE=0");
+			PublicDefinitions.Add("METALFX_METALCPP=1");
 		}
 		else
 		{
-			PublicDefinitions.Add("METALFX_PLUGIN_ENABLED = 0");
-  			PublicDefinitions.Add("WITH_METALFX_TARGET_MAC = 0");
-    		PublicDefinitions.Add("WITH_METALFX_TARGET_IOS = 0");
-			PublicDefinitions.Add("METALFX_NATIVE = 0");
-			PublicDefinitions.Add("METALFX_METALCPP = 0");
+			PublicDefinitions.Add("METALFX_PLUGIN_ENABLED=0");
+  			PublicDefinitions.Add("WITH_METALFX_TARGET_MAC=0");
+    		PublicDefinitions.Add("WITH_METALFX_TARGET_IOS=0");
+			PublicDefinitions.Add("METALFX_NATIVE=0");
+			PublicDefinitions.Add("METALFX_METALCPP=0");
 		}
 		
 		//------------------MetalFX Handling Branch------------------ (End)

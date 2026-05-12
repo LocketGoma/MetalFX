@@ -96,9 +96,8 @@ ITemporalUpscaler::FOutputs FMetalFXTemporalUpscaler::AddPasses(FRDGBuilder& Gra
 	ITemporalUpscaler::FOutputs Outputs;
 
 	//2. Rect 변수 할당	
-	FIntPoint InputExtents =  Inputs.OutputViewRect.Size();
-
-	m_FxUpscaler->UpdateInputRect(InputExtents);
+	FIntPoint InputExtents = Inputs.SceneColor.ViewRect.Size();
+	FIntPoint OutputExtents = Inputs.OutputViewRect.Size();
 
 	//3. Histroy 생성
 	const TRefCountPtr<ITemporalUpscaler::IHistory> InputCustomHistory = Inputs.PrevHistory != nullptr ? Inputs.PrevHistory : new FMetalFXHistory();
@@ -106,7 +105,7 @@ ITemporalUpscaler::FOutputs FMetalFXTemporalUpscaler::AddPasses(FRDGBuilder& Gra
 	
 	//4. Output Texture 생성
 	FRDGTextureDesc Desc = FRDGTextureDesc::Create2D(
-		InputExtents,
+		OutputExtents,
 		PF_FloatRGBA,
 		FClearValueBinding::None,
 		TexCreate_ShaderResource | TexCreate_UAV
@@ -121,21 +120,19 @@ ITemporalUpscaler::FOutputs FMetalFXTemporalUpscaler::AddPasses(FRDGBuilder& Gra
 
 	FMetalFXDispatchParameters DispatchParams;
 	DispatchParams.JitterOffset = View.ViewMatrices.GetTemporalAAJitter();
-	//두개 동일하게 사용함
-	//DispatchParams.MotionVectorScale.X = 0.5;
-	//DispatchParams.MotionVectorScale.Y = 0.5;
 
 	ERDGPassFlags Flags = ERDGPassFlags::Compute | ERDGPassFlags::Raster | ERDGPassFlags::SkipRenderPass | ERDGPassFlags::NeverCull;
 	
 	GraphBuilder.AddPass(
 		RDG_EVENT_NAME("MetalFXTemporalUpscaler"), PassParams, Flags, 
-		[this, PassParams, DispatchParams](FRHICommandListImmediate& RHICmdList)
+		[this, PassParams, InputExtents, OutputExtents, DispatchParams](FRHICommandListImmediate& RHICmdList)
 		{
 			if (!m_FxUpscaler)
 			{
 				return;
 			}
-			m_FxUpscaler->ExecuteMetalFX(RHICmdList, *PassParams);
+			//To do : Dispatch Params도 이용해야됨.
+			m_FxUpscaler->ExecuteMetalFX(RHICmdList, *PassParams, InputExtents, OutputExtents);
 		});
 	
 	*OutputCustomHistory = InputCustomHistory;
