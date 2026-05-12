@@ -38,24 +38,31 @@ DEFINE_LOG_CATEGORY(LogMetalFX);
 
 void FMetalFXModule::StartupModule()
 {
-	OnPostRHIInitialized = FCoreDelegates::OnPostEngineInit.AddRaw(this, &FMetalFXModule::HandlePostRHIInitialized);
-	OnPostWorldBeginPlay = FWorldDelegates::OnPostWorldInitialization.AddRaw(this, &FMetalFXModule::HandleWorldBeginPlay);
+	if (IsRunningCommandlet())
+	{
+		return;
+	}
 	
-//콘솔 설정 추가
-	FCoreDelegates::OnPostEngineInit.AddLambda([]()
-		{
+	if (FApp::IsGame() || GIsEditor)
+	{
+		OnPostRHIInitialized = FCoreDelegates::OnPostEngineInit.AddRaw(this, &FMetalFXModule::HandlePostRHIInitialized);
+		OnPostWorldBeginPlay = FWorldDelegates::OnPostWorldInitialization.AddRaw(this, &FMetalFXModule::HandleWorldBeginPlay);
+		
+		//콘솔 설정 추가
+		FCoreDelegates::OnPostEngineInit.AddLambda([]()
+												   {
 			const UMetalFXSettings* Settings = GetDefault<UMetalFXSettings>();
 			if (!Settings)
 			{
 				return;
 			}
-
+			
 			// CVar 세팅
 			if (IConsoleVariable* CvarMetalFXEnable = IConsoleManager::Get().FindConsoleVariable(TEXT("r.MetalFX.Enabled")))
 			{				
 				CvarMetalFXEnable->Set(Settings->bEnabled, ECVF_SetByCode);
 			}
-
+			
 			if (IConsoleVariable* CvarMetalFXMode = IConsoleManager::Get().FindConsoleVariable(TEXT("r.MetalFX.UpscalerMode")))
 			{				
 				CvarMetalFXMode->Set(Settings->UpscalerMode, ECVF_SetByCode);
@@ -71,8 +78,9 @@ void FMetalFXModule::StartupModule()
 				CvarMetalFXQuality->Set(static_cast<int32>(Settings->QualityMode), ECVF_SetByCode);
 			}
 		});
-	
-	UE_LOG(LogMetalFX, Log, TEXT("MetalFX Temporal Upscaling Module Start"));
+		
+		UE_LOG(LogMetalFX, Log, TEXT("MetalFX Temporal Upscaling Module Start"));
+	}
 }
 
 void FMetalFXModule::ShutdownModule()
@@ -118,8 +126,9 @@ void FMetalFXModule::HandlePostRHIInitialized()
 {
 	if (!GDynamicRHI)
 	{
-		UE_LOG(LogMetalFX, Log, TEXT("Apple MetalFX requires an Apple's RHI"));
+		UE_LOG(LogMetalFX, Warning, TEXT("Apple MetalFX requires an Apple's RHI"));
 		MetalSupport = EMetalSupportDevice::NotSupported;
+		return;
 	}
 	
 	MetalSupport = (IsMetalPlatform(GMaxRHIShaderPlatform) ? EMetalSupportDevice::Supported : EMetalSupportDevice::NotSupported);
@@ -128,9 +137,14 @@ void FMetalFXModule::HandlePostRHIInitialized()
 	{
 		MetalFXSupport = FMetalFXUpscalerCore::GetIsSupportedDevice();
 #if METALFX_PLUGIN_ENABLED		
-		if (MetalSupport == EMetalSupportDevice::Supported)
+		if (MetalFXSupport == EMetalFXSupportReason::Supported)
 		{
 			MetalFXUpscaler = MakeShared<FMetalFXUpscalerCore, ESPMode::ThreadSafe>();
+			
+			if(MetalFXUpscaler)
+			{
+				MetalFXUpscaler->Initialize();
+			}
 		}
 #endif
 	}
@@ -141,14 +155,21 @@ void FMetalFXModule::HandlePostRHIInitialized()
 
 	if (GetIsSupportedByRHI())
 	{
-		//View Extension 등록
-		MetalFXViewExtension = FSceneViewExtensions::NewExtension<FMetalFXViewExtension>();
-		
-		UE_LOG(LogMetalFX, Log, TEXT("Apple MetalFX Enabled! Now Can Activate MetalFX."));
+		if (MetalFXUpscaler != nullptr)
+		{
+			//View Extension 등록
+			MetalFXViewExtension = FSceneViewExtensions::NewExtension<FMetalFXViewExtension>();
+			
+			UE_LOG(LogMetalFX, Log, TEXT("Apple MetalFX Enabled! Now Can Activate MetalFX."));
+		}
+		else
+		{
+			UE_LOG(LogMetalFX, Error, TEXT("Apple MetalFX Disabled. Upscaler Core not Generated."));	
+		}
 	}
 	else
 	{
-		UE_LOG(LogMetalFX, Log, TEXT("Apple MetalFX Disabled Because It is not Supported Environment."));			
+		UE_LOG(LogMetalFX, Warning, TEXT("Apple MetalFX Disabled Because It is not Supported Environment."));
 	}
 }
 

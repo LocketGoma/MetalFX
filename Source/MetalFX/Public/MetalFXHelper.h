@@ -1,7 +1,11 @@
 #pragma once
 #include "CoreMinimal.h"
+#include "RenderGraphBuilder.h"
+#include "RenderGraphResources.h"
 
 DECLARE_LOG_CATEGORY_EXTERN(LogMetalFX, Verbose, All);
+
+class FRDGTexture;
 
 //= Metal이 지원되는 Apple 기기인지 아닌지
 enum class EMetalSupportDevice : uint8
@@ -54,6 +58,14 @@ struct FMetalFXTextureFormatGroup
 	}
 };
 
+struct FMetalFXTextureParameterGroup
+{
+	FRDGTextureRef ColorTexture = nullptr;
+	FRDGTextureRef DepthTexture = nullptr;
+	FRDGTextureRef VelocityTexture = nullptr;
+	FRDGTextureRef OutputTexture = nullptr;
+};
+
 BEGIN_SHADER_PARAMETER_STRUCT(FMetalFXParameters, )
 	RDG_TEXTURE_ACCESS(ColorTexture, ERHIAccess::SRVMask)
 	RDG_TEXTURE_ACCESS(DepthTexture, ERHIAccess::SRVMask)
@@ -64,3 +76,5 @@ BEGIN_SHADER_PARAMETER_STRUCT(FMetalFXParameters, )
 	SHADER_PARAMETER(float,      PreExposure)
 	SHADER_PARAMETER(uint32,     bReversedDepth)   // 0 or 1
 END_SHADER_PARAMETER_STRUCT()
+
+

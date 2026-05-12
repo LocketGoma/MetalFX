@@ -322,6 +322,7 @@ void FMetalFXUpscalerCore::Tick(FRHICommandListImmediate& RHICmdList)
 }
 FMetalFXUpscalerCore::FMetalFXUpscalerCore()
 {
+	bIsInitialized = false;
 #if METALFX_PLUGIN_ENABLED
 	pModules = std::make_unique<MetalFXModule>();
 
@@ -330,8 +331,6 @@ FMetalFXUpscalerCore::FMetalFXUpscalerCore()
 	m_OutW = 2560;
 	m_InH = 1440; 
 	m_OutH = 1440;
-	
-	Initialize();
 #endif //METALFX_PLUGIN_ENABLED 
 }
 
@@ -366,21 +365,20 @@ float FMetalFXUpscalerCore::GetMaxUpsampleResolutionFraction() const
 	return FMath::Max(fracW, fracH);	
 }
 
-bool FMetalFXUpscalerCore::Initialize()
+void FMetalFXUpscalerCore::Initialize()
 {
 	if (bIsInitialized)
 	{
-		return true;
+		return;
 	}
 
 	if (!pModules)
 	{
-		return false;
+		return;
 	}
 
 	bIsInitialized = GenerateUpscaler();
-  
-	return bIsInitialized;
+
 }
 bool FMetalFXUpscalerCore::GenerateUpscaler()
 {
@@ -411,7 +409,7 @@ bool FMetalFXUpscalerCore::GenerateUpscaler()
 			
 			pModules->m_CppScaler = NS::RetainPtr(Desc->newTemporalScaler(MetalDevice));
 			
-			bSuccess = pModules->m_CppScaler != nullptr;
+			bSuccess = (pModules->m_CppScaler.get() != nullptr);
 		}
 	}
 	else 
@@ -499,7 +497,7 @@ const bool FMetalFXUpscalerCore::CheckValidate()
 	return bValidate;
 }
 
-bool FMetalFXUpscalerCore::SetTextures(const FMetalFXParameters& Parameters)
+bool FMetalFXUpscalerCore::SetTextures(const FMetalFXTextureParameterGroup& Parameters)
 {
 	bool bIsSuccess = false;
 #if METALFX_METALCPP || METALFX_NATIVE
@@ -554,7 +552,6 @@ bool FMetalFXUpscalerCore::SetTextures(const FMetalFXParameters& Parameters)
 		if (!bIsSuccess)
 		{
 			pModules->Formats = TempFormats;
-			GenerateUpscaler();
 		}
 	}
 #endif
@@ -590,7 +587,7 @@ void FMetalFXUpscalerCore::SetMotionVectorScale(FVector2D Scale)
 	}	
 }
 
-bool FMetalFXUpscalerCore::TextureSizeValidation_Cpp(FMetalFXCppTextureGroup& TextureGroup)
+bool FMetalFXUpscalerCore::TextureSizeValidation_Cpp()
 {
 	bool Result = true;
 	uint64 ColorTexWidth = 0;
@@ -599,10 +596,10 @@ bool FMetalFXUpscalerCore::TextureSizeValidation_Cpp(FMetalFXCppTextureGroup& Te
 	uint64 VeloTexHeight = 0;
 
 #if METALFX_METALCPP
-	ColorTexWidth	= static_cast<uint64>(TextureGroup.ColorTexture.GetTexture()->width());
-	ColorTexHeight	= static_cast<uint64>(TextureGroup.ColorTexture.GetTexture()->height());
-	VeloTexWidth	= static_cast<uint64>(TextureGroup.VelocityTexture.GetTexture()->width());
-	VeloTexHeight	= static_cast<uint64>(TextureGroup.VelocityTexture.GetTexture()->height());
+	ColorTexWidth	= static_cast<uint64>(pModules->TextureGroup.ColorTexture.GetTexture()->width());
+	ColorTexHeight	= static_cast<uint64>(pModules->TextureGroup.ColorTexture.GetTexture()->height());
+	VeloTexWidth	= static_cast<uint64>(pModules->TextureGroup.VelocityTexture.GetTexture()->width());
+	VeloTexHeight	= static_cast<uint64>(pModules->TextureGroup.VelocityTexture.GetTexture()->height());
 	
 #endif
 	Result = ((ColorTexWidth == VeloTexWidth) && (ColorTexHeight == VeloTexHeight));
@@ -610,13 +607,12 @@ bool FMetalFXUpscalerCore::TextureSizeValidation_Cpp(FMetalFXCppTextureGroup& Te
 	if (!Result)
 	{
 		UE_LOG(LogMetalFX, Warning, TEXT("[MetalFX] TextureSize Mismatch! - Color: %llux%llu Motion: %llux%llu"), ColorTexWidth, ColorTexHeight, VeloTexWidth, VeloTexHeight);
-		Result = false;
 	}
 	
 	return Result;
 }
 
-bool FMetalFXUpscalerCore::TextureSizeValidation_Native(FMetalFXObjCTextureGroup& TextureGroup)
+bool FMetalFXUpscalerCore::TextureSizeValidation_Native()
 {
 	bool Result = true;
 	uint64 ColorTexWidth = 0;
@@ -625,10 +621,10 @@ bool FMetalFXUpscalerCore::TextureSizeValidation_Native(FMetalFXObjCTextureGroup
 	uint64 VeloTexHeight = 0;
 	
 #if METALFX_NATIVE
-	ColorTexWidth	= (unsigned long)[TextureGroup.ColorTexture.GetTexture() width];
-	ColorTexHeight	= (unsigned long)[TextureGroup.ColorTexture.GetTexture() height];
-	VeloTexWidth	= (unsigned long)[TextureGroup.VelocityTexture.GetTexture() width];
-	VeloTexHeight	= (unsigned long)[TextureGroup.VelocityTexture.GetTexture() height];
+	ColorTexWidth	= (unsigned long)[pModules->TextureGroup.ColorTexture.GetTexture() width];
+	ColorTexHeight	= (unsigned long)[pModules->TextureGroup.ColorTexture.GetTexture() height];
+	VeloTexWidth	= (unsigned long)[pModules->TextureGroup.VelocityTexture.GetTexture() width];
+	VeloTexHeight	= (unsigned long)[pModules->TextureGroup.VelocityTexture.GetTexture() height];
 #endif
 	
 	Result = ((ColorTexWidth == VeloTexWidth) && (ColorTexHeight == VeloTexHeight));
@@ -644,9 +640,10 @@ bool FMetalFXUpscalerCore::TextureSizeValidation_Native(FMetalFXObjCTextureGroup
 
 
 
-void FMetalFXUpscalerCore::ExecuteMetalFX(FRHICommandList& CmdList, const FMetalFXParameters& Parameters, FIntPoint InRect, FIntPoint OutRect)
+void FMetalFXUpscalerCore::ExecuteMetalFX(FRHICommandList& CmdList, const FMetalFXTextureParameterGroup& Parameters, FIntPoint InRect, FIntPoint OutRect)
 {
 	bool bSuccess = true;
+	bool bGenerated = true;
 	
 	if (!pModules)
 	{
@@ -660,6 +657,7 @@ void FMetalFXUpscalerCore::ExecuteMetalFX(FRHICommandList& CmdList, const FMetal
 		UE_LOG(LogMetalFX, Warning, TEXT("Output Texture size mismatch found. skip Upscaling this frame."));
 		
 		bSuccess = false;
+		bGenerated = false;
 	}
 	
 	if (!SetTextures(Parameters))
@@ -667,10 +665,11 @@ void FMetalFXUpscalerCore::ExecuteMetalFX(FRHICommandList& CmdList, const FMetal
 		UE_LOG(LogMetalFX, Warning, TEXT("Texture Format mismatch found. skip Upscaling this frame."));
 		
 		bSuccess = false;
+		bGenerated = false;
 	}
 	
 #if METALFX_METALCPP
-	if (!TextureSizeValidation_Cpp(pModules->TextureGroup))
+	if (!TextureSizeValidation_Cpp())
 	{
 		UE_LOG(LogMetalFX, Warning, TEXT("Texture Rect mismatch found. skip Upscaling this frame."));
 		
@@ -679,7 +678,7 @@ void FMetalFXUpscalerCore::ExecuteMetalFX(FRHICommandList& CmdList, const FMetal
 #endif
 	
 #if METALFX_NATIVE
-	if (!TextureSizeValidation_Native(pModules->TextureGroup))
+	if (!TextureSizeValidation_Native())
 	{
 		UE_LOG(LogMetalFX, Warning, TEXT("Texture Rect mismatch found. skip Upscaling this frame."));
 		
@@ -689,12 +688,19 @@ void FMetalFXUpscalerCore::ExecuteMetalFX(FRHICommandList& CmdList, const FMetal
 	
 	if (bSuccess == false)
 	{
-		GenerateUpscaler();
+		if (bGenerated == false)
+		{
+			GenerateUpscaler();
+			UE_LOG(LogMetalFX, Warning, TEXT("Upscaler ReGenerated. skip Upscaling this frame."));
+		}
 		UE_LOG(LogMetalFX, Warning, TEXT("Upscaler ReGenerated. skip Upscaling this frame."));
 		return;
 	}
 	
-	Encode(CmdList);	
+	if (bSuccess == true && bGenerated == true)
+	{		
+		Encode(CmdList);	
+	}
 }
 
 //텍스쳐 등 모든 세팅이 끝났을때 마지막으로 호출

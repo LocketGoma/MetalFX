@@ -19,68 +19,60 @@ void FMetalFXViewExtension::SetupViewFamily(FSceneViewFamily& InViewFamily)
 
 	bMetalFXEnabled = CvarMetalFXEnable->GetValueOnGameThread();
 }
+
+//DLSS 로직 그대로 갖고옴 ㅎㅎ;
 void FMetalFXViewExtension::BeginRenderViewFamily(FSceneViewFamily& InViewFamily)
-{	
-//Apple Upscaler (MetalFX) 설정 변경은 Mac/모바일(iOS) 환경에서만 가능하도록 처리
-
-	// 최종 렌더 사이즈
-	FIntPoint OutputRect = InViewFamily.RenderTarget->GetSizeXY();
-	FIntPoint InputRect = OutputRect;
-	FGlobalShaderMap* ShaderMap = GetGlobalShaderMap(InViewFamily.GetFeatureLevel());
-	
-	//현재 뷰 패밀리에서 ShaderMap 안잡히면 바로 Out
-	if (!ShaderMap)
+{
+	if (InViewFamily.ViewMode != EViewModeIndex::VMI_Lit ||
+		InViewFamily.Scene == nullptr ||
+		InViewFamily.Scene->GetShadingPath() != EShadingPath::Deferred ||
+		!InViewFamily.bRealtimeUpdate)
 	{
-		bMetalFXEnabled = false;
+		return;
+	}
+
+	// Early returns if none of the view have a view state or if primary temporal upscaling isn't requested
+	bool bFoundPrimaryTemporalUpscale = false;
+	for (const FSceneView* View : InViewFamily.Views)
+	{
+		if (View->State == nullptr)
+		{
+			return;
+		}
+
+		if (View->bIsSceneCapture)
+		{
+			return;
+		}
+
+		if (View->PrimaryScreenPercentageMethod == EPrimaryScreenPercentageMethod::TemporalUpscale)
+		{
+			bFoundPrimaryTemporalUpscale = true;
+		}
+	}
+	if (!bFoundPrimaryTemporalUpscale)
+	{
 		return;
 	}
 	
+	if (bMetalFXEnabled)
+	{
 #if METALFX_PLUGIN_ENABLED
-	FMetalFXModule& MetalFXModule = FModuleManager::GetModuleChecked<FMetalFXModule>(TEXT("MetalFX"));
-	FMetalFXUpscalerCore* Upscaler = MetalFXModule.GetMetalFXUpscaler();
-	bool IsTemporalUpscalingRequested = false;
-
-	if (!Upscaler)
-	{
-		return;
-	}
-	
-	for (auto* InView : InViewFamily.Views)
-	{
-		IsTemporalUpscalingRequested |= (InView->PrimaryScreenPercentageMethod == EPrimaryScreenPercentageMethod::TemporalUpscale);
-	}
-
-	if (bMetalFXEnabled && InViewFamily.GetTemporalUpscalerInterface() == nullptr)
-	{
-		InViewFamily.SetTemporalUpscalerInterface(new FMetalFXTemporalUpscaler(Upscaler));
-	}
+		FMetalFXModule& MetalFXModule = FModuleManager::GetModuleChecked<FMetalFXModule>(TEXT("MetalFX"));
+		FMetalFXUpscalerCore* Upscaler = MetalFXModule.GetMetalFXUpscaler();
+		if (!Upscaler)
+		{
+			return;
+		}
+		if (!InViewFamily.GetTemporalUpscalerInterface())
+		{
+			InViewFamily.SetTemporalUpscalerInterface(new FMetalFXTemporalUpscaler(Upscaler));
+		}
 #endif //METALFX_PLUGIN_ENABLED
-}
-
-void FMetalFXViewExtension::PreRenderViewFamily_RenderThread(FRenderGraphType& GraphBuilder, FSceneViewFamily& InViewFamily)
-{
-	FSceneViewExtensionBase::PreRenderViewFamily_RenderThread(GraphBuilder, InViewFamily);
-}
-
-void FMetalFXViewExtension::PreRenderView_RenderThread(FRenderGraphType& GraphBuilder, FSceneView& InView)
-{
-	FSceneViewExtensionBase::PreRenderView_RenderThread(GraphBuilder, InView);
-}
-
-void FMetalFXViewExtension::PostRenderViewFamily_RenderThread(FRenderGraphType& GraphBuilder, FSceneViewFamily& InViewFamily)
-{
-	FSceneViewExtensionBase::PostRenderViewFamily_RenderThread(GraphBuilder, InViewFamily);
-	
-	if (IsMetalFXEnable())
-	{
-		GraphBuilder.RHICmdList.ImmediateFlush(EImmediateFlushType::FlushRHIThread);
 	}
+	
 }
 
-void FMetalFXViewExtension::PrePostProcessPass_RenderThread(FRDGBuilder& GraphBuilder, const FSceneView& View, const FPostProcessingInputs& Inputs)
-{
-	FSceneViewExtensionBase::PrePostProcessPass_RenderThread(GraphBuilder, View, Inputs);
-}
 
 bool FMetalFXViewExtension::IsActiveThisFrame_Internal(const FSceneViewExtensionContext& Context) const
 {

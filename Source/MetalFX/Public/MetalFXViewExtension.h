@@ -11,14 +11,13 @@ class FMetalFXViewExtension final : public FSceneViewExtensionBase
 public:
 	FMetalFXViewExtension(const FAutoRegister& AutoRegister);
 
-	void SetupViewFamily(FSceneViewFamily& InViewFamily) override;
-	void SetupView(FSceneViewFamily& InViewFamily, FSceneView& InView) override {};
-	void BeginRenderViewFamily(FSceneViewFamily& InViewFamily) override;
+	virtual void SetupViewFamily(FSceneViewFamily& InViewFamily) override;
+	virtual void SetupView(FSceneViewFamily& InViewFamily, FSceneView& InView) override {};
+	virtual void BeginRenderViewFamily(FSceneViewFamily& InViewFamily) override;
 	
-	void PreRenderViewFamily_RenderThread(FRenderGraphType& GraphBuilder, FSceneViewFamily& InViewFamily) override;
-	void PreRenderView_RenderThread(FRenderGraphType& GraphBuilder, FSceneView& InView) override;
-	void PostRenderViewFamily_RenderThread(FRenderGraphType& GraphBuilder, FSceneViewFamily& InViewFamily) override;
-	void PrePostProcessPass_RenderThread(FRDGBuilder& GraphBuilder, const FSceneView& View, const FPostProcessingInputs& Inputs) override;
+	virtual void PreRenderViewFamily_RenderThread(FRenderGraphType& GraphBuilder, FSceneViewFamily& InViewFamily) override {};
+	virtual void PreRenderView_RenderThread(FRenderGraphType& GraphBuilder, FSceneView& InView) override {};
+	virtual void PostRenderViewFamily_RenderThread(FRenderGraphType& GraphBuilder, FSceneViewFamily& InViewFamily) override {};
 
 protected:
 	virtual bool IsActiveThisFrame_Internal(const FSceneViewExtensionContext& Context) const override;

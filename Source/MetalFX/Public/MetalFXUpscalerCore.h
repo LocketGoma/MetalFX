@@ -14,29 +14,31 @@ public:
 	FMetalFXUpscalerCore();
 	virtual ~FMetalFXUpscalerCore() override;
 
+	void Initialize();
+	
 	static EMetalFXSupportReason GetIsSupportedDevice();
 	
 #if METALFX_PLUGIN_ENABLED
 	float GetMinUpsampleResolutionFraction() const;
 	float GetMaxUpsampleResolutionFraction() const;
 
-	bool SetTextures(const FMetalFXParameters& Parameters);
+	bool SetTextures(const FMetalFXTextureParameterGroup& Parameters);
 
 	void SetJitterOffset(FVector2D Offset);
 	void SetMotionVectorScale(FVector2D Scale);
 
 	//DLSS 기반 통합 Encoder (외부에서는 얘만 호출)
-	void ExecuteMetalFX(FRHICommandList& CmdList, const FMetalFXParameters& Parameters, FIntPoint InRect, FIntPoint OutRect);
+	void ExecuteMetalFX(FRHICommandList& CmdList, const FMetalFXTextureParameterGroup& Parameters, FIntPoint InRect, FIntPoint OutRect);
 	
 private:
-	bool TextureSizeValidation_Cpp(struct FMetalFXCppTextureGroup& TextureGroup);
-	bool TextureSizeValidation_Native(struct FMetalFXObjCTextureGroup& TextureGroup);
+	bool TextureSizeValidation_Cpp();
+	bool TextureSizeValidation_Native();
 	void Encode(FRHICommandList& CmdList);
 	
 	void UpdateInputRect(FIntPoint InRect);
 	bool UpdateResolution(FIntPoint InRect, FIntPoint OutRect);
 	
-	bool Initialize();
+
 	bool GenerateUpscaler();
 	
 public:
