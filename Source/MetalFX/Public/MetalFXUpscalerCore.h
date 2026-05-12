@@ -19,9 +19,7 @@ public:
 #if METALFX_PLUGIN_ENABLED
 	float GetMinUpsampleResolutionFraction() const;
 	float GetMaxUpsampleResolutionFraction() const;
-	
-	bool Initialize();
-	void SetCommandQueue();
+
 	void UpdateInputRect(FIntPoint InRect);
 	void UpdateResolution(FIntPoint InRect, FIntPoint OutRect);
 	bool SetTextures(const FMetalFXParameters& Parameters);
@@ -31,16 +29,18 @@ public:
 
 	//DLSS 기반 통합 Encoder (외부에서는 얘만 호출)
 	void ExecuteMetalFX(FRHICommandList& CmdList, const FMetalFXParameters& Parameters);
+	
 private:
 	bool TextureSizeValidation_Cpp(struct FMetalFXCppTextureGroup& TextureGroup);
 	bool TextureSizeValidation_Native(struct FMetalFXObjCTextureGroup& TextureGroup);
 	void Encode(FRHICommandList& CmdList);
 	
-	void GenerateUpscaler();
+	bool Initialize();
+	bool GenerateUpscaler();
 	
 public:
 	//유틸 함수
-	const void CheckValidate() const;
+	const bool CheckValidate();
 
 private:
 	//DLSS의 NGXRHI 클래스 포지션 (UStruct 아님)

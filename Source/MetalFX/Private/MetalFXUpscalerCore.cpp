@@ -3,7 +3,6 @@
 #include "MetalFXCoreUtility.h"
 #include "RenderGraphBuilder.h"
 #include "RenderGraphUtils.h"
-#include "ColorManagement/TransferFunctions.h"
 
 #if METALFX_PLUGIN_ENABLED
 #include "MetalRHI.h"
@@ -15,7 +14,6 @@
 #include <Foundation/Foundation.hpp>
 #include <Metal/Metal.hpp>
 #include <MetalFX/MetalFX.hpp>
-#import <MetalPerformanceShaders/MetalPerformanceShaders.h>
 #endif	//METALFX_PLUGIN_ENABLED 
 
 #if METALFX_PLUGIN_ENABLED
@@ -47,8 +45,15 @@ MTL::Texture* ToMTLTexture(const FRDGTextureRef& In)
 //2차 변환 처리를 위한 중간 구조체
 struct FMetalFXCppTextureView
 {	
-	//FMetalFXCppTextureView() = default;
-	//FMetalFXCppTextureView(const FMetalFXCppTextureView&) = delete;
+	FMetalFXCppTextureView() = default;
+	FMetalFXCppTextureView(const FMetalFXCppTextureView& inTexview)
+	{
+		ReleaseTexture();
+		
+		Texture = inTexview.Texture;
+		bNeedsRelease = inTexview.bNeedsRelease;
+		bIsValid = inTexview.bIsValid;	
+	}
 	
 	//To do. Command Buffer 진행 이후 릴리즈가 필요한 경우 보완필요함!
 public:
@@ -175,11 +180,24 @@ id<MTLTexture> ToOBJCTexture(const FRDGTextureRef& In)
 //2차 변환 처리를 위한 중간 구조체
 struct FMetalFXObjCTextureView
 {	
-	//FMetalFXObjCTextureView() = default;
-	//FMetalFXObjCTextureView(const FMetalFXCppTextureView&) = delete;
+	FMetalFXObjCTextureView() = default;
+	FMetalFXObjCTextureView(const FMetalFXObjCTextureView& inTexview)
+	{
+		ReleaseTexture();
+		
+		Texture = inTexview.Texture;
+		bNeedsRelease = inTexview.bNeedsRelease;
+		bIsValid = inTexview.bIsValid;
+	}
 	
 	//To do. Command Buffer 진행 이후 릴리즈가 필요한 경우 보완필요함!
 public:
+	
+	~FMetalFXObjCTextureView()
+	{
+		ReleaseTexture();
+	}
+	
 	void SetTexture(id<MTLTexture> inTexture, bool isNeedRelease = false)
 	{
 		//기존 텍스쳐 정리
@@ -286,14 +304,11 @@ static FMetalFXObjCTextureView GetMetalFX2DTextureView(id<MTLTexture> SourceText
 struct MetalFXModule
 {
 #if METALFX_METALCPP
-	NS::SharedPtr<MTL::Device> m_CppDevice;
-	NS::SharedPtr<MTL::CommandQueue> m_CppCommandQueue;
 	NS::SharedPtr<MTLFX::TemporalScaler> m_CppScaler;
 	FMetalFXCppTextureGroup TextureGroup;
 #endif
 	
 #if METALFX_NATIVE
-	id<MTLDevice> m_Device;
 	id<MTLFXTemporalScaler> m_Scaler;
 	FMetalFXObjCTextureGroup TextureGroup;	
 #endif
@@ -310,7 +325,7 @@ FMetalFXUpscalerCore::FMetalFXUpscalerCore()
 #if METALFX_PLUGIN_ENABLED
 	pModules = std::make_unique<MetalFXModule>();
 
-	//정해지지 않았을때의 디폴트 값.
+	//정해지지 않았을때의 디폴트 값. (QHD)
 	m_InW = 2560;
 	m_OutW = 2560;
 	m_InH = 1440; 
@@ -322,18 +337,14 @@ FMetalFXUpscalerCore::~FMetalFXUpscalerCore()
 {
 #if METALFX_PLUGIN_ENABLED
 #if METALFX_METALCPP
-	pModules->m_CppCommandQueue.reset();
 	pModules->m_CppScaler.reset();
-	
-	//RHI에서 직접 가져온거라 reset 하면 터질듯... 테스트 필요함.
-	//pModules->m_CppDevice.reset();
-#elif METALFX_NATIVE
-	//[pModules->m_Device release]
+	pModules->m_CppScaler = nullptr;
+#endif
+#if METALFX_NATIVE
 	[pModules->m_Scaler release];
 	pModules->m_Scaler = nil;
-	
+#endif	
 	pModules.reset();
-#endif
 #endif	//METALFX_PLUGIN_ENABLED
 }
 
@@ -359,58 +370,52 @@ bool FMetalFXUpscalerCore::Initialize()
 	{
 		return true;
 	}
-	bool bSuccess = false;
 
-	id<MTLDevice> MetalDevice = (id<MTLDevice>)GDynamicRHI->RHIGetNativeDevice();
-	
-#if METALFX_METALCPP
-	if (pModules->m_CppScaler.get())
-	{
-		pModules->m_CppScaler.reset();
-	}
-	
-	void* MetalDeviceVoid = (__bridge void *)MetalDevice;
-	MTL::Device* MetalDeviceCpp = static_cast<MTL::Device*>(MetalDeviceVoid);
-	if (MetalDeviceCpp)
-	{
-		pModules->m_CppDevice = NS::RetainPtr(MetalDeviceCpp);
-	}
-  
 	if (!pModules)
 	{
 		return false;
 	}
-	if(!pModules->m_CppDevice)
-	{
-		NSLog(@"MetalFX Device Not Found.");
-		return false;
-	}
 
-	//Descriptor는 굳이 갖고있을 필요 X
-	auto Desc = RetainPtr(MTLFX::TemporalScalerDescriptor::alloc()->init());
-	if (Desc->supportsDevice(pModules->m_CppDevice.get()))
+	bIsInitalized = GenerateUpscaler();
+  
+	return bIsInitalized;
+}
+bool FMetalFXUpscalerCore::GenerateUpscaler()
+{
+	bool bSuccess = false;
+	
+#if METALFX_METALCPP
+	//기존 것이 있다면 무조건 날리고 재생성
+	if (pModules->m_CppScaler.get())
 	{
-		Desc->setInputWidth(m_InW);
-		Desc->setInputHeight(m_InH);
-		Desc->setOutputWidth(m_OutW);
-		Desc->setOutputHeight(m_OutH);
-		Desc->setColorTextureFormat(static_cast<MTL::PixelFormat>(pModules->Formats.Color));
-		Desc->setDepthTextureFormat(static_cast<MTL::PixelFormat>(pModules->Formats.Depth));
-		Desc->setMotionTextureFormat(static_cast<MTL::PixelFormat>(pModules->Formats.Motion));
-		Desc->setOutputTextureFormat(static_cast<MTL::PixelFormat>(pModules->Formats.Output));
-		Desc->setAutoExposureEnabled(true);
-   	
-		pModules->m_CppScaler = NS::RetainPtr(Desc->newTemporalScaler(pModules->m_CppDevice.get()));
-	 
-		SetCommandQueue();
+		pModules->m_CppScaler.reset();
 	}
-	else
+	MTL::Device* MetalDevice = (MTL::Device*)GDynamicRHI->RHIGetNativeDevice();
+	if (MetalDevice)
 	{
-		NSLog(@"MetalFX TemporalScaler API Not Supported.");
+		auto Desc = RetainPtr(MTLFX::TemporalScalerDescriptor::alloc()->init());
+		if (Desc->supportsDevice(MetalDevice))
+		{
+			Desc->setInputWidth(m_InW);
+			Desc->setInputHeight(m_InH);
+			Desc->setOutputWidth(m_OutW);
+			Desc->setOutputHeight(m_OutH);
+			Desc->setColorTextureFormat(static_cast<MTL::PixelFormat>(pModules->Formats.Color));
+			Desc->setDepthTextureFormat(static_cast<MTL::PixelFormat>(pModules->Formats.Depth));
+			Desc->setMotionTextureFormat(static_cast<MTL::PixelFormat>(pModules->Formats.Motion));
+			Desc->setOutputTextureFormat(static_cast<MTL::PixelFormat>(pModules->Formats.Output));
+			Desc->setAutoExposureEnabled(true);
+			
+			pModules->m_CppScaler = NS::RetainPtr(Desc->newTemporalScaler(MetalDevice));
+		}
 	}
-	bSuccess = (pModules->m_CppScaler.get() != nullptr);
-
-#elif METALFX_NATIVE
+	else 
+	{
+		NSLog(@"Metal Device for MetalFX Not Founded");	
+	}
+#endif
+	
+#if METALFX_NATIVE
 	if (pModules->m_Scaler != nil)
 	{
 		//메모리 해제 대기상태로 만듬
@@ -418,22 +423,26 @@ bool FMetalFXUpscalerCore::Initialize()
 		pModules->m_Scaler = nil;
 	}
 	
-	pModules->m_Scaler = MetalFXCreateTemporalUpscaler(MetalDevice, pModules->Formats, m_InW, m_InH, m_OutW, m_OutH);
-	bSuccess = pModules->m_Scaler != nil;
+	id<MTLDevice> MetalDevice = (id<MTLDevice>)GDynamicRHI->RHIGetNativeDevice();
+	
+	if (MetalDevice != nil)
+	{
+		pModules->m_Scaler = MetalFXCreateTemporalUpscaler(MetalDevice, pModules->Formats, m_InW, m_InH, m_OutW, m_OutH);
+		bSuccess = pModules->m_Scaler != nil;
+	}
+	else 
+	{
+		NSLog(@"Metal Device for MetalFX Not Founded");	
+	}
 #endif
 	
-	bIsInitalized = bSuccess;
-  
+	if (!bSuccess)
+	{
+		
+		UE_LOG(LogMetalFX, Error, TEXT("MetalFX TemporalScaler API Generated Failed."));
+	}
+	
 	return bSuccess;
-}
-
-void FMetalFXUpscalerCore::SetCommandQueue()
-{
-#if METALFX_METALCPP
-	MTL::Device* pDevice = pModules->m_CppDevice.get();
-	pModules->m_CppCommandQueue = NS::RetainPtr(pDevice->newCommandQueue());
-	check(pModules->m_CppCommandQueue);
-#endif
 }
 
 void FMetalFXUpscalerCore::UpdateInputRect(FIntPoint InRect)
@@ -462,19 +471,24 @@ void FMetalFXUpscalerCore::UpdateResolution(FIntPoint InRect, FIntPoint OutRect)
    	
 		bIsInitalized = false;
 
-   		Initialize();
+		GenerateUpscaler();
 	}
 }
 
-const void FMetalFXUpscalerCore::CheckValidate() const
+const bool FMetalFXUpscalerCore::CheckValidate()
 {
 	bool bValidate = false;
 #if METALFX_METALCPP
-	bValidate = (pModules != nullptr) && (pModules->m_CppScaler.get() != nullptr);
+	bValidate = ((pModules != nullptr) && (pModules->m_CppScaler.get() != nullptr));
 #elif METALFX_NATIVE
-	bValidate = (pModules != nullptr) && (pModules->m_Scaler != nil);
+	bValidate = ((pModules != nullptr) && (pModules->m_Scaler != nil));
 #endif	
-   checkf(bValidate, TEXT("You Trying To Using MetalFX. but MetalFX Upscaler Core Not Ready or Crashed. You Must Check MetalFX Upscaler Logics. see MetalFXUpscalerCore Class For More Infomations."));
+	if (!bValidate)
+	{
+		UE_LOG(LogMetalFX, Error, TEXT("You Trying To Using MetalFX. but MetalFX Upscaler Core Not Ready or Crashed. You Must Check MetalFX Upscaler Logics. see MetalFXUpscalerCore Class For More Infomations."));
+	}
+	
+	return bValidate;
 }
 
 bool FMetalFXUpscalerCore::SetTextures(const FMetalFXParameters& Parameters)
@@ -486,6 +500,7 @@ bool FMetalFXUpscalerCore::SetTextures(const FMetalFXParameters& Parameters)
 	if (pModules)
 	{
 		CheckValidate();
+		pModules->TextureGroup.ReleaseAllTexture();
 		
 #if METALFX_METALCPP        
 		//Color Texture
@@ -526,13 +541,12 @@ bool FMetalFXUpscalerCore::SetTextures(const FMetalFXParameters& Parameters)
 		TempFormats.Output = (FMetalFXPixelFormat)[pModules->TextureGroup.OutputTexture.GetTexture() pixelFormat];
 #endif
 		
-		bIsSuccess =(pModules->Formats.IsValidFormat(TempFormats));   
+		bIsSuccess = (pModules->Formats.IsValidFormat(TempFormats));   
 	
 		if (!bIsSuccess)
 		{
 			pModules->Formats = TempFormats;
-			bIsInitalized = false;
-			Initialize();
+			GenerateUpscaler();
 		}
 	}
 #endif

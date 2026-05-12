@@ -14,28 +14,32 @@ DEFINE_LOG_CATEGORY(LogMetalFX);
 
 //----------------------Macro Checker--------------------
 #if METALFX_PLUGIN_ENABLED
+	//Valid Mac Enviroment Check
 	#if (WITH_METALFX_TARGET_MAC && !PLATFORM_MAC) || (!WITH_METALFX_TARGET_MAC && PLATFORM_MAC)
 		#error "Setting on Mac Platform, but Plugin and Platfrom Validation Failed."
 	#endif
 
+	//Valid iOS Enviroment Check
 	#if (WITH_METALFX_TARGET_IOS && !PLATFORM_IOS) || (!WITH_METALFX_TARGET_IOS && PLATFORM_IOS)
 		#error "Setting on ios Platform, but Plugin and Platfrom Validation Failed."
 	#endif
 
+	//Type Duplicated Check
 	#if (METALFX_NATIVE && METALFX_METALCPP)
 		#error "You must select a specific Metal SDK type. Cannot use multiple types."
 	#endif
+
+	//Type Not Selected Check
+	#if (!METALFX_NATIVE && !METALFX_METALCPP)
+		#error "You must select a specific Metal SDK type."
+	#endif
 #endif
+//----------------------Macro Checker--------------------(End)
 
 void FMetalFXModule::StartupModule()
 {
 	OnPostRHIInitialized = FCoreDelegates::OnPostEngineInit.AddRaw(this, &FMetalFXModule::HandlePostRHIInitialized);
 	OnPostWorldBeginPlay = FWorldDelegates::OnPostWorldInitialization.AddRaw(this, &FMetalFXModule::HandleWorldBeginPlay);
-
-	//Shader 부착
-	//FString BaseDir = IPluginManager::Get().FindPlugin("MetalFX")->GetBaseDir();
-	//FString ShaderDir = FPaths::Combine(BaseDir, TEXT("Shaders"));
-	//AddShaderSourceDirectoryMapping(TEXT("/Plugin/MetalFX"), ShaderDir);
 	
 //콘솔 설정 추가
 	FCoreDelegates::OnPostEngineInit.AddLambda([]()
@@ -153,7 +157,8 @@ void FMetalFXModule::HandleWorldBeginPlay(UWorld* World, const UWorld::Initializ
 #if !UE_BUILD_SHIPPING && METALFX_PLUGIN_ENABLED
 	if (World->IsGameWorld())
 	{
-		GEngine->AddOnScreenDebugMessage(-1, 15.f, GetIsSupportedByRHI() ? FColor::Emerald : FColor::Red, FString::Printf(TEXT("Apple MetaFX %s"), GetIsSupportedByRHI() ? TEXT("Enabled") : TEXT("Disabled")), true);
+		int32 ChannelCode = 'M'+'E'+'T'+'A'+'L'+'F'+'X';
+		GEngine->AddOnScreenDebugMessage(ChannelCode, 15.f, GetIsSupportedByRHI() ? FColor::Emerald : FColor::Red, FString::Printf(TEXT("Apple MetaFX %s"), GetIsSupportedByRHI() ? TEXT("Enabled") : TEXT("Disabled")), true);
 	}
 #endif
 }

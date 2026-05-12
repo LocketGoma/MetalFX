@@ -76,8 +76,9 @@ public class MetalFX : ModuleRules
 			//MetalFX Type 1 = MetalCPP Wrapper
 			//안정된 디버그가 필요한 경우 등의 상황에서 사용
 			
-			PublicDefinitions.Add("METALFX_NATIVE = 1");
-			PublicDefinitions.Add("METALFX_METALCPP = 0");
+			//Must Select ONE, Not TOGETHER.
+			PublicDefinitions.Add("METALFX_NATIVE = 0");
+			PublicDefinitions.Add("METALFX_METALCPP = 1");
 		}
 		else
 		{
