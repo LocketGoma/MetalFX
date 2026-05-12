@@ -10,14 +10,16 @@ MetalFx For Unreal (Work in progress)
 
 
 
-### Guide & Infomation
+## Guide & Infomation
 
-#### MetalFX Plugin is "ENGINE Plugin". So This Plugin must be set in Engine/Plugin
+MetalFX Plugin is **"ENGINE Plugin"**. So This Plugin must be set in Engine/Plugin
 
 * If Not have "MetalCPP" In Your Engine, Please Add that.
   - https://developer.apple.com/metal/cpp/
-  - Since **Unreal Engine 5.4**, Metal-cpp is included in most engine code paths.
-
+  - 
+> Since **Unreal Engine 5.4**, Metal-cpp is included in most engine code paths.
+ 
+ 
 * (In Many cases) you need update some engine source code. please run "EngineEditScript.sh" in Source/Thirdparty folder
 
 

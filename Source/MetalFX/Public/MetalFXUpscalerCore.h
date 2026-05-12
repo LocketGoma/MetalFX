@@ -18,7 +18,34 @@ public:
 	
 	static EMetalFXSupportReason GetIsSupportedDevice();
 	
+	static FRDGTextureRef PrepareVelocityTexture(	
+	FRDGBuilder& GraphBuilder,
+	const FSceneView& View,
+	FRDGTextureRef InSceneColorTexture,
+	FRDGTextureRef InSceneDepthTexture,
+	FRDGTextureRef InVelocityTexture,
+	FIntRect InputViewRect,
+	FIntRect OutputViewRect,
+	FVector2f TemporalJitterPixels);
+	
+	static FRDGTextureRef GenerateVelocityTexturePass(	
+	FRDGBuilder& GraphBuilder,
+	const FSceneView& View,
+	FRDGTextureRef InSceneDepthTexture,
+	FRDGTextureRef InVelocityTexture,
+	FIntRect InputViewRect,
+	FIntRect OutputViewRect,
+	FVector2f TemporalJitterPixels);
+	
+	
+private:
+	//임시 조치용
+	static FRDGTextureRef AddBlackVelocityTexturePass(
+	FRDGBuilder& GraphBuilder,
+	FIntPoint OutputExtent);	
+	
 #if METALFX_PLUGIN_ENABLED
+public:
 	float GetMinUpsampleResolutionFraction() const;
 	float GetMaxUpsampleResolutionFraction() const;
 
