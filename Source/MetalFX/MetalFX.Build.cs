@@ -36,6 +36,13 @@ public class MetalFX : ModuleRules
 		//해당 플러그인에서 지원하는 Apple Platfrom에서만 True 되도록 처리
 		//TV OS / Vision OS 는 제외 (애초에 테스트 가능하지도 않고)
 		bool bApplePlatfrom = false;
+		bool bNativeSetting = false;
+
+		//Must Select ONE, Not TOGETHER.
+		//Obj-C Native Type = iOS Version이 급격히 바뀐 경우 등에 사용
+		//MetalCPP Wrapper Type = 안정된 디버그가 필요한 경우 등의 상황에서 사용 (릴리즈시 권장)
+		PublicDefinitions.Add($"METALFX_NATIVE={(bNativeSetting ? 1 : 0)}");
+		PublicDefinitions.Add($"METALFX_METALCPP={(bNativeSetting ? 0 : 1)}");
 
 		if (Target.Platform == UnrealTargetPlatform.Mac)
 		{
@@ -69,24 +76,12 @@ public class MetalFX : ModuleRules
             });
 
 			PublicDefinitions.Add("METALFX_PLUGIN_ENABLED = 1");
-
-			//MetalFX Type 0 = Obj-C Native
-			//iOS Version이 급격히 바뀐 경우 등에 사용
-
-			//MetalFX Type 1 = MetalCPP Wrapper
-			//안정된 디버그가 필요한 경우 등의 상황에서 사용
-			
-			//Must Select ONE, Not TOGETHER.
-			PublicDefinitions.Add("METALFX_NATIVE=0");
-			PublicDefinitions.Add("METALFX_METALCPP=1");
 		}
 		else
 		{
 			PublicDefinitions.Add("METALFX_PLUGIN_ENABLED=0");
   			PublicDefinitions.Add("WITH_METALFX_TARGET_MAC=0");
     		PublicDefinitions.Add("WITH_METALFX_TARGET_IOS=0");
-			PublicDefinitions.Add("METALFX_NATIVE=0");
-			PublicDefinitions.Add("METALFX_METALCPP=0");
 		}
 		
 		//------------------MetalFX Handling Branch------------------ (End)
