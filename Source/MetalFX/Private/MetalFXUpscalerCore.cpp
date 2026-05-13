@@ -39,6 +39,9 @@ MTL::Texture* ToMTLTexture(const FRDGTextureRef& In)
    FRDGTextureRef   RdgTex = In;
    // 2) RHI 텍스처 → Metal 네이티브
    FRHITexture*     HiTex  = RdgTex->GetRHI();
+	
+	if (HiTex == nullptr) {return nullptr;}
+	
    return static_cast<MTL::Texture *>(HiTex->GetNativeResource());
 }
 
@@ -497,12 +500,18 @@ const bool FMetalFXUpscalerCore::CheckValidate()
 	return bValidate;
 }
 
-bool FMetalFXUpscalerCore::SetTextures(const FMetalFXTextureParameterGroup& Parameters)
+bool FMetalFXUpscalerCore::SetTextures(const FMetalFXParameters& Parameters)
 {
+	if ((Parameters.ColorTexture == nullptr ) || (Parameters.DepthTexture == nullptr) || (Parameters.VelocityTexture == nullptr) || (Parameters.OutputTexture == nullptr))
+	{
+		UE_LOG(LogMetalFX, Error, TEXT("Some Texture are Invalidate. it is Right Action?"));
+		return false;
+	}
+	
 	bool bIsSuccess = false;
 #if METALFX_METALCPP || METALFX_NATIVE
 	FMetalFXTextureFormatGroup TempFormats;
-	
+		
 	if (pModules)
 	{
 		CheckValidate();
@@ -573,7 +582,7 @@ void FMetalFXUpscalerCore::SetJitterOffset(FVector2D Offset)
    }
 
 }
-void FMetalFXUpscalerCore::SetMotionVectorScale(FVector2D Scale)
+void FMetalFXUpscalerCore::SetMotionVectorScale(FVector2f Scale)
 {
 	if (pModules)
 	{
@@ -640,7 +649,8 @@ bool FMetalFXUpscalerCore::TextureSizeValidation_Native()
 
 
 
-void FMetalFXUpscalerCore::ExecuteMetalFX(FRHICommandList& CmdList, const FMetalFXTextureParameterGroup& Parameters, FIntPoint InRect, FIntPoint OutRect)
+//void FMetalFXUpscalerCore::ExecuteMetalFX(FRHICommandList& CmdList, const FMetalFXTextureParameterGroup& Parameters, FIntPoint InRect, FIntPoint OutRect)
+void FMetalFXUpscalerCore::ExecuteMetalFX(FRHICommandList& CmdList, const FMetalFXParameters& Parameters, FIntPoint InRect, FIntPoint OutRect)
 {
 	bool bSuccess = true;
 	bool bGenerated = true;
@@ -706,10 +716,7 @@ void FMetalFXUpscalerCore::ExecuteMetalFX(FRHICommandList& CmdList, const FMetal
 //텍스쳐 등 모든 세팅이 끝났을때 마지막으로 호출
 void FMetalFXUpscalerCore::Encode(FRHICommandList& CmdList)
 {
-	//TRHICommandList_RecursiveHazardous<IRHICommandContext> RHICmdList(&CmdList.GetContext());
-	
-	FMetalRHICommandContext& MetalContext = FMetalRHICommandContext::Get(CmdList);
-	FMetalCommandBuffer* CurrentCommandBuffer = FMetalRHIUtility::GetCurrentCommandBuffer(&MetalContext);
+	FMetalCommandBuffer* CurrentCommandBuffer = FMetalRHIUtility::GetCurrentCommandBufferFromCmdList(CmdList);
 	
 	if (CurrentCommandBuffer == nullptr)
 	{

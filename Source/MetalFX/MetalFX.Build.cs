@@ -43,6 +43,9 @@ public class MetalFX : ModuleRules
 		//MetalCPP Wrapper Type = 안정된 디버그가 필요한 경우 등의 상황에서 사용 (릴리즈시 권장)
 		PublicDefinitions.Add($"METALFX_NATIVE={(bNativeSetting ? 1 : 0)}");
 		PublicDefinitions.Add($"METALFX_METALCPP={(bNativeSetting ? 0 : 1)}");
+		
+		
+		PublicDefinitions.Add("METALFX_DEBUG=0");
 
 		if (Target.Platform == UnrealTargetPlatform.Mac)
 		{

@@ -26,7 +26,7 @@ public:
 	FRDGTextureRef InVelocityTexture,
 	FIntRect InputViewRect,
 	FIntRect OutputViewRect,
-	FVector2f TemporalJitterPixels);
+	FVector2D TemporalJitterPixels);
 	
 	static FRDGTextureRef GenerateVelocityTexturePass(	
 	FRDGBuilder& GraphBuilder,
@@ -35,8 +35,7 @@ public:
 	FRDGTextureRef InVelocityTexture,
 	FIntRect InputViewRect,
 	FIntRect OutputViewRect,
-	FVector2f TemporalJitterPixels);
-	
+	FVector2D TemporalJitterPixels);	
 	
 private:
 	//임시 조치용
@@ -49,13 +48,15 @@ public:
 	float GetMinUpsampleResolutionFraction() const;
 	float GetMaxUpsampleResolutionFraction() const;
 
-	bool SetTextures(const FMetalFXTextureParameterGroup& Parameters);
+	//bool SetTextures(const FMetalFXTextureParameterGroup& Parameters);
+	bool SetTextures(const FMetalFXParameters& Parameters);
 
 	void SetJitterOffset(FVector2D Offset);
-	void SetMotionVectorScale(FVector2D Scale);
+	void SetMotionVectorScale(FVector2f Scale);
 
 	//DLSS 기반 통합 Encoder (외부에서는 얘만 호출)
-	void ExecuteMetalFX(FRHICommandList& CmdList, const FMetalFXTextureParameterGroup& Parameters, FIntPoint InRect, FIntPoint OutRect);
+	//void ExecuteMetalFX(FRHICommandList& CmdList, const FMetalFXTextureParameterGroup& Parameters, FIntPoint InRect, FIntPoint OutRect);
+	void ExecuteMetalFX(FRHICommandList& CmdList, const FMetalFXParameters& Parameters, FIntPoint InRect, FIntPoint OutRect);
 	
 private:
 	bool TextureSizeValidation_Cpp();
