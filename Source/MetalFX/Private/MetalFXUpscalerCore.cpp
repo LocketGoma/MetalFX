@@ -57,13 +57,15 @@ struct FMetalFXCppTextureView
 		bNeedsRelease = inTexview.bNeedsRelease;
 		bIsValid = inTexview.bIsValid;	
 	}
-	
-	//To do. Command Buffer 진행 이후 릴리즈가 필요한 경우 보완필요함!
+
 public:
 	void SetTexture(MTL::Texture* inTexture, bool isNeedRelease = false)
 	{
 		//기존 텍스쳐 정리
-		ReleaseTexture();
+		if (bIsValid == false)
+		{
+			ReleaseTexture();
+		}
 		
 		Texture = inTexture;
 		bNeedsRelease = isNeedRelease;
@@ -75,6 +77,7 @@ public:
 		return Texture;
 	}
 	
+	//릴리즈 + 텍스쳐뷰 변수 초기화 (아래와는 다른 스텝임)
 	void ReleaseTexture()
 	{
 		if (bNeedsRelease && Texture != nullptr)
@@ -85,6 +88,33 @@ public:
 		Texture = nullptr;
 		bNeedsRelease = false;
 		bIsValid = false;
+	}
+	
+	void ReleaseTextureDeferred(MTL::CommandBuffer* CommandBuffer)
+	{
+		if (bNeedsRelease && Texture != nullptr)
+		{
+			MTL::Texture* TextureToRelease = Texture;
+			
+			Texture = nullptr;
+			bNeedsRelease = false;
+			bIsValid = false;
+			
+			if (CommandBuffer != nullptr)
+			{
+				//커맨드 버퍼가 유효하면, 커맨드 버퍼 완료 시 릴리즈 처리
+				MTL::HandlerFunction Handler = [TextureToRelease](MTL::CommandBuffer* InBuffer)
+				{
+					TextureToRelease->release();
+				};
+				
+				CommandBuffer->addCompletedHandler(Handler);
+			}
+			else
+			{
+				TextureToRelease->release();
+			}
+		}
 	}
 	
 	bool IsValid() const
@@ -204,7 +234,10 @@ public:
 	void SetTexture(id<MTLTexture> inTexture, bool isNeedRelease = false)
 	{
 		//기존 텍스쳐 정리
-		ReleaseTexture();
+		if (bIsValid == false)
+		{
+			ReleaseTexture();
+		}
 		
 		Texture = inTexture;
 		bNeedsRelease = isNeedRelease;
@@ -226,6 +259,30 @@ public:
 		Texture = nil;
 		bNeedsRelease = false;
 		bIsValid = false;
+	}
+	
+	void ReleaseTextureDeferred(id<MTLCommandBuffer> CommandBuffer)
+	{
+		if (bNeedsRelease && Texture != nil)
+		{
+			id<MTLTexture> TextureToRelease = Texture;
+			
+			Texture = nil;
+			bNeedsRelease = false;
+			bIsValid = false;
+			
+			if (CommandBuffer != nil)
+			{
+				[CommandBuffer addCompletedHandler:^(id<MTLCommandBuffer>)
+				{
+					[TextureToRelease release];
+				}];
+			}
+			else
+			{
+				[TextureToRelease release];
+			}
+		}
 	}
 	
 	bool IsValid() const
@@ -352,8 +409,28 @@ FMetalFXUpscalerCore::~FMetalFXUpscalerCore()
 #endif	//METALFX_PLUGIN_ENABLED
 }
 
+const bool FMetalFXUpscalerCore::CheckValidate()
+{
+	bool bValidate = false;
+	
+#if METALFX_METALCPP
+	bValidate = ((pModules != nullptr) && (pModules->m_CppScaler.get() != nullptr));
+#endif
+	
+#if METALFX_NATIVE
+	bValidate = ((pModules != nullptr) && (pModules->m_Scaler != nil));
+#endif
+	
+	if (!bValidate)
+	{
+		UE_LOG(LogMetalFX, Error, TEXT("You Trying To Using MetalFX. but MetalFX Upscaler Core Not Ready or Crashed. You Must Check MetalFX Upscaler Logics. see MetalFXUpscalerCore Class For More Infomations."));
+	}
+	
+	return bValidate;
+}
+
 #if METALFX_PLUGIN_ENABLED
-float FMetalFXUpscalerCore::GetMinUpsampleResolutionFraction() const
+const float FMetalFXUpscalerCore::GetMinUpsampleResolutionFraction() const
 {
 	//SupportedInputContextMinScale
 	float fracW = float(m_InW) / float(m_OutW);
@@ -361,7 +438,7 @@ float FMetalFXUpscalerCore::GetMinUpsampleResolutionFraction() const
 	return FMath::Min(fracW, fracH);
 }	
 
-float FMetalFXUpscalerCore::GetMaxUpsampleResolutionFraction() const
+const float FMetalFXUpscalerCore::GetMaxUpsampleResolutionFraction() const
 {
 	float fracW = float(m_InW) / float(m_OutW);
 	float fracH = float(m_InH) / float(m_OutH);
@@ -383,6 +460,7 @@ void FMetalFXUpscalerCore::Initialize()
 	bIsInitialized = GenerateUpscaler();
 
 }
+
 bool FMetalFXUpscalerCore::GenerateUpscaler()
 {
 	bool bSuccess = false;
@@ -484,23 +562,7 @@ bool FMetalFXUpscalerCore::UpdateResolution(FIntPoint InRect, FIntPoint OutRect)
 	return true;
 }
 
-const bool FMetalFXUpscalerCore::CheckValidate()
-{
-	bool bValidate = false;
-#if METALFX_METALCPP
-	bValidate = ((pModules != nullptr) && (pModules->m_CppScaler.get() != nullptr));
-#elif METALFX_NATIVE
-	bValidate = ((pModules != nullptr) && (pModules->m_Scaler != nil));
-#endif	
-	if (!bValidate)
-	{
-		UE_LOG(LogMetalFX, Error, TEXT("You Trying To Using MetalFX. but MetalFX Upscaler Core Not Ready or Crashed. You Must Check MetalFX Upscaler Logics. see MetalFXUpscalerCore Class For More Infomations."));
-	}
-	
-	return bValidate;
-}
-
-bool FMetalFXUpscalerCore::SetTextures(const FMetalFXParameters& Parameters)
+bool FMetalFXUpscalerCore::SetTexturesToGroup(const FMetalFXParameters& Parameters)
 {
 	if ((Parameters.ColorTexture == nullptr ) || (Parameters.DepthTexture == nullptr) || (Parameters.VelocityTexture == nullptr) || (Parameters.OutputTexture == nullptr))
 	{
@@ -662,6 +724,14 @@ void FMetalFXUpscalerCore::ExecuteMetalFX(FRHICommandList& CmdList, const FMetal
 		return;		
 	}
 	
+	if (!CheckValidate())
+	{
+		UE_LOG(LogMetalFX, Warning, TEXT("Upscaler Broken. retry generate upscaler. skip Upscaling this frame."));
+		
+		bSuccess = false;
+		bGenerated = false;
+	}
+	
 	if (!UpdateResolution(InRect, OutRect))
 	{
 		UE_LOG(LogMetalFX, Warning, TEXT("Output Texture size mismatch found. skip Upscaling this frame."));
@@ -670,7 +740,7 @@ void FMetalFXUpscalerCore::ExecuteMetalFX(FRHICommandList& CmdList, const FMetal
 		bGenerated = false;
 	}
 	
-	if (!SetTextures(Parameters))
+	if (!SetTexturesToGroup(Parameters))
 	{
 		UE_LOG(LogMetalFX, Warning, TEXT("Texture Format mismatch found. skip Upscaling this frame."));
 		
@@ -724,6 +794,27 @@ void FMetalFXUpscalerCore::Encode(FRHICommandList& CmdList)
 		return;
 	}
 	
+#if METALFX_METALCPP
+	
+	pModules->m_CppScaler->setColorTexture(pModules->TextureGroup.ColorTexture.GetTexture());
+	pModules->m_CppScaler->setDepthTexture(pModules->TextureGroup.DepthTexture.GetTexture());
+	pModules->m_CppScaler->setMotionTexture(pModules->TextureGroup.VelocityTexture.GetTexture());
+	pModules->m_CppScaler->setOutputTexture(pModules->TextureGroup.OutputTexture.GetTexture());
+
+	MTL::CommandBuffer* MetalCppCommandBuffer = CurrentCommandBuffer->GetMTLCmdBuffer();
+	
+	@autoreleasepool
+	{
+		pModules->m_CppScaler->encodeToCommandBuffer(MetalCppCommandBuffer);
+	}
+	
+	pModules->TextureGroup.ColorTexture.ReleaseTextureDeferred(MetalCppCommandBuffer);
+	pModules->TextureGroup.DepthTexture.ReleaseTextureDeferred(MetalCppCommandBuffer);
+	pModules->TextureGroup.VelocityTexture.ReleaseTextureDeferred(MetalCppCommandBuffer);
+	pModules->TextureGroup.OutputTexture.ReleaseTextureDeferred(MetalCppCommandBuffer);
+	
+#endif
+	
 #if METALFX_NATIVE
 	
 	id<MTLTexture> ColorTex = pModules->TextureGroup.ColorTexture.GetTexture();
@@ -735,24 +826,13 @@ void FMetalFXUpscalerCore::Encode(FRHICommandList& CmdList)
 	
 	MetalFXEncode(pModules->m_Scaler, MetalNativeCommandBuffer, ColorTex, DepthTex, MotionTex, OutTex);
 	
+	pModules->TextureGroup.ColorTexture.ReleaseTextureDeferred(MetalNativeCommandBuffer);
+	pModules->TextureGroup.DepthTexture.ReleaseTextureDeferred(MetalNativeCommandBuffer);
+	pModules->TextureGroup.VelocityTexture.ReleaseTextureDeferred(MetalNativeCommandBuffer);
+	pModules->TextureGroup.OutputTexture.ReleaseTextureDeferred(MetalNativeCommandBuffer);
+	
 #endif
-	
-#if METALFX_METALCPP
-	
-	pModules->m_CppScaler->setColorTexture(pModules->TextureGroup.ColorTexture.GetTexture());
-	pModules->m_CppScaler->setDepthTexture(pModules->TextureGroup.DepthTexture.GetTexture());
-	pModules->m_CppScaler->setMotionTexture(pModules->TextureGroup.VelocityTexture.GetTexture());
-	pModules->m_CppScaler->setOutputTexture(pModules->TextureGroup.OutputTexture.GetTexture());
-	
-	@autoreleasepool
-	{
-		//NS::SharedPtr<MTL::CommandBuffer> MetalCppCommandBuffer = NS::RetainPtr(CurrentCommandBuffer->GetMTLCmdBuffer());
-		//pModules->m_CppScaler->encodeToCommandBuffer(MetalCppCommandBuffer.get());	  
 		
-		MTL::CommandBuffer* MetalCppCommandBuffer = CurrentCommandBuffer->GetMTLCmdBuffer();
-		pModules->m_CppScaler->encodeToCommandBuffer(MetalCppCommandBuffer);	  
-	}	
-#endif
 }
 #endif  //METALFX_PLUGIN_ENABLED 
 

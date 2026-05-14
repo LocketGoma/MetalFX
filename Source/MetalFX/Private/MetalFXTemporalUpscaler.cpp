@@ -231,8 +231,11 @@ ITemporalUpscaler::FOutputs FMetalFXTemporalUpscaler::AddPasses(FRDGBuilder& Gra
 			//To do : Dispatch Params도 이용해야됨.
 			
 			RHICmdList.EnqueueLambda([UpscalerCore, PassParams, InputExtents, OutputExtents](FRHICommandListImmediate& Cmd) mutable
-			{				
-				UpscalerCore->ExecuteMetalFX(Cmd, *PassParams, InputExtents, OutputExtents);
+			{	
+				if (UpscalerCore != nullptr)
+				{
+					UpscalerCore->ExecuteMetalFX(Cmd, *PassParams, InputExtents, OutputExtents);
+				}
 			});
 			
 		});

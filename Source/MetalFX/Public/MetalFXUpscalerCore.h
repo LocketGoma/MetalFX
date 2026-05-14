@@ -6,6 +6,7 @@
 //DLSS의 FDLSSUpscaler 클래스 포지션
 class FMetalFXUpscalerCore final : public ICustomResourcePool
 {
+//--------Unreal Enviroment Block--------	
 public:
 	virtual void Tick(FRHICommandListImmediate& RHICmdList) override;
 
@@ -38,27 +39,27 @@ public:
 	FVector2D TemporalJitterPixels);	
 	
 private:
+
 	//임시 조치용
 	static FRDGTextureRef AddBlackVelocityTexturePass(
 	FRDGBuilder& GraphBuilder,
 	FIntPoint OutputExtent);	
-	
+//--------Unreal Enviroment Block-------- (End)
+//--------MetalFX Enabled Enviroment Block--------		
 #if METALFX_PLUGIN_ENABLED
 public:
-	float GetMinUpsampleResolutionFraction() const;
-	float GetMaxUpsampleResolutionFraction() const;
-
-	//bool SetTextures(const FMetalFXTextureParameterGroup& Parameters);
-	bool SetTextures(const FMetalFXParameters& Parameters);
+	const float GetMinUpsampleResolutionFraction() const;
+	const float GetMaxUpsampleResolutionFraction() const;
 
 	void SetJitterOffset(FVector2D Offset);
 	void SetMotionVectorScale(FVector2f Scale);
 
 	//DLSS 기반 통합 Encoder (외부에서는 얘만 호출)
-	//void ExecuteMetalFX(FRHICommandList& CmdList, const FMetalFXTextureParameterGroup& Parameters, FIntPoint InRect, FIntPoint OutRect);
 	void ExecuteMetalFX(FRHICommandList& CmdList, const FMetalFXParameters& Parameters, FIntPoint InRect, FIntPoint OutRect);
 	
 private:
+	bool SetTexturesToGroup(const FMetalFXParameters& Parameters);
+	
 	bool TextureSizeValidation_Cpp();
 	bool TextureSizeValidation_Native();
 	void Encode(FRHICommandList& CmdList);
@@ -68,6 +69,8 @@ private:
 	
 
 	bool GenerateUpscaler();
+//--------MetalFX Enabled Enviroment Block-------- (End)
+#endif //METALFX_PLUGIN_ENABLED
 	
 public:
 	//유틸 함수
@@ -81,5 +84,4 @@ private:
 
 	uint32_t m_InW, m_InH;
 	uint32_t m_OutW, m_OutH;
-#endif //METALFX_PLUGIN_ENABLED
 };
