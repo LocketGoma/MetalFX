@@ -170,8 +170,6 @@ ITemporalUpscaler::FOutputs FMetalFXTemporalUpscaler::AddPasses(FRDGBuilder& Gra
 	TextureGroupParams.VelocityTexture = GeneratedVelocityTexture;
 	TextureGroupParams.OutputTexture = OutputTexture;
 
-
-	
 #if METALFX_DEBUG
 	bool Result = true;
 	
@@ -230,14 +228,20 @@ ITemporalUpscaler::FOutputs FMetalFXTemporalUpscaler::AddPasses(FRDGBuilder& Gra
 			}
 			//To do : Dispatch Params도 이용해야됨.
 			
-			RHICmdList.EnqueueLambda([UpscalerCore, PassParams, InputExtents, OutputExtents](FRHICommandListImmediate& Cmd) mutable
-			{	
-				if (UpscalerCore != nullptr)
-				{
-					UpscalerCore->ExecuteMetalFX(Cmd, *PassParams, InputExtents, OutputExtents);
-				}
-			});
+			UpscalerCore->SetTexturesToGroup(*PassParams);
 			
+			//실행 가능할때만 Enqueue로 보냄.
+			if (UpscalerCore->CheckForExecuteMetalFX(InputExtents, OutputExtents))
+			{
+				RHICmdList.EnqueueLambda([UpscalerCore, InputExtents, OutputExtents](FRHICommandListImmediate& Cmd) mutable
+				{	
+					if (UpscalerCore != nullptr)
+					{
+						UpscalerCore->ExecuteMetalFX(Cmd);
+						
+					}
+				});
+			}
 		});
 	
 	*OutputCustomHistory = InputCustomHistory;

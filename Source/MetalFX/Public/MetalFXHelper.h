@@ -52,10 +52,23 @@ struct FMetalFXTextureFormatGroup
 	FMetalFXPixelFormat Motion = 0;
 	FMetalFXPixelFormat Output = 0;
 
-	const bool IsValidFormat(FMetalFXTextureFormatGroup& Formats) const
+	void IsValidFormat(FMetalFXTextureFormatGroup& Formats)
 	{
-		return Color ==	Formats.Color && Depth == Formats.Depth && Motion == Formats.Motion && Output == Formats.Output;
+		bIsChanged = (Color != Formats.Color || Depth != Formats.Depth || Motion != Formats.Motion || Output != Formats.Output);
 	}
+	
+	bool GetIsChanged()
+	{
+		return bIsChanged;
+	}
+	
+	void ResetChangeState()
+	{
+		bIsChanged = false;
+	}
+	
+private:
+	bool bIsChanged = false;
 };
 
 struct FMetalFXTextureParameterGroup

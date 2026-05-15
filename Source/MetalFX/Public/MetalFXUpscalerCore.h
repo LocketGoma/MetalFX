@@ -39,7 +39,6 @@ public:
 	FVector2D TemporalJitterPixels);	
 	
 private:
-
 	//임시 조치용
 	static FRDGTextureRef AddBlackVelocityTexturePass(
 	FRDGBuilder& GraphBuilder,
@@ -55,10 +54,13 @@ public:
 	void SetMotionVectorScale(FVector2f Scale);
 
 	//DLSS 기반 통합 Encoder (외부에서는 얘만 호출)
-	void ExecuteMetalFX(FRHICommandList& CmdList, const FMetalFXParameters& Parameters, FIntPoint InRect, FIntPoint OutRect);
+	void ExecuteMetalFX(FRHICommandList& CmdList);
 	
+	//Execute 가능한지 체크
+	bool CheckForExecuteMetalFX(FIntPoint InRect, FIntPoint OutRect);
+	void SetTexturesToGroup(const FMetalFXParameters& Parameters);
 private:
-	bool SetTexturesToGroup(const FMetalFXParameters& Parameters);
+	bool TextureFormatMatchChecker();
 	
 	bool TextureSizeValidation_Cpp();
 	bool TextureSizeValidation_Native();

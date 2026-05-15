@@ -520,7 +520,11 @@ bool FMetalFXUpscalerCore::GenerateUpscaler()
 	}
 #endif
 	
-	if (!bSuccess)
+	if (bSuccess)
+	{
+		pModules->Formats.ResetChangeState();
+	}
+	else
 	{
 		UE_LOG(LogMetalFX, Error, TEXT("MetalFX TemporalScaler API Generated Failed."));
 	}
@@ -562,22 +566,20 @@ bool FMetalFXUpscalerCore::UpdateResolution(FIntPoint InRect, FIntPoint OutRect)
 	return true;
 }
 
-bool FMetalFXUpscalerCore::SetTexturesToGroup(const FMetalFXParameters& Parameters)
+void FMetalFXUpscalerCore::SetTexturesToGroup(const FMetalFXParameters& Parameters)
 {
 	if ((Parameters.ColorTexture == nullptr ) || (Parameters.DepthTexture == nullptr) || (Parameters.VelocityTexture == nullptr) || (Parameters.OutputTexture == nullptr))
 	{
 		UE_LOG(LogMetalFX, Error, TEXT("Some Texture are Invalidate. it is Right Action?"));
-		return false;
+		return;
 	}
 	
-	bool bIsSuccess = false;
 #if METALFX_METALCPP || METALFX_NATIVE
 	FMetalFXTextureFormatGroup TempFormats;
 		
 	if (pModules)
 	{
 		CheckValidate();
-		pModules->TextureGroup.ReleaseAllTexture();
 		
 #if METALFX_METALCPP        
 		//Color Texture
@@ -618,16 +620,14 @@ bool FMetalFXUpscalerCore::SetTexturesToGroup(const FMetalFXParameters& Paramete
 		TempFormats.Output = (FMetalFXPixelFormat)[pModules->TextureGroup.OutputTexture.GetTexture() pixelFormat];
 #endif
 		
-		bIsSuccess = (pModules->Formats.IsValidFormat(TempFormats));   
+		pModules->Formats.IsValidFormat(TempFormats);   
 	
-		if (!bIsSuccess)
+		if (pModules->Formats.GetIsChanged())
 		{
 			pModules->Formats = TempFormats;
 		}
 	}
 #endif
-	
-	return bIsSuccess;
 }
 
 void FMetalFXUpscalerCore::SetJitterOffset(FVector2D Offset)
@@ -638,7 +638,9 @@ void FMetalFXUpscalerCore::SetJitterOffset(FVector2D Offset)
 	  CheckValidate();
 	  pModules->m_CppScaler->setJitterOffsetX(static_cast<float>(Offset.X));
 	  pModules->m_CppScaler->setJitterOffsetY(static_cast<float>(Offset.Y));
-#elif METALFX_NATIVE
+#endif
+	   
+#if METALFX_NATIVE
 	MetalFXSetJitterOffset(pModules->m_Scaler, Offset.X, Offset.Y);
 #endif
    }
@@ -652,10 +654,18 @@ void FMetalFXUpscalerCore::SetMotionVectorScale(FVector2f Scale)
 #if METALFX_METALCPP		
 		pModules->m_CppScaler->setMotionVectorScaleX(static_cast<float>(Scale.X));
 		pModules->m_CppScaler->setMotionVectorScaleY(static_cast<float>(Scale.Y));
-#elif METALFX_NATIVE
+#endif
+		
+#if METALFX_NATIVE
 		MetalFXSetMotionVectorScale(pModules->m_Scaler, Scale.X, Scale.Y);
 #endif
 	}	
+}
+
+bool FMetalFXUpscalerCore::TextureFormatMatchChecker()
+{
+	//Change False = Match
+	return !pModules->Formats.GetIsChanged();
 }
 
 bool FMetalFXUpscalerCore::TextureSizeValidation_Cpp()
@@ -709,10 +719,19 @@ bool FMetalFXUpscalerCore::TextureSizeValidation_Native()
 	return Result;
 }
 
+void FMetalFXUpscalerCore::ExecuteMetalFX(FRHICommandList& CmdList)
+{	
+	if (!CheckValidate())
+	{
+		UE_LOG(LogMetalFX, Warning, TEXT("Upscaler Broken. retry generate upscaler. skip Upscaling this frame."));
+		return;
+	}
+	
+	Encode(CmdList);	
+	
+}
 
-
-//void FMetalFXUpscalerCore::ExecuteMetalFX(FRHICommandList& CmdList, const FMetalFXTextureParameterGroup& Parameters, FIntPoint InRect, FIntPoint OutRect)
-void FMetalFXUpscalerCore::ExecuteMetalFX(FRHICommandList& CmdList, const FMetalFXParameters& Parameters, FIntPoint InRect, FIntPoint OutRect)
+bool FMetalFXUpscalerCore::CheckForExecuteMetalFX(FIntPoint InRect, FIntPoint OutRect)
 {
 	bool bSuccess = true;
 	bool bGenerated = true;
@@ -721,7 +740,7 @@ void FMetalFXUpscalerCore::ExecuteMetalFX(FRHICommandList& CmdList, const FMetal
 	{
 		UE_LOG(LogMetalFX, Error, TEXT("MetalFX Upscaler Module was broken! skip Upscaling this frame."));
 		
-		return;		
+		return false;		
 	}
 	
 	if (!CheckValidate())
@@ -740,7 +759,7 @@ void FMetalFXUpscalerCore::ExecuteMetalFX(FRHICommandList& CmdList, const FMetal
 		bGenerated = false;
 	}
 	
-	if (!SetTexturesToGroup(Parameters))
+	if (!TextureFormatMatchChecker())
 	{
 		UE_LOG(LogMetalFX, Warning, TEXT("Texture Format mismatch found. skip Upscaling this frame."));
 		
@@ -774,13 +793,8 @@ void FMetalFXUpscalerCore::ExecuteMetalFX(FRHICommandList& CmdList, const FMetal
 			UE_LOG(LogMetalFX, Warning, TEXT("Upscaler ReGenerated. skip Upscaling this frame."));
 		}
 		UE_LOG(LogMetalFX, Warning, TEXT("Upscaler ReGenerated. skip Upscaling this frame."));
-		return;
 	}
-	
-	if (bSuccess == true && bGenerated == true)
-	{		
-		Encode(CmdList);	
-	}
+	return bSuccess;
 }
 
 //텍스쳐 등 모든 세팅이 끝났을때 마지막으로 호출
@@ -795,23 +809,53 @@ void FMetalFXUpscalerCore::Encode(FRHICommandList& CmdList)
 	}
 	
 #if METALFX_METALCPP
-	
+	if (pModules->TextureGroup.ColorTexture.GetTexture() == nullptr)
+	{
+		UE_LOG(LogMetalFX, Warning, TEXT("Color Tex is Null. Cancel Uscaling"));
+		return;
+	}
 	pModules->m_CppScaler->setColorTexture(pModules->TextureGroup.ColorTexture.GetTexture());
+	
+	if (pModules->TextureGroup.DepthTexture.GetTexture() == nullptr)
+	{
+		UE_LOG(LogMetalFX, Warning, TEXT("Depth Tex is Null. Cancel Uscaling"));
+		return;
+	}
 	pModules->m_CppScaler->setDepthTexture(pModules->TextureGroup.DepthTexture.GetTexture());
+	
+	if (pModules->TextureGroup.VelocityTexture.GetTexture() == nullptr)
+	{
+		UE_LOG(LogMetalFX, Warning, TEXT("Motion Tex is Null. Cancel Uscaling"));
+		return;
+	}
 	pModules->m_CppScaler->setMotionTexture(pModules->TextureGroup.VelocityTexture.GetTexture());
+	
+	if (pModules->TextureGroup.OutputTexture.GetTexture() == nullptr)
+	{
+		UE_LOG(LogMetalFX, Warning, TEXT("Output Tex is Null. Cancel Uscaling"));
+		return;
+	}
 	pModules->m_CppScaler->setOutputTexture(pModules->TextureGroup.OutputTexture.GetTexture());
 
 	MTL::CommandBuffer* MetalCppCommandBuffer = CurrentCommandBuffer->GetMTLCmdBuffer();
 	
-	@autoreleasepool
+	if (MetalCppCommandBuffer!=nullptr)
 	{
-		pModules->m_CppScaler->encodeToCommandBuffer(MetalCppCommandBuffer);
+		
+		@autoreleasepool
+		{
+			pModules->m_CppScaler->encodeToCommandBuffer(MetalCppCommandBuffer);
+		}
+		
+		pModules->TextureGroup.ColorTexture.ReleaseTextureDeferred(MetalCppCommandBuffer);
+		pModules->TextureGroup.DepthTexture.ReleaseTextureDeferred(MetalCppCommandBuffer);
+		pModules->TextureGroup.VelocityTexture.ReleaseTextureDeferred(MetalCppCommandBuffer);
+		pModules->TextureGroup.OutputTexture.ReleaseTextureDeferred(MetalCppCommandBuffer);
 	}
-	
-	pModules->TextureGroup.ColorTexture.ReleaseTextureDeferred(MetalCppCommandBuffer);
-	pModules->TextureGroup.DepthTexture.ReleaseTextureDeferred(MetalCppCommandBuffer);
-	pModules->TextureGroup.VelocityTexture.ReleaseTextureDeferred(MetalCppCommandBuffer);
-	pModules->TextureGroup.OutputTexture.ReleaseTextureDeferred(MetalCppCommandBuffer);
+	else
+	{
+		pModules->TextureGroup.ReleaseAllTexture();
+	}
 	
 #endif
 	
