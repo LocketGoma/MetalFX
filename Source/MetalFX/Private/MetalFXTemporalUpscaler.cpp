@@ -5,6 +5,7 @@
 #include "GlobalShader.h"
 #include "MetalFXSettings.h"
 
+//아직 작업할거 많이 남았음...
 //MetalFX를 위한 ComputeShader
 //Permutation Domains
 //Bool = 0 / 1 토글
@@ -50,7 +51,6 @@ public:
 		OutEnvironment.SetDefine(TEXT("UNREAL_ENGINE_MINOR_VERSION"), ENGINE_MINOR_VERSION);
 	}
 };
-//IMPLEMENT_GLOBAL_SHADER(FMetalFXConvertVelocityCS, "/Plugin/MetalFX/Private/PostProcessFFX_FSR2ConvertVelocity.usf", "MainCS", SF_Compute);
 
 #if METALFX_PLUGIN_ENABLED
 
@@ -88,41 +88,6 @@ ITemporalUpscaler* FMetalFXTemporalUpscaler::Fork_GameThread(const class FSceneV
 	return new FMetalFXTemporalUpscaler(m_FxUpscaler);
 }
 
-static void LogScreenPassTextureInfo(
-	const TCHAR* Label,
-	const FScreenPassTexture& ScreenPassTexture)
-{
-	FRDGTextureRef Texture = ScreenPassTexture.Texture;
-
-	if (!Texture)
-	{
-		UE_LOG(LogMetalFX, Warning, TEXT("[MetalFX] %s: Texture=null"), Label);
-		return;
-	}
-
-	const FRDGTextureDesc& Desc = Texture->Desc;
-	const FIntRect& ViewRect = ScreenPassTexture.ViewRect;
-
-	UE_LOG(LogMetalFX, Warning,
-		TEXT("[MetalFX] %s:"
-			 " TexturePtr=%p"
-			 " DescExtent=%dx%d"
-			 " ViewRect=(%d,%d)-(%d,%d)"
-			 " ViewSize=%dx%d"
-			 " Format=%d"),
-		Label,
-		Texture,
-		Desc.Extent.X,
-		Desc.Extent.Y,
-		ViewRect.Min.X,
-		ViewRect.Min.Y,
-		ViewRect.Max.X,
-		ViewRect.Max.Y,
-		ViewRect.Width(),
-		ViewRect.Height(),
-		static_cast<int32>(Desc.Format));
-}
-
 ITemporalUpscaler::FOutputs FMetalFXTemporalUpscaler::AddPasses(FRDGBuilder& GraphBuilder, const FSceneView& View, const ITemporalUpscaler::FInputs& Inputs) const
 {
 	CheckValidate();
@@ -141,9 +106,14 @@ ITemporalUpscaler::FOutputs FMetalFXTemporalUpscaler::AddPasses(FRDGBuilder& Gra
 	//3. Histroy 생성
 	const TRefCountPtr<ITemporalUpscaler::IHistory> InputCustomHistory = Inputs.PrevHistory != nullptr ? Inputs.PrevHistory : new FMetalFXHistory();
 	TRefCountPtr<ITemporalUpscaler::IHistory>* OutputCustomHistory = &Outputs.NewHistory;
+		
+	//4. Velocity Texture 보정 & 생성
+	FRDGTextureRef GeneratedVelocityTexture = FMetalFXUpscalerCore::PrepareVelocityTexture
+	(GraphBuilder, View, Inputs.SceneColor.Texture, 
+	Inputs.SceneDepth.Texture, Inputs.SceneVelocity.Texture, 
+	InputRect, Inputs.OutputViewRect, View.ViewMatrices.GetTemporalAAJitter());
 	
-	
-	//4. Output Texture 생성
+	//5. Output Texture 생성
 	FRDGTextureDesc Desc = FRDGTextureDesc::Create2D(
 		OutputExtents,
 		PF_FloatRGBA,
@@ -151,13 +121,7 @@ ITemporalUpscaler::FOutputs FMetalFXTemporalUpscaler::AddPasses(FRDGBuilder& Gra
 		TexCreate_ShaderResource | TexCreate_UAV
 	);
 	FRDGTextureRef OutputTexture = GraphBuilder.CreateTexture(Desc, TEXT("MetalFXOutput"));
-
-	FRDGTextureRef GeneratedVelocityTexture = FMetalFXUpscalerCore::PrepareVelocityTexture
-	(GraphBuilder, View, Inputs.SceneColor.Texture, 
-	 Inputs.SceneDepth.Texture, Inputs.SceneVelocity.Texture, 
-	 InputRect, Inputs.OutputViewRect, View.ViewMatrices.GetTemporalAAJitter());
-	
-	
+		
 	auto* PassParams = GraphBuilder.AllocParameters<FMetalFXParameters>();
 	PassParams->ColorTexture = Inputs.SceneColor.Texture;
 	PassParams->DepthTexture = Inputs.SceneDepth.Texture;
@@ -170,80 +134,32 @@ ITemporalUpscaler::FOutputs FMetalFXTemporalUpscaler::AddPasses(FRDGBuilder& Gra
 	TextureGroupParams.VelocityTexture = GeneratedVelocityTexture;
 	TextureGroupParams.OutputTexture = OutputTexture;
 
-#if METALFX_DEBUG
-	bool Result = true;
-	
-	uint64 ColorTexWidth	= static_cast<uint64>(TextureGroupParams.ColorTexture->Desc.Extent.X);
-	uint64 ColorTexHeight	= static_cast<uint64>(TextureGroupParams.ColorTexture->Desc.Extent.Y);
-	uint64 VeloTexWidth	= static_cast<uint64>(TextureGroupParams.VelocityTexture->Desc.Extent.X);
-	uint64 VeloTexHeight	= static_cast<uint64>(TextureGroupParams.VelocityTexture->Desc.Extent.Y);
-
-	Result = ((ColorTexWidth == VeloTexWidth) && (ColorTexHeight == VeloTexHeight));
-	
-	if (!Result)
-	{
-		UE_LOG(LogMetalFX, Warning, TEXT("[MetalFX] Test 5 - TextureSize Mismatch! - Color: %llux%llu Motion: %llux%llu"), ColorTexWidth, ColorTexHeight, VeloTexWidth, VeloTexHeight);
-	}
-	
-	static uint64 DebugFrameIndex = 0;
-	const uint64 LocalFrameIndex = ++DebugFrameIndex;
-
-	auto LogRDG = [LocalFrameIndex](const TCHAR* Label, FRDGTextureRef Color, FRDGTextureRef Velocity)
-	{
-		UE_LOG(LogMetalFX, Warning,
-			TEXT("[MetalFX][Frame=%llu] %s - ColorPtr=%p Color=%dx%d / VelocityPtr=%p Velocity=%dx%d"),
-			LocalFrameIndex,
-			Label,
-			Color,
-			Color ? Color->Desc.Extent.X : 0,
-			Color ? Color->Desc.Extent.Y : 0,
-			Velocity,
-			Velocity ? Velocity->Desc.Extent.X : 0,
-			Velocity ? Velocity->Desc.Extent.Y : 0);
-	};
-	
-	LogRDG(TEXT("Before AddPass / Inputs"),
-		Inputs.SceneColor.Texture,
-		Inputs.SceneVelocity.Texture);
-
-	LogRDG(TEXT("Before AddPass / PassParams"),
-		PassParams->ColorTexture.GetTexture(),
-		PassParams->VelocityTexture.GetTexture());
-
-	LogRDG(TEXT("Before AddPass / CapturedParams"),
-		TextureGroupParams.ColorTexture,
-		TextureGroupParams.VelocityTexture);
-#endif
 	FMetalFXUpscalerCore* UpscalerCore = m_FxUpscaler;
 	
+	//실험 필요
 	ERDGPassFlags Flags = ERDGPassFlags::Compute | ERDGPassFlags::Raster | ERDGPassFlags::SkipRenderPass | ERDGPassFlags::Copy | ERDGPassFlags::NeverCull;
 	
-	GraphBuilder.AddPass(
-		RDG_EVENT_NAME("MetalFXTemporalUpscaler"), PassParams, Flags, 
-		[UpscalerCore, PassParams, InputExtents, OutputExtents, DispatchParams](FRHICommandListImmediate& RHICmdList)
+	GraphBuilder.AddPass(RDG_EVENT_NAME("MetalFXTemporalUpscaler"), PassParams, Flags, 
+	[UpscalerCore, PassParams, InputExtents, OutputExtents, DispatchParams](FRHICommandListImmediate& RHICmdList)
+	{
+		if (!UpscalerCore)
 		{
-			if (!UpscalerCore)
-			{
-				return;
-			}
-			//To do : Dispatch Params도 이용해야됨.
-			
-			UpscalerCore->SetTexturesToGroup(*PassParams);
-			
-			//실행 가능할때만 Enqueue로 보냄.
-			if (UpscalerCore->CheckForExecuteMetalFX(InputExtents, OutputExtents))
-			{
-				RHICmdList.EnqueueLambda([UpscalerCore, InputExtents, OutputExtents](FRHICommandListImmediate& Cmd) mutable
-				{	
-					if (UpscalerCore != nullptr)
-					{
-						UpscalerCore->ExecuteMetalFX(Cmd);
-						
-					}
-				});
-			}
-		});
+			return;
+		}
+		//To do : Use Dispatch Params (Jitter Offset, Motion Vector Scale, ETC..), Use Valid History
+		UpscalerCore->SetTexturesToGroup(*PassParams);
+		
+		//실행 가능할때만 Enqueue로 보냄.
+		if (UpscalerCore->CheckForExecuteMetalFX(InputExtents, OutputExtents))
+		{
+			RHICmdList.EnqueueLambda([UpscalerCore, InputExtents, OutputExtents](FRHICommandListImmediate& Cmd) mutable
+			{	
+				UpscalerCore->ExecuteMetalFX(Cmd);
+			});
+		}
+	});
 	
+	//To do : 정상적인 Custom History 사용 필요
 	*OutputCustomHistory = InputCustomHistory;
 
 	GraphBuilder.QueueTextureExtraction(OutputTexture, &ReactiveExtractedTexture);

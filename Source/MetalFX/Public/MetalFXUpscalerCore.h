@@ -8,8 +8,6 @@ class FMetalFXUpscalerCore final : public ICustomResourcePool
 {
 //--------Unreal Enviroment Block--------	
 public:
-	virtual void Tick(FRHICommandListImmediate& RHICmdList) override;
-
 	UE_NONCOPYABLE(FMetalFXUpscalerCore)
 
 	FMetalFXUpscalerCore();
@@ -62,13 +60,13 @@ public:
 private:
 	bool TextureFormatMatchChecker();
 	
+	bool TextureSizeValidation();
 	bool TextureSizeValidation_Cpp();
 	bool TextureSizeValidation_Native();
 	void Encode(FRHICommandList& CmdList);
 	
 	void UpdateInputRect(FIntPoint InRect);
 	bool UpdateResolution(FIntPoint InRect, FIntPoint OutRect);
-	
 
 	bool GenerateUpscaler();
 //--------MetalFX Enabled Enviroment Block-------- (End)

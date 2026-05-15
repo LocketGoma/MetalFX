@@ -14,9 +14,7 @@
 #include <Foundation/Foundation.hpp>
 #include <Metal/Metal.hpp>
 #include <MetalFX/MetalFX.hpp>
-#endif	//METALFX_PLUGIN_ENABLED 
 
-#if METALFX_PLUGIN_ENABLED
 namespace MTL
 {
 	class Texture;
@@ -31,20 +29,8 @@ namespace MTLFX
 	class TemporalScalerDescriptor;
 }
 
+//------------Metal CPP Version------------
 #if METALFX_METALCPP
-MTL::Texture* ToMTLTexture(const FRDGTextureRef& In)
-{
-	if (In == nullptr) { return nullptr; }
-   // 1) RDG 텍스처 가져오기
-   FRDGTextureRef   RdgTex = In;
-   // 2) RHI 텍스처 → Metal 네이티브
-   FRHITexture*     HiTex  = RdgTex->GetRHI();
-	
-	if (HiTex == nullptr) {return nullptr;}
-	
-   return static_cast<MTL::Texture *>(HiTex->GetNativeResource());
-}
-
 //2차 변환 처리를 위한 중간 구조체
 struct FMetalFXCppTextureView
 {	
@@ -156,6 +142,21 @@ public:
 	FMetalFXCppTextureView OutputTexture;
 };
 
+//UE Tex to MTL(Metal Texture)
+MTL::Texture* ToMTLTexture(const FRDGTextureRef& In)
+{
+	if (In == nullptr) { return nullptr; }
+	// 1) RDG 텍스처 가져오기
+	FRDGTextureRef   RdgTex = In;
+	// 2) RHI 텍스처 → Metal 네이티브
+	FRHITexture*     HiTex  = RdgTex->GetRHI();
+	
+	if (HiTex == nullptr) {return nullptr;}
+	
+	return static_cast<MTL::Texture *>(HiTex->GetNativeResource());
+}
+
+//MTL Array To MTL
 static FMetalFXCppTextureView GetMetalFX2DTextureView(MTL::Texture* SourceTexture)
 {
 	FMetalFXCppTextureView Result;
@@ -194,22 +195,6 @@ static FMetalFXCppTextureView GetMetalFX2DTextureView(MTL::Texture* SourceTextur
 #endif
 
 #if METALFX_NATIVE
-id<MTLTexture> ToOBJCTexture(const FRDGTextureRef& In)
-{
-   // 1) RDG 텍스처 가져오기
-   FRDGTextureRef   RdgTex = In;
-   // 2) RHI 텍스처 → Metal 네이티브
-   FRHITexture*     HiTex  = RdgTex->GetRHI();
-	
-	void* Native = HiTex->GetNativeResource();
-	if (!Native)
-	{
-		return nil;
-	}
-	
-	return (__bridge id<MTLTexture>)Native;
-}
-
 //2차 변환 처리를 위한 중간 구조체
 struct FMetalFXObjCTextureView
 {	
@@ -222,10 +207,7 @@ struct FMetalFXObjCTextureView
 		bNeedsRelease = inTexview.bNeedsRelease;
 		bIsValid = inTexview.bIsValid;
 	}
-	
-	//To do. Command Buffer 진행 이후 릴리즈가 필요한 경우 보완필요함!
-public:
-	
+
 	~FMetalFXObjCTextureView()
 	{
 		ReleaseTexture();
@@ -324,6 +306,24 @@ public:
 	FMetalFXObjCTextureView OutputTexture;
 };
 
+//UE Tex to MTL(Metal Texture)
+id<MTLTexture> ToOBJCTexture(const FRDGTextureRef& In)
+{
+	// 1) RDG 텍스처 가져오기
+	FRDGTextureRef   RdgTex = In;
+	// 2) RHI 텍스처 → Metal 네이티브
+	FRHITexture*     HiTex  = RdgTex->GetRHI();
+	
+	void* Native = HiTex->GetNativeResource();
+	if (!Native)
+	{
+		return nil;
+	}
+	
+	return (__bridge id<MTLTexture>)Native;
+}
+
+//MTL Tex Array To MTL Texture
 static FMetalFXObjCTextureView GetMetalFX2DTextureView(id<MTLTexture> SourceTexture)
 {
 	FMetalFXObjCTextureView Result;
@@ -341,13 +341,12 @@ static FMetalFXObjCTextureView GetMetalFX2DTextureView(id<MTLTexture> SourceText
 
 	if ([SourceTexture textureType] == MTLTextureType2DArray)
 	{
+		//Need Unique Texture.
 		NSRange LevelRange = NSMakeRange(0, 1);
 		NSRange SliceRange = NSMakeRange(0, 1);
 
 		id<MTLTexture> temp = [SourceTexture newTextureViewWithPixelFormat:[SourceTexture pixelFormat]
-											 textureType:MTLTextureType2D
-												  levels:LevelRange
-												  slices:SliceRange];
+								textureType:MTLTextureType2D levels:LevelRange slices:SliceRange];
 	
 		Result.SetTexture(temp, (temp != nil));
 		return Result;
@@ -363,6 +362,7 @@ static FMetalFXObjCTextureView GetMetalFX2DTextureView(id<MTLTexture> SourceText
 //내부 변수 컨트롤용 구조체
 struct MetalFXModule
 {
+#if METALFX_PLUGIN_ENABLED
 #if METALFX_METALCPP
 	NS::SharedPtr<MTLFX::TemporalScaler> m_CppScaler;
 	FMetalFXCppTextureGroup TextureGroup;
@@ -372,62 +372,10 @@ struct MetalFXModule
 	id<MTLFXTemporalScaler> m_Scaler;
 	FMetalFXObjCTextureGroup TextureGroup;	
 #endif
+#endif
 	//공용 (텍스쳐 포멧)
 	FMetalFXTextureFormatGroup Formats;
 };
-
-void FMetalFXUpscalerCore::Tick(FRHICommandListImmediate& RHICmdList)
-{
-	;//Do nothing
-}
-FMetalFXUpscalerCore::FMetalFXUpscalerCore()
-{
-	bIsInitialized = false;
-#if METALFX_PLUGIN_ENABLED
-	pModules = std::make_unique<MetalFXModule>();
-
-	//정해지지 않았을때의 디폴트 값. (QHD)
-	m_InW = 2560;
-	m_OutW = 2560;
-	m_InH = 1440; 
-	m_OutH = 1440;
-#endif //METALFX_PLUGIN_ENABLED 
-}
-
-FMetalFXUpscalerCore::~FMetalFXUpscalerCore()
-{
-#if METALFX_PLUGIN_ENABLED
-#if METALFX_METALCPP
-	pModules->m_CppScaler.reset();
-	pModules->m_CppScaler = nullptr;
-#endif
-#if METALFX_NATIVE
-	[pModules->m_Scaler release];
-	pModules->m_Scaler = nil;
-#endif	
-	pModules.reset();
-#endif	//METALFX_PLUGIN_ENABLED
-}
-
-const bool FMetalFXUpscalerCore::CheckValidate()
-{
-	bool bValidate = false;
-	
-#if METALFX_METALCPP
-	bValidate = ((pModules != nullptr) && (pModules->m_CppScaler.get() != nullptr));
-#endif
-	
-#if METALFX_NATIVE
-	bValidate = ((pModules != nullptr) && (pModules->m_Scaler != nil));
-#endif
-	
-	if (!bValidate)
-	{
-		UE_LOG(LogMetalFX, Error, TEXT("You Trying To Using MetalFX. but MetalFX Upscaler Core Not Ready or Crashed. You Must Check MetalFX Upscaler Logics. see MetalFXUpscalerCore Class For More Infomations."));
-	}
-	
-	return bValidate;
-}
 
 #if METALFX_PLUGIN_ENABLED
 const float FMetalFXUpscalerCore::GetMinUpsampleResolutionFraction() const
@@ -443,22 +391,6 @@ const float FMetalFXUpscalerCore::GetMaxUpsampleResolutionFraction() const
 	float fracW = float(m_InW) / float(m_OutW);
 	float fracH = float(m_InH) / float(m_OutH);
 	return FMath::Max(fracW, fracH);	
-}
-
-void FMetalFXUpscalerCore::Initialize()
-{
-	if (bIsInitialized)
-	{
-		return;
-	}
-
-	if (!pModules)
-	{
-		return;
-	}
-
-	bIsInitialized = GenerateUpscaler();
-
 }
 
 bool FMetalFXUpscalerCore::GenerateUpscaler()
@@ -668,54 +600,52 @@ bool FMetalFXUpscalerCore::TextureFormatMatchChecker()
 	return !pModules->Formats.GetIsChanged();
 }
 
-bool FMetalFXUpscalerCore::TextureSizeValidation_Cpp()
+//Tex Validation	
+bool FMetalFXUpscalerCore::TextureSizeValidation()
 {
-	bool Result = true;
-	uint64 ColorTexWidth = 0;
-	uint64 ColorTexHeight = 0;
-	uint64 VeloTexWidth = 0;
-	uint64 VeloTexHeight = 0;
-
+	bool bValid = true;
 #if METALFX_METALCPP
-	ColorTexWidth	= static_cast<uint64>(pModules->TextureGroup.ColorTexture.GetTexture()->width());
-	ColorTexHeight	= static_cast<uint64>(pModules->TextureGroup.ColorTexture.GetTexture()->height());
-	VeloTexWidth	= static_cast<uint64>(pModules->TextureGroup.VelocityTexture.GetTexture()->width());
-	VeloTexHeight	= static_cast<uint64>(pModules->TextureGroup.VelocityTexture.GetTexture()->height());
-	
+	bValid = TextureSizeValidation_Cpp();
 #endif
-	Result = ((ColorTexWidth == VeloTexWidth) && (ColorTexHeight == VeloTexHeight));
 	
-	if (!Result)
+#if METALFX_NATIVE
+	bValid = TextureSizeValidation_Native();
+#endif
+	
+	if (!bValid)
 	{
 		UE_LOG(LogMetalFX, Warning, TEXT("[MetalFX] TextureSize Mismatch! - Color: %llux%llu Motion: %llux%llu"), ColorTexWidth, ColorTexHeight, VeloTexWidth, VeloTexHeight);
 	}
+	return bValid;
+}
+
+bool FMetalFXUpscalerCore::TextureSizeValidation_Cpp()
+{
+	bool Result = false;
 	
+#if METALFX_METALCPP
+	uint64 ColorTexWidth	= static_cast<uint64>(pModules->TextureGroup.ColorTexture.GetTexture()->width());
+	uint64 ColorTexHeight	= static_cast<uint64>(pModules->TextureGroup.ColorTexture.GetTexture()->height());
+	uint64 VeloTexWidth		= static_cast<uint64>(pModules->TextureGroup.VelocityTexture.GetTexture()->width());
+	uint64 VeloTexHeight	= static_cast<uint64>(pModules->TextureGroup.VelocityTexture.GetTexture()->height());
+	
+	Result = ((ColorTexWidth == VeloTexWidth) && (ColorTexHeight == VeloTexHeight));
+#endif
 	return Result;
 }
 
 bool FMetalFXUpscalerCore::TextureSizeValidation_Native()
 {
-	bool Result = true;
-	uint64 ColorTexWidth = 0;
-	uint64 ColorTexHeight = 0;
-	uint64 VeloTexWidth = 0;
-	uint64 VeloTexHeight = 0;
-	
+	bool Result = false;
+
 #if METALFX_NATIVE
-	ColorTexWidth	= (unsigned long)[pModules->TextureGroup.ColorTexture.GetTexture() width];
-	ColorTexHeight	= (unsigned long)[pModules->TextureGroup.ColorTexture.GetTexture() height];
-	VeloTexWidth	= (unsigned long)[pModules->TextureGroup.VelocityTexture.GetTexture() width];
-	VeloTexHeight	= (unsigned long)[pModules->TextureGroup.VelocityTexture.GetTexture() height];
-#endif
+	uint64 ColorTexWidth	= (unsigned long)[pModules->TextureGroup.ColorTexture.GetTexture() width];
+	uint64 ColorTexHeight	= (unsigned long)[pModules->TextureGroup.ColorTexture.GetTexture() height];
+	uint64 VeloTexWidth		= (unsigned long)[pModules->TextureGroup.VelocityTexture.GetTexture() width];
+	uint64 VeloTexHeight	= (unsigned long)[pModules->TextureGroup.VelocityTexture.GetTexture() height];
 	
 	Result = ((ColorTexWidth == VeloTexWidth) && (ColorTexHeight == VeloTexHeight));
-	
-	if (!Result)
-	{
-		UE_LOG(LogMetalFX, Warning, TEXT("[MetalFX] TextureSize Mismatch! - Color: %llux%llu Motion: %llux%llu"), ColorTexWidth, ColorTexHeight, VeloTexWidth, VeloTexHeight);
-		Result = false;
-	}
-	
+#endif
 	return Result;
 }
 
@@ -725,10 +655,8 @@ void FMetalFXUpscalerCore::ExecuteMetalFX(FRHICommandList& CmdList)
 	{
 		UE_LOG(LogMetalFX, Warning, TEXT("Upscaler Broken. retry generate upscaler. skip Upscaling this frame."));
 		return;
-	}
-	
-	Encode(CmdList);	
-	
+	}	
+	Encode(CmdList);
 }
 
 bool FMetalFXUpscalerCore::CheckForExecuteMetalFX(FIntPoint InRect, FIntPoint OutRect)
@@ -736,21 +664,16 @@ bool FMetalFXUpscalerCore::CheckForExecuteMetalFX(FIntPoint InRect, FIntPoint Ou
 	bool bSuccess = true;
 	bool bGenerated = true;
 	
-	if (!pModules)
-	{
-		UE_LOG(LogMetalFX, Error, TEXT("MetalFX Upscaler Module was broken! skip Upscaling this frame."));
-		
-		return false;		
-	}
-	
+	//Upscaler Validation
 	if (!CheckValidate())
 	{
-		UE_LOG(LogMetalFX, Warning, TEXT("Upscaler Broken. retry generate upscaler. skip Upscaling this frame."));
+		UE_LOG(LogMetalFX, Warning, TEXT("MetalFX Upscaler Broken. retry generate upscaler. skip Upscaling this frame."));
 		
 		bSuccess = false;
 		bGenerated = false;
 	}
 	
+	//Tex Rect Changed Check
 	if (!UpdateResolution(InRect, OutRect))
 	{
 		UE_LOG(LogMetalFX, Warning, TEXT("Output Texture size mismatch found. skip Upscaling this frame."));
@@ -759,6 +682,7 @@ bool FMetalFXUpscalerCore::CheckForExecuteMetalFX(FIntPoint InRect, FIntPoint Ou
 		bGenerated = false;
 	}
 	
+	//Tex Format match
 	if (!TextureFormatMatchChecker())
 	{
 		UE_LOG(LogMetalFX, Warning, TEXT("Texture Format mismatch found. skip Upscaling this frame."));
@@ -766,24 +690,14 @@ bool FMetalFXUpscalerCore::CheckForExecuteMetalFX(FIntPoint InRect, FIntPoint Ou
 		bSuccess = false;
 		bGenerated = false;
 	}
-	
-#if METALFX_METALCPP
-	if (!TextureSizeValidation_Cpp())
+
+	//Tex Size Validation	
+	if (!TextureSizeValidation())
 	{
 		UE_LOG(LogMetalFX, Warning, TEXT("Texture Rect mismatch found. skip Upscaling this frame."));
 		
 		bSuccess = false;
 	}	
-#endif
-	
-#if METALFX_NATIVE
-	if (!TextureSizeValidation_Native())
-	{
-		UE_LOG(LogMetalFX, Warning, TEXT("Texture Rect mismatch found. skip Upscaling this frame."));
-		
-		bSuccess = false;
-	}
-#endif
 	
 	if (bSuccess == false)
 	{
@@ -876,37 +790,101 @@ void FMetalFXUpscalerCore::Encode(FRHICommandList& CmdList)
 	pModules->TextureGroup.OutputTexture.ReleaseTextureDeferred(MetalNativeCommandBuffer);
 	
 #endif
-		
 }
 #endif  //METALFX_PLUGIN_ENABLED 
 
+//-------Base & Utility Functions--------
+FMetalFXUpscalerCore::FMetalFXUpscalerCore() :
+bIsInitialized(false)
+{
+#if METALFX_PLUGIN_ENABLED
+	pModules = std::make_unique<MetalFXModule>();
+
+	//정해지지 않았을때의 디폴트 값. (QHD)
+	m_InW = 2560;
+	m_OutW = 2560;
+	m_InH = 1440; 
+	m_OutH = 1440;
+#endif //METALFX_PLUGIN_ENABLED 
+}
+
+FMetalFXUpscalerCore::~FMetalFXUpscalerCore()
+{
+#if METALFX_PLUGIN_ENABLED
+#if METALFX_METALCPP
+	pModules->m_CppScaler.reset();
+	pModules->m_CppScaler = nullptr;
+#endif
+#if METALFX_NATIVE
+	[pModules->m_Scaler release];
+	pModules->m_Scaler = nil;
+#endif	
+	pModules.reset();
+#endif	//METALFX_PLUGIN_ENABLED
+}
+
+void FMetalFXUpscalerCore::Initialize()
+{
+	if (bIsInitialized)
+	{
+		return;
+	}
+
+	if (!pModules)
+	{
+		return;
+	}
+#if METALFX_PLUGIN_ENABLED
+	bIsInitialized = GenerateUpscaler();
+#endif
+}
+
+const bool FMetalFXUpscalerCore::CheckValidate()
+{
+	bool bValidate = false;
+	
+#if METALFX_METALCPP
+	bValidate = ((pModules != nullptr) && (pModules->m_CppScaler.get() != nullptr));
+#endif
+	
+#if METALFX_NATIVE
+	bValidate = ((pModules != nullptr) && (pModules->m_Scaler != nil));
+#endif
+	
+	if (!bValidate)
+	{
+		UE_LOG(LogMetalFX, Error, TEXT("You Trying To Using MetalFX. but MetalFX Upscaler Core Not Ready or Crashed. You Must Check MetalFX Upscaler Logics. see MetalFXUpscalerCore Class For More Infomations."));
+	}
+	
+	return bValidate;
+}
 
 EMetalFXSupportReason FMetalFXUpscalerCore::GetIsSupportedDevice()
 {
 #if METALFX_PLUGIN_ENABLED
 	switch (MetalFXQuerySupportReason())
 	{
-		case static_cast<int32>(EMetalFXSupportReason::Supported) :
+	case static_cast<int32>(EMetalFXSupportReason::Supported) :
 		{
 			UE_LOG(LogRHI, Log, TEXT("MetalFX Supported Device."));
 			return EMetalFXSupportReason::Supported;
 		}
-		case static_cast<int32>(EMetalFXSupportReason::NotSupportedOldDiviceType) :
+	case static_cast<int32>(EMetalFXSupportReason::NotSupportedOldDiviceType) :
 		{
 			UE_LOG(LogRHI, Warning, TEXT("MetalFX Not Supported this Device. Device is Too old"));
 			return EMetalFXSupportReason::NotSupportedOldDiviceType;
 		}
-		case static_cast<int32>(EMetalFXSupportReason::NotSupportedOSVersionOutOfDate) :
+	case static_cast<int32>(EMetalFXSupportReason::NotSupportedOSVersionOutOfDate) :
 		{
 			UE_LOG(LogRHI, Warning, TEXT("MetalFX Not Supported, OS version is Too old"));
 			return EMetalFXSupportReason::NotSupportedOSVersionOutOfDate;
 		}
-		case static_cast<int32>(EMetalFXSupportReason::NotSupportedMetalFXFrameworkMissing) :
+	case static_cast<int32>(EMetalFXSupportReason::NotSupportedMetalFXFrameworkMissing) :
 		{
 			UE_LOG(LogRHI, Warning, TEXT("MetalFX Not Supported, Framework Missing."));
 			return EMetalFXSupportReason::NotSupportedMetalFXFrameworkMissing;
 		}
-		case static_cast<int32>(EMetalFXSupportReason::NotSupportedMetalFXCreationFailed) :
+	case static_cast<int32>(EMetalFXSupportReason::NotSupportedMetalFXCreationFailed) :
 		{
 			UE_LOG(LogRHI, Warning, TEXT("MetalFX Not Supported, MetalFX Creation Failed"));
 			return EMetalFXSupportReason::NotSupportedMetalFXCreationFailed;
@@ -916,3 +894,5 @@ EMetalFXSupportReason FMetalFXUpscalerCore::GetIsSupportedDevice()
 	UE_LOG(LogRHI, Warning, TEXT("MetalFX Not Supported this Environment."));
 	return EMetalFXSupportReason::NotSupported;
 }
+
+//-------Base & Utility Functions--------(End)
