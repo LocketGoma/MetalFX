@@ -20,8 +20,10 @@ public:
 
 	void Initialize();
 	
-	static EMetalFXSupportReason GetIsSupportedDevice();
+	static EMetalFXSupportReason GetIsSupportedDevice();	
 	
+//------.Velocity File------	
+public:
 	static FRDGTextureRef PrepareVelocityTexture(	
 	FRDGBuilder& GraphBuilder,
 	const FSceneView& View,
@@ -45,7 +47,17 @@ private:
 	//임시 조치용
 	static FRDGTextureRef AddBlackVelocityTexturePass(
 	FRDGBuilder& GraphBuilder,
-	FIntPoint OutputExtent);	
+	FIntPoint OutputExtent);
+//------.Velocity File------ (End)		
+//------.Output File------	
+public:
+	static FRDGTextureRef CreateOutputTexture(
+	FRDGBuilder& GraphBuilder,
+	FRDGTextureRef InSceneColorTexture,
+	FIntRect OutputViewRect);
+private:
+	
+//------.Output File------ (End)	
 //--------Unreal Enviroment Block-------- (End)
 //--------MetalFX Enabled Enviroment Block--------		
 #if METALFX_PLUGIN_ENABLED
@@ -57,18 +69,15 @@ public:
 	void SetMotionVectorScale(FVector2f Scale);
 
 	//DLSS 기반 통합 Encoder (외부에서는 얘만 호출)
-	void ExecuteMetalFX(FRHICommandList& CmdList);
+	void ExecuteMetalFX(FRHICommandList& CmdList, FMetalFXTextureGroup& TextureGroup);
 	
 	//Execute 가능한지 체크
 	bool CheckForExecuteMetalFX(FIntPoint InRect, FIntPoint OutRect);
-	void SetTexturesToGroup(const FMetalFXParameters& Parameters);
+	bool SetTexturesToGroup(const FMetalFXParameters& Parameters, FMetalFXTextureGroup& OutTexGroup);
 private:
 	bool TextureFormatMatchChecker();
-	
-	bool TextureSizeValidation();
-	bool TextureSizeValidation_Cpp();
-	bool TextureSizeValidation_Native();
-	void Encode(FRHICommandList& CmdList);
+
+	void Encode(FRHICommandList& CmdList, FMetalFXTextureGroup& TextureGroup);
 	
 	void UpdateInputRect(FIntPoint InRect);
 	bool UpdateResolution(FIntPoint InRect, FIntPoint OutRect);

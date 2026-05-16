@@ -88,6 +88,85 @@ ITemporalUpscaler* FMetalFXTemporalUpscaler::Fork_GameThread(const class FSceneV
 	return new FMetalFXTemporalUpscaler(m_FxUpscaler);
 }
 
+//-------
+#if METALFX_DEBUG
+static void LogRDGTextureDescForMetalFX(const TCHAR* Label, FRDGTextureRef Texture)
+{
+	if (!Texture)
+	{
+		UE_LOG(LogMetalFX, Warning, TEXT("[MetalFX] %s: null"), Label);
+		return;
+	}
+
+	UE_LOG(LogMetalFX, Warning,
+		TEXT("[MetalFX] %s: Name=%s Extent=%dx%d Format=%d"),
+		Label,
+		Texture->Name,
+		Texture->Desc.Extent.X,
+		Texture->Desc.Extent.Y,
+		static_cast<int32>(Texture->Desc.Format));
+}
+
+static void LogTemporalUpscalerInputsForMetalFX(
+	const ITemporalUpscaler::FInputs& Inputs,
+	FRDGTextureRef OutputTexture = nullptr)
+{
+	UE_LOG(LogMetalFX, Warning, TEXT("================ MetalFX Temporal Inputs ================"));
+
+	LogRDGTextureDescForMetalFX(TEXT("SceneColor"), Inputs.SceneColor.Texture);
+	LogRDGTextureDescForMetalFX(TEXT("SceneDepth"), Inputs.SceneDepth.Texture);
+	LogRDGTextureDescForMetalFX(TEXT("SceneVelocity"), Inputs.SceneVelocity.Texture);
+
+	if (OutputTexture)
+	{
+		LogRDGTextureDescForMetalFX(TEXT("OutputTexture"), OutputTexture);
+	}
+	else
+	{
+		UE_LOG(LogMetalFX, Warning, TEXT("[MetalFX] OutputTexture: null / not provided"));
+	}
+
+	UE_LOG(LogMetalFX, Warning,
+		TEXT("[MetalFX] OutputViewRect: Min=(%d,%d) Max=(%d,%d) Size=%dx%d"),
+		Inputs.OutputViewRect.Min.X,
+		Inputs.OutputViewRect.Min.Y,
+		Inputs.OutputViewRect.Max.X,
+		Inputs.OutputViewRect.Max.Y,
+		Inputs.OutputViewRect.Width(),
+		Inputs.OutputViewRect.Height());
+
+	if (Inputs.SceneColor.Texture)
+	{
+		const FIntPoint SceneColorExtent = Inputs.SceneColor.Texture->Desc.Extent;
+
+		UE_LOG(LogMetalFX, Warning,
+			TEXT("[MetalFX] SceneColorExtent vs OutputViewRectSize: SceneColor=%dx%d OutputViewRect=%dx%d Delta=%dx%d"),
+			SceneColorExtent.X,
+			SceneColorExtent.Y,
+			Inputs.OutputViewRect.Width(),
+			Inputs.OutputViewRect.Height(),
+			SceneColorExtent.X - Inputs.OutputViewRect.Width(),
+			SceneColorExtent.Y - Inputs.OutputViewRect.Height());
+	}
+
+	if (OutputTexture)
+	{
+		const FIntPoint OutputTextureExtent = OutputTexture->Desc.Extent;
+
+		UE_LOG(LogMetalFX, Warning,
+			TEXT("[MetalFX] OutputTextureExtent vs OutputViewRectSize: OutputTexture=%dx%d OutputViewRect=%dx%d Delta=%dx%d"),
+			OutputTextureExtent.X,
+			OutputTextureExtent.Y,
+			Inputs.OutputViewRect.Width(),
+			Inputs.OutputViewRect.Height(),
+			OutputTextureExtent.X - Inputs.OutputViewRect.Width(),
+			OutputTextureExtent.Y - Inputs.OutputViewRect.Height());
+	}
+
+	UE_LOG(LogMetalFX, Warning, TEXT("========================================================="));
+}
+#endif
+
 ITemporalUpscaler::FOutputs FMetalFXTemporalUpscaler::AddPasses(FRDGBuilder& GraphBuilder, const FSceneView& View, const ITemporalUpscaler::FInputs& Inputs) const
 {
 	CheckValidate();
@@ -114,14 +193,13 @@ ITemporalUpscaler::FOutputs FMetalFXTemporalUpscaler::AddPasses(FRDGBuilder& Gra
 	InputRect, Inputs.OutputViewRect, View.ViewMatrices.GetTemporalAAJitter());
 	
 	//5. Output Texture 생성
-	FRDGTextureDesc Desc = FRDGTextureDesc::Create2D(
-		OutputExtents,
-		PF_FloatRGBA,
-		FClearValueBinding::None,
-		TexCreate_ShaderResource | TexCreate_UAV
-	);
-	FRDGTextureRef OutputTexture = GraphBuilder.CreateTexture(Desc, TEXT("MetalFXOutput"));
+	FRDGTextureRef OutputTexture = FMetalFXUpscalerCore::CreateOutputTexture
+	(GraphBuilder, Inputs.SceneColor.Texture, Inputs.OutputViewRect);
 		
+#if METALFX_DEBUG
+	LogTemporalUpscalerInputsForMetalFX(Inputs, OutputTexture);
+#endif
+	
 	auto* PassParams = GraphBuilder.AllocParameters<FMetalFXParameters>();
 	PassParams->ColorTexture = Inputs.SceneColor.Texture;
 	PassParams->DepthTexture = Inputs.SceneDepth.Texture;
@@ -147,15 +225,20 @@ ITemporalUpscaler::FOutputs FMetalFXTemporalUpscaler::AddPasses(FRDGBuilder& Gra
 			return;
 		}
 		//To do : Use Dispatch Params (Jitter Offset, Motion Vector Scale, ETC..), Use Valid History
-		UpscalerCore->SetTexturesToGroup(*PassParams);
+		FMetalFXTextureGroup LocalTextureGroup;
+		UpscalerCore->SetTexturesToGroup(*PassParams, LocalTextureGroup);
 		
 		//실행 가능할때만 Enqueue로 보냄.
 		if (UpscalerCore->CheckForExecuteMetalFX(InputExtents, OutputExtents))
 		{
-			RHICmdList.EnqueueLambda([UpscalerCore, InputExtents, OutputExtents](FRHICommandListImmediate& Cmd) mutable
+			RHICmdList.EnqueueLambda([UpscalerCore, TextureGroup = MoveTemp(LocalTextureGroup), InputExtents, OutputExtents](FRHICommandListImmediate& Cmd) mutable
 			{	
-				UpscalerCore->ExecuteMetalFX(Cmd);
+				UpscalerCore->ExecuteMetalFX(Cmd, TextureGroup);
 			});
+		}
+		else
+		{
+			LocalTextureGroup.ReleaseAllTexture();
 		}
 	});
 	
