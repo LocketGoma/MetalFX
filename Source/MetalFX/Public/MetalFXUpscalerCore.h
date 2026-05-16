@@ -13,6 +13,11 @@ public:
 	FMetalFXUpscalerCore();
 	virtual ~FMetalFXUpscalerCore() override;
 
+	
+	//Do nothing.
+	virtual void Tick(FRHICommandListImmediate& RHICmdList) override final {;};
+
+
 	void Initialize();
 	
 	static EMetalFXSupportReason GetIsSupportedDevice();

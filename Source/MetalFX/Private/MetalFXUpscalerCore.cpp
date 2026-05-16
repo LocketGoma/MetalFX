@@ -611,11 +611,6 @@ bool FMetalFXUpscalerCore::TextureSizeValidation()
 #if METALFX_NATIVE
 	bValid = TextureSizeValidation_Native();
 #endif
-	
-	if (!bValid)
-	{
-		UE_LOG(LogMetalFX, Warning, TEXT("[MetalFX] TextureSize Mismatch! - Color: %llux%llu Motion: %llux%llu"), ColorTexWidth, ColorTexHeight, VeloTexWidth, VeloTexHeight);
-	}
 	return bValid;
 }
 
@@ -630,6 +625,11 @@ bool FMetalFXUpscalerCore::TextureSizeValidation_Cpp()
 	uint64 VeloTexHeight	= static_cast<uint64>(pModules->TextureGroup.VelocityTexture.GetTexture()->height());
 	
 	Result = ((ColorTexWidth == VeloTexWidth) && (ColorTexHeight == VeloTexHeight));
+	
+	if (!Result)
+	{
+		UE_LOG(LogMetalFX, Warning, TEXT("[MetalFX] TextureSize Mismatch! - Color: %llux%llu Motion: %llux%llu"), ColorTexWidth, ColorTexHeight, VeloTexWidth, VeloTexHeight);
+	}
 #endif
 	return Result;
 }
@@ -645,7 +645,13 @@ bool FMetalFXUpscalerCore::TextureSizeValidation_Native()
 	uint64 VeloTexHeight	= (unsigned long)[pModules->TextureGroup.VelocityTexture.GetTexture() height];
 	
 	Result = ((ColorTexWidth == VeloTexWidth) && (ColorTexHeight == VeloTexHeight));
+
+	if (!Result)
+	{
+		UE_LOG(LogMetalFX, Warning, TEXT("[MetalFX] TextureSize Mismatch! - Color: %llux%llu Motion: %llux%llu"), ColorTexWidth, ColorTexHeight, VeloTexWidth, VeloTexHeight);
+	}
 #endif
+	
 	return Result;
 }
 
@@ -706,7 +712,6 @@ bool FMetalFXUpscalerCore::CheckForExecuteMetalFX(FIntPoint InRect, FIntPoint Ou
 			GenerateUpscaler();
 			UE_LOG(LogMetalFX, Warning, TEXT("Upscaler ReGenerated. skip Upscaling this frame."));
 		}
-		UE_LOG(LogMetalFX, Warning, TEXT("Upscaler ReGenerated. skip Upscaling this frame."));
 	}
 	return bSuccess;
 }
@@ -723,39 +728,15 @@ void FMetalFXUpscalerCore::Encode(FRHICommandList& CmdList)
 	}
 	
 #if METALFX_METALCPP
-	if (pModules->TextureGroup.ColorTexture.GetTexture() == nullptr)
-	{
-		UE_LOG(LogMetalFX, Warning, TEXT("Color Tex is Null. Cancel Uscaling"));
-		return;
-	}
 	pModules->m_CppScaler->setColorTexture(pModules->TextureGroup.ColorTexture.GetTexture());
-	
-	if (pModules->TextureGroup.DepthTexture.GetTexture() == nullptr)
-	{
-		UE_LOG(LogMetalFX, Warning, TEXT("Depth Tex is Null. Cancel Uscaling"));
-		return;
-	}
 	pModules->m_CppScaler->setDepthTexture(pModules->TextureGroup.DepthTexture.GetTexture());
-	
-	if (pModules->TextureGroup.VelocityTexture.GetTexture() == nullptr)
-	{
-		UE_LOG(LogMetalFX, Warning, TEXT("Motion Tex is Null. Cancel Uscaling"));
-		return;
-	}
 	pModules->m_CppScaler->setMotionTexture(pModules->TextureGroup.VelocityTexture.GetTexture());
-	
-	if (pModules->TextureGroup.OutputTexture.GetTexture() == nullptr)
-	{
-		UE_LOG(LogMetalFX, Warning, TEXT("Output Tex is Null. Cancel Uscaling"));
-		return;
-	}
 	pModules->m_CppScaler->setOutputTexture(pModules->TextureGroup.OutputTexture.GetTexture());
 
 	MTL::CommandBuffer* MetalCppCommandBuffer = CurrentCommandBuffer->GetMTLCmdBuffer();
 	
 	if (MetalCppCommandBuffer!=nullptr)
-	{
-		
+	{		
 		@autoreleasepool
 		{
 			pModules->m_CppScaler->encodeToCommandBuffer(MetalCppCommandBuffer);

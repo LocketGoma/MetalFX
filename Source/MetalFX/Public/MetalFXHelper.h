@@ -52,9 +52,36 @@ struct FMetalFXTextureFormatGroup
 	FMetalFXPixelFormat Motion = 0;
 	FMetalFXPixelFormat Output = 0;
 
-	void IsValidFormat(FMetalFXTextureFormatGroup& Formats)
+	FMetalFXTextureFormatGroup() = default;
+	
+	FMetalFXTextureFormatGroup& operator =(const FMetalFXTextureFormatGroup& InFormats)
 	{
-		bIsChanged = (Color != Formats.Color || Depth != Formats.Depth || Motion != Formats.Motion || Output != Formats.Output);
+		if (this != &InFormats)
+		{
+			bIsChanged = (Color != InFormats.Color || Depth != InFormats.Depth || Motion != InFormats.Motion || Output != InFormats.Output);
+			
+			Color = InFormats.Color;
+			Depth = InFormats.Depth;
+			Motion = InFormats.Motion;
+			Output = InFormats.Output;
+		}
+		
+		return *this;
+	}
+	
+	FMetalFXTextureFormatGroup(const FMetalFXTextureFormatGroup& InFormats)
+	{
+		bIsChanged = (Color != InFormats.Color || Depth != InFormats.Depth || Motion != InFormats.Motion || Output != InFormats.Output);
+		
+		Color = InFormats.Color;
+		Depth = InFormats.Depth;
+		Motion = InFormats.Motion;
+		Output = InFormats.Output;
+	}
+	
+	void IsValidFormat(FMetalFXTextureFormatGroup& InFormats)
+	{
+		bIsChanged = (Color != InFormats.Color || Depth != InFormats.Depth || Motion != InFormats.Motion || Output != InFormats.Output);
 	}
 	
 	bool GetIsChanged()
