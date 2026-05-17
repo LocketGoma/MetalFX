@@ -9,4 +9,5 @@ class METALRHI_API FMetalRHIUtility
 {
 	public:
 	static FMetalCommandBuffer* GetCurrentCommandBuffer(FMetalRHICommandContext* Context);
+	static FMetalCommandBuffer* GetCurrentCommandBufferFromCmdList(FRHICommandList& CmdList);
 };
