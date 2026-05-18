@@ -33,6 +33,12 @@ public class MetalFX : ModuleRules
 
 		//------------------MetalFX Handling Branch------------------
 
+		string UpscalerPrivatePath = Path.Combine(ModuleDirectory, "Upscaler");
+        PrivateIncludePaths.Add(UpscalerPrivatePath);
+        PrivateIncludePaths.AddRange(
+		Directory.GetDirectories(UpscalerPrivatePath, "*", SearchOption.AllDirectories)
+		);
+
 		//해당 플러그인에서 지원하는 Apple Platfrom에서만 True 되도록 처리
 		//TV OS / Vision OS 는 제외 (애초에 테스트 가능하지도 않고)
 		bool bApplePlatfrom = false;
@@ -43,6 +49,7 @@ public class MetalFX : ModuleRules
 		//MetalCPP Wrapper Type = 안정된 디버그가 필요한 경우 등의 상황에서 사용 (릴리즈시 권장)
 		PublicDefinitions.Add($"METALFX_NATIVE={(bNativeSetting ? 1 : 0)}");
 		PublicDefinitions.Add($"METALFX_METALCPP={(bNativeSetting ? 0 : 1)}");
+
 		
 		
 		PublicDefinitions.Add("METALFX_DEBUG=0");
