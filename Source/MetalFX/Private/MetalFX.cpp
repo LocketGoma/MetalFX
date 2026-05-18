@@ -49,8 +49,7 @@ void FMetalFXModule::StartupModule()
 		OnPostWorldBeginPlay = FWorldDelegates::OnPostWorldInitialization.AddRaw(this, &FMetalFXModule::HandleWorldBeginPlay);
 		
 		//콘솔 설정 추가
-		FCoreDelegates::OnPostEngineInit.AddLambda([]()
-												   {
+		FCoreDelegates::OnPostEngineInit.AddLambda([]() {
 			const UMetalFXSettings* Settings = GetDefault<UMetalFXSettings>();
 			if (!Settings)
 			{
@@ -78,7 +77,6 @@ void FMetalFXModule::StartupModule()
 				CvarMetalFXQuality->Set(static_cast<int32>(Settings->QualityMode), ECVF_SetByCode);
 			}
 		});
-		
 		UE_LOG(LogMetalFX, Log, TEXT("MetalFX Temporal Upscaling Module Start"));
 	}
 }

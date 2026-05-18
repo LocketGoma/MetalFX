@@ -75,14 +75,19 @@ public:
 	bool CheckForExecuteMetalFX(FIntPoint InRect, FIntPoint OutRect);
 	bool SetTexturesToGroup(const FMetalFXParameters& Parameters, FMetalFXTextureGroup& OutTexGroup);
 private:
-	bool TextureFormatMatchChecker();
-
+	//모든 Execute 조건 통과시 수행
 	void Encode(FRHICommandList& CmdList, FMetalFXTextureGroup& TextureGroup);
+	
+	//업스케일러 생성 / 업데이트 필요 시 작동 (무조건 현재 업스케일러를 릴리즈 한 뒤 재생성)
+	bool GenerateUpscaler();
 	
 	void UpdateInputRect(FIntPoint InRect);
 	bool UpdateResolution(FIntPoint InRect, FIntPoint OutRect);
 
-	bool GenerateUpscaler();
+	
+	bool TextureFormatMatchChecker();
+	
+
 //--------MetalFX Enabled Enviroment Block-------- (End)
 #endif //METALFX_PLUGIN_ENABLED
 	

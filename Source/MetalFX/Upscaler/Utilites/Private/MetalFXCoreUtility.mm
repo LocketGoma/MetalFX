@@ -25,7 +25,6 @@ static id<MTLDevice> GetMetalFXDevice()
 #endif
 }
 
-
 static BOOL IsSystemVersionAtLeast(NSInteger Major, NSInteger Minor = 0, NSInteger Patch = 0)
 {
 #if METALFX_PLUGIN_ENABLED
