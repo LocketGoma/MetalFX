@@ -1,7 +1,7 @@
 # MetalFX
 MetalFx For Unreal (Work in progress)
 
-**This Plugin is Not Final Version. **
+**This Plugin is Not Final Version.**
 
 > This plugin targets Unreal Engine 5.4 or later and is currently developed against Unreal Engine 5.7.4. Older engine versions are may not supported.
 
