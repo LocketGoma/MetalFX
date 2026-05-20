@@ -12,6 +12,13 @@ This plugin is not a production-ready plugin intended for immediate use in comme
 Its purpose is to verify Unreal Engine and MetalFX SDK integration, required engine modification points, platform-specific limitations, and behavior in packaged builds.
 
 ---
+## Latest Release
+
+**Alpha Release 0.11**  [![Latest Release](https://img.shields.io/github/v/release/LocketGoma/MetalFX?label=Latest%20Release)](https://github.com/LocketGoma/MetalFX/releases/latest)
+
+[Latest Release Notes](https://github.com/LocketGoma/MetalFX/releases/latest)
+
+---
 ## Table of Contents
 
 - [English](#metalfx-for-unreal-plugin)
