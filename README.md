@@ -168,7 +168,7 @@ MetalFX testing can be controlled with the following console variable:
 
 | Command | Parameters | Description |
 | --- | --- | --- |
-| `r.MetalFX.Enable` | bool (0,1) | Enable / Disable MetalFX. |
+| `r.MetalFX.Enabled` | bool (0,1) | Enable / Disable MetalFX. |
 
 
 ---
@@ -188,8 +188,6 @@ Currently implemented and verified scope:
 - Partial engine source modification automation script
 - Structure targeting Apple Silicon Mac and MetalFX-supported iOS / iPadOS devices
 
-For detailed changes, please refer to the Releases page.
-
 ---
 
 ## Work in Progress / Unverified Items
@@ -208,7 +206,7 @@ The following items are currently in progress or require additional validation:
 
 ## Limitations
 
-This plugin is currently in an **Alpha / Proof of Concept** (PoC) Stage/Version.
+This plugin is currently in an **Alpha / Proof of Concept** (PoC) Stage.
 
 Current limitations:
 
@@ -366,7 +364,7 @@ MetalFX 테스트는 다음 콘솔 변수를 통해 제어할 수 있습니다.
 
 | Command | Parameters | Description |
 | --- | --- | --- |
-| `r.MetalFX.Enable` | bool (0,1) | Enable / Disable MetalFX. |
+| `r.MetalFX.Enabled` | bool (0,1) | Enable / Disable MetalFX. |
 
 
 ---
@@ -382,8 +380,6 @@ MetalFX 테스트는 다음 콘솔 변수를 통해 제어할 수 있습니다.
 - 콘솔 변수 기반 활성화/비활성화
 - 일부 엔진 소스 수정 자동화 스크립트 제공
 - Apple Silicon Mac 및 MetalFX 지원 iOS/iPadOS 기기 대상 구조 구성
-
-자세한 변경 내역은 Releases 페이지를 참고바랍니다.
 
 ---
 
@@ -403,7 +399,7 @@ MetalFX 테스트는 다음 콘솔 변수를 통해 제어할 수 있습니다.
 
 ## 제한 사항
 
-이 플러그인은 현재 **Alpha / Proof of Concept** (POC) 단계입니다.
+이 플러그인은 현재 **Alpha / Proof of Concept** (PoC) 단계입니다.
 
 현재 제한 사항은 다음과 같습니다.
 
@@ -419,9 +415,7 @@ MetalFX 테스트는 다음 콘솔 변수를 통해 제어할 수 있습니다.
 
 ## 릴리즈 정보
 
-릴리즈별 자세한 변경 사항은 Releases 페이지를 참고합니다.
+릴리즈별 자세한 변경 사항은 Releases 페이지를 참고 바랍니다.
 
-README는 프로젝트의 목적, 지원 환경, 설치 흐름, 현재 구현 범위와 제한 사항을 설명합니다.  
-세부 변경 내역은 각 Release Note에 정리합니다.
-
+README는 프로젝트의 목적, 지원 환경, 설치 흐름, 현재 구현 범위와 제한 사항을 설명하며, 각 Release 별 세부 변경 내역은 각 Release Note에 정리되어 있습니다.
 
