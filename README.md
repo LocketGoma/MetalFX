@@ -14,7 +14,7 @@ Its purpose is to verify Unreal Engine and MetalFX SDK integration, required eng
 ---
 ## Latest Release
 
-**Alpha Release 0.11**  [![Latest Release](https://img.shields.io/github/v/release/LocketGoma/MetalFX?label=Latest%20Release)](https://github.com/LocketGoma/MetalFX/releases/latest)
+[![Latest Release](https://img.shields.io/github/v/release/LocketGoma/MetalFX?include_prereleases&label=Latest%20Release)](https://github.com/LocketGoma/MetalFX/releases/latest)
 
 [Latest Release Notes](https://github.com/LocketGoma/MetalFX/releases/latest)
 
