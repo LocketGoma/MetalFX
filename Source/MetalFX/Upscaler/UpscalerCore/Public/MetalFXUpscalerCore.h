@@ -2,6 +2,7 @@
 #include "CoreMinimal.h"
 #include "CustomResourcePool.h"
 #include "MetalFXHelper.h"
+#include <memory>
 
 //DLSS의 FDLSSUpscaler 클래스 포지션
 class FMetalFXUpscalerCore final : public ICustomResourcePool

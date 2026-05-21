@@ -30,8 +30,8 @@ DEFINE_LOG_CATEGORY(LogMetalFX);
 	#endif
 
 	//Type Not Selected Check
-	#if (!METALFX_NATIVE && !METALFX_METALCPP)
-		#error "You must select a specific Metal SDK type."
+	#if (METALFX_PLUGIN_ENABLED && !(METALFX_NATIVE || METALFX_METALCPP))
+		#error "You must select a specific Metal SDK type While Activate MetalFX."
 	#endif
 #endif
 //----------------------Macro Checker--------------------(End)

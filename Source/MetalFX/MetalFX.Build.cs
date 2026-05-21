@@ -43,14 +43,6 @@ public class MetalFX : ModuleRules
 		//TV OS / Vision OS 는 제외 (애초에 테스트 가능하지도 않고)
 		bool bApplePlatfrom = false;
 		bool bNativeSetting = false;
-
-		//Must Select ONE, Not TOGETHER.
-		//Obj-C Native Type = iOS Version이 급격히 바뀐 경우 등에 사용
-		//MetalCPP Wrapper Type = 안정된 디버그가 필요한 경우 등의 상황에서 사용 (릴리즈시 권장)
-		PublicDefinitions.Add($"METALFX_NATIVE={(bNativeSetting ? 1 : 0)}");
-		PublicDefinitions.Add($"METALFX_METALCPP={(bNativeSetting ? 0 : 1)}");
-
-		
 		
 		PublicDefinitions.Add("METALFX_DEBUG=0");
 
@@ -78,6 +70,12 @@ public class MetalFX : ModuleRules
                 "MetalFX"   
             });
             
+			//Must Select ONE, Not TOGETHER.
+			//Obj-C Native Type = iOS Version이 급격히 바뀐 경우 등에 사용
+			//MetalCPP Wrapper Type = 안정된 디버그가 필요한 경우 등의 상황에서 사용 (릴리즈시 권장)
+			PublicDefinitions.Add($"METALFX_NATIVE={(bNativeSetting ? 1 : 0)}");
+			PublicDefinitions.Add($"METALFX_METALCPP={(bNativeSetting ? 0 : 1)}");
+			
             PrivateIncludePaths.AddRange(new string[]
             {
                 Path.Combine(EngineDirectory, "Source/Runtime/Apple/MetalRHI/Public"),
@@ -92,6 +90,8 @@ public class MetalFX : ModuleRules
 			PublicDefinitions.Add("METALFX_PLUGIN_ENABLED=0");
   			PublicDefinitions.Add("WITH_METALFX_TARGET_MAC=0");
     		PublicDefinitions.Add("WITH_METALFX_TARGET_IOS=0");
+			PublicDefinitions.Add("METALFX_NATIVE=0");
+			PublicDefinitions.Add("METALFX_METALCPP=0");
 		}
 		
 		//------------------MetalFX Handling Branch------------------ (End)
