@@ -126,9 +126,10 @@ Basic installation flow:
 2. Check whether the Unreal Engine version in use includes MetalCPP.
 3. If MetalCPP is not available in the engine version or required code path, MetalCPP may need to be added manually.
 4. If necessary, run the engine modification script included in the `Source/Thirdparty` folder.
-5. Rebuild the entire engine.
-6. Run the project in a Metal RHI environment.
-7. Test MetalFX using console variables.
+5. Enable "MetalFX Plugin" (in Editor or YourProject.uproject)
+6. Rebuild the entire engine.
+7. Run the project in a Metal RHI environment.
+8. Test MetalFX using console variables.
 
 ---
 
@@ -323,9 +324,10 @@ UnrealEngine/Engine/Plugins
 2. 사용 중인 Unreal Engine에 MetalCPP가 포함되어 있는지 확인합니다.
 3. MetalCPP가 없는 엔진 버전 또는 코드 경로에서는 MetalCPP를 추가해야 할 수 있습니다.
 4. 필요한 경우 `Source/Thirdparty` 폴더의 엔진 수정 스크립트를 실행합니다.
-5. 엔진 전체 재빌드를 수행합니다.
-6. Metal RHI 환경에서 프로젝트를 실행합니다.
-7. 콘솔 변수를 통해 MetalFX 기능을 테스트합니다.
+5. MetalFX 플러그인을 활성화합니다. (에디터 환경 혹은 YourProject.uproject 파일)
+6. 엔진 전체 재빌드를 수행합니다.
+7. Metal RHI 환경에서 프로젝트를 실행합니다.
+8. 콘솔 변수를 통해 MetalFX 기능을 테스트합니다.
 
 ---
 
