@@ -33,9 +33,7 @@ public:
 	
 private:
 	void HandlePostRHIInitialized();
-	void HandleWorldBeginPlay(UWorld* World, const UWorld::InitializationValues InitValue);
 	FDelegateHandle OnPostRHIInitialized;
-	FDelegateHandle OnPostWorldBeginPlay;
 private:
 	TSharedPtr<FMetalFXUpscalerCore, ESPMode::ThreadSafe> MetalFXUpscaler;
 	TSharedPtr<FMetalFXViewExtension, ESPMode::ThreadSafe> MetalFXViewExtension;

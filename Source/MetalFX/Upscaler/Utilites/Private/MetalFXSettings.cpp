@@ -6,6 +6,12 @@ TAutoConsoleVariable<bool> CVarEnableMetalFX(
 	TEXT("Enable MetalFX for Temporal Upscale"),
 	ECVF_RenderThreadSafe);
 
+TAutoConsoleVariable<bool> CvarEnableMetalFXInEditor(
+	TEXT("r.MetalFX.EnableInEditor"),
+	false,
+	TEXT("Enable MetalFX in editor viewports"),
+	ECVF_RenderThreadSafe);
+
 TAutoConsoleVariable<float> CVarMetalFXSharpness(
 	TEXT("r.MetalFX.Sharpness"),
 	0.0f,

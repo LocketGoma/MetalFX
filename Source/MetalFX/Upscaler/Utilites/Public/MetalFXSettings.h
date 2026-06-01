@@ -28,9 +28,10 @@ enum class EMetalFXQualityMode : uint8
 	MAX
 };
 
-extern TAutoConsoleVariable<bool> CvarEnableMetalFX;
+extern TAutoConsoleVariable<bool> CVarEnableMetalFX;
 extern TAutoConsoleVariable<bool> CvarEnableMetalFXInEditor;
 extern TAutoConsoleVariable<float> CVarMetalFXSharpness;
+extern TAutoConsoleVariable<int32> CVarMetalFXUpscalerMode;
 extern TAutoConsoleVariable<int32> CVarMetalFXQualityMode;
 
 UCLASS(Config = Engine, DefaultConfig, DisplayName = "Apple MetalFX")

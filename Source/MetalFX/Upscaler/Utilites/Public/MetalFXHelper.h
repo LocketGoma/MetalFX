@@ -393,7 +393,7 @@ public:
 		TargetTexture.ReleaseTexture();
 	}
 	
-	void ReleaseTextureDeferred(FMetalFXCppTextureView TargetTexture, id<MTLCommandBuffer> CommandBuffer)
+	void ReleaseTextureDeferred(FMetalFXObjCTextureView TargetTexture, id<MTLCommandBuffer> CommandBuffer)
 	{
 		TargetTexture.ReleaseTextureDeferred(CommandBuffer);
 	}

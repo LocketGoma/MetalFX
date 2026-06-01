@@ -46,7 +46,6 @@ void FMetalFXModule::StartupModule()
 	if (FApp::IsGame() || GIsEditor)
 	{
 		OnPostRHIInitialized = FCoreDelegates::OnPostEngineInit.AddRaw(this, &FMetalFXModule::HandlePostRHIInitialized);
-		OnPostWorldBeginPlay = FWorldDelegates::OnPostWorldInitialization.AddRaw(this, &FMetalFXModule::HandleWorldBeginPlay);
 		
 		//콘솔 설정 추가
 		FCoreDelegates::OnPostEngineInit.AddLambda([]() {
@@ -87,7 +86,6 @@ void FMetalFXModule::ShutdownModule()
 	MetalFXSupport = EMetalFXSupportReason::NotSupported;
 	MetalFXViewExtension = nullptr;
 	FCoreDelegates::OnPostEngineInit.Remove(OnPostRHIInitialized);
-	FWorldDelegates::OnPostWorldInitialization.Remove(OnPostWorldBeginPlay);
 	FCoreDelegates::OnPostEngineInit.RemoveAll(this);
 	UE_LOG(LogMetalFX, Log, TEXT("MetalFX Temporal Upscaling Module Shutdown"));
 }
@@ -175,9 +173,5 @@ void FMetalFXModule::HandlePostRHIInitialized()
 	}
 }
 
-void FMetalFXModule::HandleWorldBeginPlay(UWorld* World, const UWorld::InitializationValues InitValue)
-{
-	; //Do something if Needed.
-}
 #undef LOCTEXT_NAMESPACE
 	

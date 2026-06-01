@@ -84,11 +84,6 @@ private:
 	bool EnsureUpscalerForTextures(FIntPoint InputTextureExtent, FIntPoint InputContentExtent, FIntPoint OutputExtent, const FMetalFXTextureFormatGroup& Formats);
 	
 	void UpdateInputContentSize(FIntPoint InputContentExtent);
-	bool UpdateResolution(FIntPoint InputTextureExtent, FIntPoint OutputExtent);
-
-	
-	bool TextureFormatMatchChecker();
-	
 
 //--------MetalFX Enabled Enviroment Block-------- (End)
 #endif //METALFX_PLUGIN_ENABLED

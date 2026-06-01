@@ -251,29 +251,6 @@ void FMetalFXUpscalerCore::UpdateInputContentSize(FIntPoint InputContentExtent)
 #endif
 }
 
-//Output Resolution 자체가 바뀌는 경우엔 아예 다시 생성해야됨.
-bool FMetalFXUpscalerCore::UpdateResolution(FIntPoint InputTextureExtent, FIntPoint OutputExtent)
-{
-	//하나라도 기존과 다르면 업데이트 & 재생성
-	if ((m_OutputW != OutputExtent.X) || (m_OutputH != OutputExtent.Y))
-	{
-		m_InputTextureW = InputTextureExtent.X;
-		m_InputTextureH = InputTextureExtent.Y;
-		m_OutputW = OutputExtent.X;
-		m_OutputH = OutputExtent.Y;
-		
-		return false;
-	}
-	else if ((m_InputTextureW != InputTextureExtent.X) || (m_InputTextureH != InputTextureExtent.Y))
-	{
-		m_InputTextureW = InputTextureExtent.X;
-		m_InputTextureH = InputTextureExtent.Y;
-		return false;
-	}
-	
-	return true;
-}
-
 bool FMetalFXUpscalerCore::SetTexturesToGroup(const FMetalFXParameters& Parameters, FMetalFXTextureGroup& OutTexGroup)
 {	
 	if ((Parameters.ColorTexture == nullptr ) || (Parameters.DepthTexture == nullptr) || (Parameters.VelocityTexture == nullptr) || (Parameters.OutputTexture == nullptr))
@@ -382,12 +359,6 @@ void FMetalFXUpscalerCore::SetMotionVectorScale(FVector2f Scale)
 		MetalFXSetMotionVectorScale(pModules->m_Scaler, Scale.X, Scale.Y);
 #endif
 	}	
-}
-
-bool FMetalFXUpscalerCore::TextureFormatMatchChecker()
-{
-	//Change False = Match
-	return !pModules->Formats.GetIsChanged();
 }
 
 bool FMetalFXUpscalerCore::EnsureUpscalerForTextures(FIntPoint InputTextureExtent, FIntPoint InputContentExtent, FIntPoint OutputExtent, const FMetalFXTextureFormatGroup& Formats)
