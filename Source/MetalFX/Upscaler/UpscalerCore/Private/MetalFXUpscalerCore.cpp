@@ -143,6 +143,11 @@ struct MetalFXModule
 const float FMetalFXUpscalerCore::GetMinUpsampleResolutionFraction() const
 {
 	//SupportedInputContextMinScale
+	if (m_OutputW == 0 || m_OutputH == 0)
+	{
+		return 1.0f;
+	}
+
 	float fracW = float(m_InputContentW) / float(m_OutputW);
 	float fracH = float(m_InputContentH) / float(m_OutputH);
 	return FMath::Min(fracW, fracH);
@@ -150,6 +155,11 @@ const float FMetalFXUpscalerCore::GetMinUpsampleResolutionFraction() const
 
 const float FMetalFXUpscalerCore::GetMaxUpsampleResolutionFraction() const
 {
+	if (m_OutputW == 0 || m_OutputH == 0)
+	{
+		return 1.0f;
+	}
+
 	float fracW = float(m_InputContentW) / float(m_OutputW);
 	float fracH = float(m_InputContentH) / float(m_OutputH);
 	return FMath::Max(fracW, fracH);	
@@ -200,7 +210,7 @@ bool FMetalFXUpscalerCore::GenerateUpscaler()
 	}
 	else 
 	{
-		NSLog(@"Metal Device for MetalFX Not Founded");	
+		NSLog(@"Metal device for MetalFX was not found.");
 	}
 #endif
 	
@@ -221,7 +231,7 @@ bool FMetalFXUpscalerCore::GenerateUpscaler()
 	}
 	else 
 	{
-		NSLog(@"Metal Device for MetalFX Not Founded");	
+		NSLog(@"Metal device for MetalFX was not found.");
 	}
 #endif
 	
@@ -232,7 +242,7 @@ bool FMetalFXUpscalerCore::GenerateUpscaler()
 	}
 	else
 	{
-		UE_LOG(LogMetalFX, Error, TEXT("MetalFX TemporalScaler API Generated Failed."));
+		UE_LOG(LogMetalFX, Error, TEXT("MetalFX TemporalScaler API generation failed."));
 	}
 	
 	return bSuccess;
@@ -255,7 +265,7 @@ bool FMetalFXUpscalerCore::SetTexturesToGroup(const FMetalFXParameters& Paramete
 {	
 	if ((Parameters.ColorTexture == nullptr ) || (Parameters.DepthTexture == nullptr) || (Parameters.VelocityTexture == nullptr) || (Parameters.OutputTexture == nullptr))
 	{
-		UE_LOG(LogMetalFX, Error, TEXT("Some Texture are Invalidate. it is Right Action?"));
+		UE_LOG(LogMetalFX, Error, TEXT("MetalFX texture setup failed because one or more textures are invalid."));
 		return false;
 	}
 	
@@ -418,7 +428,7 @@ void FMetalFXUpscalerCore::ExecuteMetalFX(FRHICommandList& CmdList, FMetalFXText
 {	
 	if (!CheckValidate())
 	{
-		UE_LOG(LogMetalFX, Warning, TEXT("Upscaler Broken. retry generate upscaler. skip Upscaling this frame."));
+		UE_LOG(LogMetalFX, Warning, TEXT("MetalFX Upscaler is invalid. Skip upscaling this frame."));
 		TextureGroup.ReleaseAllTexture();
 		return;
 	}	
@@ -434,7 +444,7 @@ bool FMetalFXUpscalerCore::CheckForExecuteMetalFX(FIntPoint InputTextureExtent, 
 
 	if (!EnsureUpscalerForTextures(InputTextureExtent, InputContentExtent, OutputExtent, pModules->Formats))
 	{
-		UE_LOG(LogMetalFX, Warning, TEXT("MetalFX Upscaler is not ready. skip Upscaling this frame."));
+		UE_LOG(LogMetalFX, Warning, TEXT("MetalFX Upscaler is not ready. Skip upscaling this frame."));
 		return false;
 	}
 	
@@ -448,7 +458,7 @@ void FMetalFXUpscalerCore::Encode(FRHICommandList& CmdList, FMetalFXTextureGroup
 	
 	if (CurrentCommandBuffer == nullptr)
 	{
-		UE_LOG(LogMetalFX, Warning, TEXT("Can not found current activate Metal command buffer."));
+		UE_LOG(LogMetalFX, Warning, TEXT("MetalFX could not find the active Metal command buffer."));
 		return;
 	}
 	
@@ -556,7 +566,7 @@ const bool FMetalFXUpscalerCore::CheckValidate()
 	
 	if (!bValidate)
 	{
-		UE_LOG(LogMetalFX, Error, TEXT("You Trying To Using MetalFX. but MetalFX Upscaler Core Not Ready or Crashed. You Must Check MetalFX Upscaler Logics. see MetalFXUpscalerCore Class For More Infomations."));
+		UE_LOG(LogMetalFX, Error, TEXT("MetalFX Upscaler Core is not ready or has crashed. Check MetalFXUpscalerCore for more information."));
 	}
 	
 	return bValidate;
@@ -574,27 +584,27 @@ EMetalFXSupportReason FMetalFXUpscalerCore::GetIsSupportedDevice()
 		}
 	case static_cast<int32>(EMetalFXSupportReason::NotSupportedOldDiviceType) :
 		{
-			UE_LOG(LogRHI, Warning, TEXT("MetalFX Not Supported this Device. Device is Too old"));
+			UE_LOG(LogRHI, Warning, TEXT("MetalFX is not supported on this device. The device is too old."));
 			return EMetalFXSupportReason::NotSupportedOldDiviceType;
 		}
 	case static_cast<int32>(EMetalFXSupportReason::NotSupportedOSVersionOutOfDate) :
 		{
-			UE_LOG(LogRHI, Warning, TEXT("MetalFX Not Supported, OS version is Too old"));
+			UE_LOG(LogRHI, Warning, TEXT("MetalFX is not supported because the OS version is too old."));
 			return EMetalFXSupportReason::NotSupportedOSVersionOutOfDate;
 		}
 	case static_cast<int32>(EMetalFXSupportReason::NotSupportedMetalFXFrameworkMissing) :
 		{
-			UE_LOG(LogRHI, Warning, TEXT("MetalFX Not Supported, Framework Missing."));
+			UE_LOG(LogRHI, Warning, TEXT("MetalFX is not supported because the framework is missing."));
 			return EMetalFXSupportReason::NotSupportedMetalFXFrameworkMissing;
 		}
 	case static_cast<int32>(EMetalFXSupportReason::NotSupportedMetalFXCreationFailed) :
 		{
-			UE_LOG(LogRHI, Warning, TEXT("MetalFX Not Supported, MetalFX Creation Failed"));
+			UE_LOG(LogRHI, Warning, TEXT("MetalFX is not supported because MetalFX creation failed."));
 			return EMetalFXSupportReason::NotSupportedMetalFXCreationFailed;
 		}
 	}
 #endif
-	UE_LOG(LogRHI, Warning, TEXT("MetalFX Not Supported this Environment."));
+	UE_LOG(LogRHI, Warning, TEXT("MetalFX is not supported in this environment."));
 	return EMetalFXSupportReason::NotSupported;
 }
 

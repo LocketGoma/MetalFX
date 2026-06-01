@@ -35,14 +35,14 @@ static void AddMetalFXStatusDebugMessages(bool bCanActivate, bool bIsEnabled)
 		true);
 
 	if (bCanActivate)
-	{	
-	// Runtime state means MetalFX is actively selected for the current view family.
-	GEngine->AddOnScreenDebugMessage(
-		RuntimeMessageKey,
-		MessageDuration,
-		bIsEnabled ? FColor::Emerald : FColor::Yellow,
-		FString::Printf(TEXT("Apple MetalFX : %s"), bIsEnabled ? TEXT("Enabled") : TEXT("Disabled")),
-		true);
+	{
+		// Runtime state means MetalFX is actively selected for the current view family.
+		GEngine->AddOnScreenDebugMessage(
+			RuntimeMessageKey,
+			MessageDuration,
+			bIsEnabled ? FColor::Emerald : FColor::Yellow,
+			FString::Printf(TEXT("Apple MetalFX : %s"), bIsEnabled ? TEXT("Enabled") : TEXT("Disabled")),
+			true);
 	}
 }
 #endif

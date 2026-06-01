@@ -189,7 +189,7 @@ bool MetalFXUpdateScalerResolution(id<MTLFXTemporalScaler> Scaler, int InputWidt
 {
 	if (Scaler == nil)
 	{
-		NSLog(@"MetalFX Upscaler is Invalidate. Please Check.");
+		NSLog(@"MetalFX Upscaler is invalid. Please check.");
 		return false;
 	}
 
@@ -223,7 +223,7 @@ void MetalFXEncode(id<MTLFXTemporalScaler> Scaler, id<MTLCommandBuffer> CmdBuffe
 #if METALFX_PLUGIN_ENABLED
 	if (!Scaler || !CmdBuffer)
 	{
-		NSLog(@"MetalFX Upscaler or CommandBuffer is Invalidate.");
+		NSLog(@"MetalFX Upscaler or CommandBuffer is invalid.");
 		return;
 	}
 
@@ -248,7 +248,7 @@ void MetalFXSetJitterOffset(id<MTLFXTemporalScaler> Scaler, int OffsetX, int Off
 #if PLATFORM_IOS || PLATFORM_MAC
 	if (!Scaler)
 	{
-		NSLog(@"MetalFX Upscaler is Invalidate.");
+		NSLog(@"MetalFX Upscaler is invalid.");
 		return;
 	}
 	
@@ -265,7 +265,7 @@ void MetalFXSetMotionVectorScale(id<MTLFXTemporalScaler> Scaler, int OffsetX, in
 #if METALFX_PLUGIN_ENABLED
 	if (!Scaler)
 	{
-		NSLog(@"MetalFX Upscaler is Invalidate.");
+		NSLog(@"MetalFX Upscaler is invalid.");
 		return;
 	}
 

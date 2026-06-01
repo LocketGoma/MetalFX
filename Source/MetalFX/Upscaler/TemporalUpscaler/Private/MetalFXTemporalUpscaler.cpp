@@ -56,7 +56,7 @@ public:
 
 const void FMetalFXTemporalUpscaler::CheckValidate() const
 {
-	checkf(m_FxUpscaler, TEXT("You Trying To Activate MetalFX. but MetalFX Upscaler Not Ready. You Must Check MetalFX Upscaler Logics. see MetalFXTemporalUpscaler Class For More Infomations."));
+	checkf(m_FxUpscaler, TEXT("MetalFX Upscaler is not ready. Check MetalFXTemporalUpscaler for more information."));
 }
 
 float FMetalFXTemporalUpscaler::GetMinUpsampleResolutionFraction() const
