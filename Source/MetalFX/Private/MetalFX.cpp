@@ -151,13 +151,17 @@ void FMetalFXModule::HandlePostRHIInitialized()
 		MetalFXSupport = EMetalFXSupportReason::NotSupported;
 	}
 
+	if (MetalSupport == EMetalSupportDevice::Supported)
+	{
+		// The view extension is also used to show debug status on Metal RHI,
+		// even when the current device cannot activate MetalFX.
+		MetalFXViewExtension = FSceneViewExtensions::NewExtension<FMetalFXViewExtension>();
+	}
+
 	if (GetIsSupportedByRHI())
 	{
 		if (MetalFXUpscaler != nullptr)
 		{
-			//View Extension 등록
-			MetalFXViewExtension = FSceneViewExtensions::NewExtension<FMetalFXViewExtension>();
-			
 			UE_LOG(LogMetalFX, Log, TEXT("Apple MetalFX Enabled! Now Can Activate MetalFX."));
 		}
 		else
@@ -173,13 +177,7 @@ void FMetalFXModule::HandlePostRHIInitialized()
 
 void FMetalFXModule::HandleWorldBeginPlay(UWorld* World, const UWorld::InitializationValues InitValue)
 {
-#if !UE_BUILD_SHIPPING && METALFX_PLUGIN_ENABLED
-	if (World->IsGameWorld())
-	{
-		int32 ChannelCode = 'M'+'E'+'T'+'A'+'L'+'F'+'X';
-		GEngine->AddOnScreenDebugMessage(ChannelCode, 15.f, GetIsSupportedByRHI() ? FColor::Emerald : FColor::Red, FString::Printf(TEXT("Apple MetaFX %s"), GetIsSupportedByRHI() ? TEXT("Enabled") : TEXT("Disabled")), true);
-	}
-#endif
+	; //Do something if Needed.
 }
 #undef LOCTEXT_NAMESPACE
 	
