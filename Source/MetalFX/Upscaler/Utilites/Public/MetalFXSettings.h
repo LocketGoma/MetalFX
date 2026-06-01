@@ -30,6 +30,7 @@ enum class EMetalFXQualityMode : uint8
 
 extern TAutoConsoleVariable<bool> CVarEnableMetalFX;
 extern TAutoConsoleVariable<bool> CvarEnableMetalFXInEditor;
+extern TAutoConsoleVariable<bool> CVarMetalFXDebugDisplay;
 extern TAutoConsoleVariable<float> CVarMetalFXSharpness;
 extern TAutoConsoleVariable<int32> CVarMetalFXUpscalerMode;
 extern TAutoConsoleVariable<int32> CVarMetalFXQualityMode;

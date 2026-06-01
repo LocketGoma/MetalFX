@@ -12,6 +12,12 @@ TAutoConsoleVariable<bool> CvarEnableMetalFXInEditor(
 	TEXT("Enable MetalFX in editor viewports"),
 	ECVF_RenderThreadSafe);
 
+TAutoConsoleVariable<bool> CVarMetalFXDebugDisplay(
+	TEXT("r.MetalFX.DebugDisplay"),
+	true,
+	TEXT("Display MetalFX debug status on screen"),
+	ECVF_RenderThreadSafe);
+
 TAutoConsoleVariable<float> CVarMetalFXSharpness(
 	TEXT("r.MetalFX.Sharpness"),
 	0.0f,

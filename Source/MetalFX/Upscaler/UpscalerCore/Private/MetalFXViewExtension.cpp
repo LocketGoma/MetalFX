@@ -16,6 +16,11 @@ static void AddMetalFXStatusDebugMessages(bool bCanActivate, bool bIsEnabled)
 		return;
 	}
 
+	if (!CVarMetalFXDebugDisplay.GetValueOnGameThread())
+	{
+		return;
+	}
+
 	constexpr int32 ChannelCode = 'M'+'E'+'T'+'A'+'L'+'F'+'X';
 	constexpr int32 ActivationMessageKey = ChannelCode + 'A';			//Can Activate
 	constexpr int32 RuntimeMessageKey = ChannelCode + 'R';				//Enabled
