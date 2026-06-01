@@ -122,7 +122,8 @@ int32 MetalFXQuerySupportReason()
 		return static_cast<int32>(Reason::NotSupportedMetalFXFrameworkMissing);
 	}
 
-	// 4. 실제 TemporalScaler 생성이 가능한지 확인
+	// 4. Descriptor / device 지원 여부만 확인한다.
+	// 실제 scaler 생성은 첫 렌더 패스에서 texture descriptor가 준비된 뒤 수행한다.
 	id<MTLDevice> MetalDevice = GetMetalFXDevice();
 
 	// 1. MetalDevice가 없음 = 아예 실패
@@ -130,15 +131,10 @@ int32 MetalFXQuerySupportReason()
 	{
 		return static_cast<int32>(Reason::NotSupported);
 	}
-	FMetalFXTextureFormatGroup TempFormats;
-	id<MTLFXTemporalScaler> TestScaler = MetalFXCreateTemporalUpscaler(MetalDevice, TempFormats, 64, 64, 64, 64);
-	
-	if (TestScaler == nil)
+	if (![MTLFXTemporalScalerDescriptor supportsDevice:MetalDevice])
 	{
 		return static_cast<int32>(Reason::NotSupportedMetalFXCreationFailed);	
 	}
-
-	[TestScaler release];
 	
 	return static_cast<int32>(Reason::Supported);	
 }

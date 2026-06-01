@@ -143,21 +143,32 @@ struct MetalFXModule
 const float FMetalFXUpscalerCore::GetMinUpsampleResolutionFraction() const
 {
 	//SupportedInputContextMinScale
-	float fracW = float(m_InW) / float(m_OutW);
-	float fracH = float(m_InH) / float(m_OutH);
+	float fracW = float(m_InputContentW) / float(m_OutputW);
+	float fracH = float(m_InputContentH) / float(m_OutputH);
 	return FMath::Min(fracW, fracH);
 }	
 
 const float FMetalFXUpscalerCore::GetMaxUpsampleResolutionFraction() const
 {
-	float fracW = float(m_InW) / float(m_OutW);
-	float fracH = float(m_InH) / float(m_OutH);
+	float fracW = float(m_InputContentW) / float(m_OutputW);
+	float fracH = float(m_InputContentH) / float(m_OutputH);
 	return FMath::Max(fracW, fracH);	
 }
 
 bool FMetalFXUpscalerCore::GenerateUpscaler()
 {
 	bool bSuccess = false;
+
+	if (!pModules)
+	{
+		return false;
+	}
+
+	if (!pModules->Formats.IsReady())
+	{
+		UE_LOG(LogMetalFX, Warning, TEXT("MetalFX TemporalScaler generation skipped because texture formats are not ready."));
+		return false;
+	}
 	
 #if METALFX_METALCPP
 	//기존 것이 있다면 무조건 날리고 재생성
@@ -172,10 +183,10 @@ bool FMetalFXUpscalerCore::GenerateUpscaler()
 		auto Desc = RetainPtr(MTLFX::TemporalScalerDescriptor::alloc()->init());
 		if (Desc->supportsDevice(MetalDevice))
 		{
-			Desc->setInputWidth(m_InW);
-			Desc->setInputHeight(m_InH);
-			Desc->setOutputWidth(m_OutW);
-			Desc->setOutputHeight(m_OutH);
+			Desc->setInputWidth(m_InputTextureW);
+			Desc->setInputHeight(m_InputTextureH);
+			Desc->setOutputWidth(m_OutputW);
+			Desc->setOutputHeight(m_OutputH);
 			Desc->setColorTextureFormat(static_cast<MTL::PixelFormat>(pModules->Formats.Color));
 			Desc->setDepthTextureFormat(static_cast<MTL::PixelFormat>(pModules->Formats.Depth));
 			Desc->setMotionTextureFormat(static_cast<MTL::PixelFormat>(pModules->Formats.Motion));
@@ -205,7 +216,7 @@ bool FMetalFXUpscalerCore::GenerateUpscaler()
 	
 	if (MetalDevice != nil)
 	{
-		pModules->m_Scaler = MetalFXCreateTemporalUpscaler(MetalDevice, pModules->Formats, m_InW, m_InH, m_OutW, m_OutH);
+		pModules->m_Scaler = MetalFXCreateTemporalUpscaler(MetalDevice, pModules->Formats, m_InputTextureW, m_InputTextureH, m_OutputW, m_OutputH);
 		bSuccess = pModules->m_Scaler != nil;
 	}
 	else 
@@ -216,6 +227,7 @@ bool FMetalFXUpscalerCore::GenerateUpscaler()
 	
 	if (bSuccess)
 	{
+		UpdateInputContentSize(FIntPoint(m_InputContentW, m_InputContentH));
 		pModules->Formats.ResetChangeState();
 	}
 	else
@@ -226,35 +238,37 @@ bool FMetalFXUpscalerCore::GenerateUpscaler()
 	return bSuccess;
 }
 
-void FMetalFXUpscalerCore::UpdateInputRect(FIntPoint InRect)
+void FMetalFXUpscalerCore::UpdateInputContentSize(FIntPoint InputContentExtent)
 {
-	m_InW = InRect.X;
-	m_InH = InRect.Y;
+	m_InputContentW = InputContentExtent.X;
+	m_InputContentH = InputContentExtent.Y;
 
 #if METALFX_METALCPP
-	pModules->m_CppScaler->setInputContentWidth(m_InW);
-	pModules->m_CppScaler->setInputContentHeight(m_InH);
+	pModules->m_CppScaler->setInputContentWidth(m_InputContentW);
+	pModules->m_CppScaler->setInputContentHeight(m_InputContentH);
 #elif METALFX_NATIVE
-	MetalFXUpdateScalerResolution(pModules->m_Scaler, m_InW, m_InH);
+	MetalFXUpdateScalerResolution(pModules->m_Scaler, m_InputContentW, m_InputContentH);
 #endif
 }
 
 //Output Resolution 자체가 바뀌는 경우엔 아예 다시 생성해야됨.
-bool FMetalFXUpscalerCore::UpdateResolution(FIntPoint InRect, FIntPoint OutRect)
+bool FMetalFXUpscalerCore::UpdateResolution(FIntPoint InputTextureExtent, FIntPoint OutputExtent)
 {
 	//하나라도 기존과 다르면 업데이트 & 재생성
-	if ((m_OutW != OutRect.X) || (m_OutH != OutRect.Y))
+	if ((m_OutputW != OutputExtent.X) || (m_OutputH != OutputExtent.Y))
 	{
-		m_InW = InRect.X;
-		m_InH = InRect.Y;
-		m_OutW = OutRect.X;
-		m_OutH = OutRect.Y;
+		m_InputTextureW = InputTextureExtent.X;
+		m_InputTextureH = InputTextureExtent.Y;
+		m_OutputW = OutputExtent.X;
+		m_OutputH = OutputExtent.Y;
 		
 		return false;
 	}
-	else if ((m_InW != InRect.X) || (m_InH != InRect.Y))
+	else if ((m_InputTextureW != InputTextureExtent.X) || (m_InputTextureH != InputTextureExtent.Y))
 	{
-		UpdateInputRect(InRect);
+		m_InputTextureW = InputTextureExtent.X;
+		m_InputTextureH = InputTextureExtent.Y;
+		return false;
 	}
 	
 	return true;
@@ -287,6 +301,12 @@ bool FMetalFXUpscalerCore::SetTexturesToGroup(const FMetalFXParameters& Paramete
          
 		//Output Texture 
 		OutTexGroup.OutputTexture = GetMetalFX2DTextureView(ToMTLTexture(Parameters.OutputTexture));
+
+		if (!OutTexGroup.ColorTexture.IsValid() || !OutTexGroup.DepthTexture.IsValid() || !OutTexGroup.VelocityTexture.IsValid() || !OutTexGroup.OutputTexture.IsValid())
+		{
+			UE_LOG(LogMetalFX, Error, TEXT("MetalFX texture view conversion failed."));
+			return false;
+		}
 		
 		TempFormats.Color = OutTexGroup.ColorTexture.GetTexture()->pixelFormat();
 		TempFormats.Depth = OutTexGroup.DepthTexture.GetTexture()->pixelFormat();
@@ -308,6 +328,12 @@ bool FMetalFXUpscalerCore::SetTexturesToGroup(const FMetalFXParameters& Paramete
         
         //Output Texture 
 		OutTexGroup.OutputTexture = GetMetalFX2DTextureView(ToOBJCTexture(Parameters.OutputTexture));
+
+		if (!OutTexGroup.ColorTexture.IsValid() || !OutTexGroup.DepthTexture.IsValid() || !OutTexGroup.VelocityTexture.IsValid() || !OutTexGroup.OutputTexture.IsValid())
+		{
+			UE_LOG(LogMetalFX, Error, TEXT("MetalFX texture view conversion failed."));
+			return false;
+		}
 		
 		TempFormats.Color = (FMetalFXPixelFormat)[OutTexGroup.ColorTexture.GetTexture() pixelFormat];
 		TempFormats.Depth = (FMetalFXPixelFormat)[OutTexGroup.DepthTexture.GetTexture() pixelFormat];
@@ -364,6 +390,59 @@ bool FMetalFXUpscalerCore::TextureFormatMatchChecker()
 	return !pModules->Formats.GetIsChanged();
 }
 
+bool FMetalFXUpscalerCore::EnsureUpscalerForTextures(FIntPoint InputTextureExtent, FIntPoint InputContentExtent, FIntPoint OutputExtent, const FMetalFXTextureFormatGroup& Formats)
+{
+	if (!pModules)
+	{
+		return false;
+	}
+
+	if (!bIsInitialized)
+	{
+		UE_LOG(LogMetalFX, Warning, TEXT("MetalFX Upscaler Core is not initialized."));
+		return false;
+	}
+
+	if (!Formats.IsReady())
+	{
+		UE_LOG(LogMetalFX, Warning, TEXT("MetalFX texture formats are not ready."));
+		return false;
+	}
+
+#if METALFX_METALCPP
+	const bool bHasScaler = (pModules->m_CppScaler.get() != nullptr);
+#elif METALFX_NATIVE
+	const bool bHasScaler = (pModules->m_Scaler != nil);
+#else
+	const bool bHasScaler = false;
+#endif
+
+	const bool bInputTextureResolutionChanged = (m_InputTextureW != InputTextureExtent.X) || (m_InputTextureH != InputTextureExtent.Y);
+	const bool bInputContentResolutionChanged = (m_InputContentW != InputContentExtent.X) || (m_InputContentH != InputContentExtent.Y);
+	const bool bOutputResolutionChanged = (m_OutputW != OutputExtent.X) || (m_OutputH != OutputExtent.Y);
+	const bool bFormatChanged = pModules->Formats.GetIsChanged() || pModules->Formats.IsChanged(Formats);
+
+	if (bHasScaler && !bFormatChanged && !bInputTextureResolutionChanged && !bOutputResolutionChanged)
+	{
+		if (bInputContentResolutionChanged)
+		{
+			UpdateInputContentSize(InputContentExtent);
+		}
+
+		return true;
+	}
+
+	m_InputTextureW = InputTextureExtent.X;
+	m_InputTextureH = InputTextureExtent.Y;
+	m_InputContentW = InputContentExtent.X;
+	m_InputContentH = InputContentExtent.Y;
+	m_OutputW = OutputExtent.X;
+	m_OutputH = OutputExtent.Y;
+	pModules->Formats = Formats;
+
+	return GenerateUpscaler();
+}
+
 void FMetalFXUpscalerCore::ExecuteMetalFX(FRHICommandList& CmdList, FMetalFXTextureGroup& TextureGroup)
 {	
 	if (!CheckValidate())
@@ -375,47 +454,20 @@ void FMetalFXUpscalerCore::ExecuteMetalFX(FRHICommandList& CmdList, FMetalFXText
 	Encode(CmdList, TextureGroup);
 }
 
-bool FMetalFXUpscalerCore::CheckForExecuteMetalFX(FIntPoint InRect, FIntPoint OutRect)
+bool FMetalFXUpscalerCore::CheckForExecuteMetalFX(FIntPoint InputTextureExtent, FIntPoint InputContentExtent, FIntPoint OutputExtent)
 {
-	bool bSuccess = true;
-	bool bGenerated = true;
-	
-	//Upscaler Validation
-	if (!CheckValidate())
+	if (!pModules)
 	{
-		UE_LOG(LogMetalFX, Warning, TEXT("MetalFX Upscaler Broken. retry generate upscaler. skip Upscaling this frame."));
-		
-		bSuccess = false;
-		bGenerated = false;
+		return false;
+	}
+
+	if (!EnsureUpscalerForTextures(InputTextureExtent, InputContentExtent, OutputExtent, pModules->Formats))
+	{
+		UE_LOG(LogMetalFX, Warning, TEXT("MetalFX Upscaler is not ready. skip Upscaling this frame."));
+		return false;
 	}
 	
-	//Tex Rect Changed Check
-	if (!UpdateResolution(InRect, OutRect))
-	{
-		UE_LOG(LogMetalFX, Warning, TEXT("Output Texture size mismatch found. skip Upscaling this frame."));
-		
-		bSuccess = false;
-		bGenerated = false;
-	}
-	
-	//Tex Format match
-	if (!TextureFormatMatchChecker())
-	{
-		UE_LOG(LogMetalFX, Warning, TEXT("Texture Format mismatch found. skip Upscaling this frame."));
-		
-		bSuccess = false;
-		bGenerated = false;
-	}
-	
-	if (bSuccess == false)
-	{
-		if (bGenerated == false)
-		{
-			GenerateUpscaler();
-			UE_LOG(LogMetalFX, Warning, TEXT("Upscaler ReGenerated. skip Upscaling this frame."));
-		}
-	}
-	return bSuccess;
+	return true;
 }
 
 //텍스쳐 등 모든 세팅이 끝났을때 마지막으로 호출
@@ -477,10 +529,12 @@ bIsInitialized(false)
 	pModules = std::make_unique<MetalFXModule>();
 
 	//정해지지 않았을때의 디폴트 값. (QHD)
-	m_InW = 2560;
-	m_OutW = 2560;
-	m_InH = 1440; 
-	m_OutH = 1440;
+	m_InputTextureW = 2560;
+	m_InputTextureH = 1440;
+	m_InputContentW = 2560;
+	m_InputContentH = 1440;
+	m_OutputW = 2560;
+	m_OutputH = 1440;
 #endif //METALFX_PLUGIN_ENABLED 
 }
 
@@ -511,7 +565,9 @@ void FMetalFXUpscalerCore::Initialize()
 		return;
 	}
 #if METALFX_PLUGIN_ENABLED
-	bIsInitialized = GenerateUpscaler();
+	// Phase 1 only validates module-side readiness. The scaler is created later
+	// when the first render pass provides real texture formats and resolution.
+	bIsInitialized = true;
 #endif
 }
 

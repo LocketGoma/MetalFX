@@ -73,7 +73,7 @@ public:
 	void ExecuteMetalFX(FRHICommandList& CmdList, FMetalFXTextureGroup& TextureGroup);
 	
 	//Execute 가능한지 체크
-	bool CheckForExecuteMetalFX(FIntPoint InRect, FIntPoint OutRect);
+	bool CheckForExecuteMetalFX(FIntPoint InputTextureExtent, FIntPoint InputContentExtent, FIntPoint OutputExtent);
 	bool SetTexturesToGroup(const FMetalFXParameters& Parameters, FMetalFXTextureGroup& OutTexGroup);
 private:
 	//모든 Execute 조건 통과시 수행
@@ -81,9 +81,10 @@ private:
 	
 	//업스케일러 생성 / 업데이트 필요 시 작동 (무조건 현재 업스케일러를 릴리즈 한 뒤 재생성)
 	bool GenerateUpscaler();
+	bool EnsureUpscalerForTextures(FIntPoint InputTextureExtent, FIntPoint InputContentExtent, FIntPoint OutputExtent, const FMetalFXTextureFormatGroup& Formats);
 	
-	void UpdateInputRect(FIntPoint InRect);
-	bool UpdateResolution(FIntPoint InRect, FIntPoint OutRect);
+	void UpdateInputContentSize(FIntPoint InputContentExtent);
+	bool UpdateResolution(FIntPoint InputTextureExtent, FIntPoint OutputExtent);
 
 	
 	bool TextureFormatMatchChecker();
@@ -102,6 +103,7 @@ private:
 
 	bool bIsInitialized;
 
-	uint32_t m_InW, m_InH;
-	uint32_t m_OutW, m_OutH;
+	uint32_t m_InputTextureW, m_InputTextureH;
+	uint32_t m_InputContentW, m_InputContentH;
+	uint32_t m_OutputW, m_OutputH;
 };

@@ -88,14 +88,24 @@ struct FMetalFXTextureFormatGroup
 		Output = InFormats.Output;
 	}
 	
-	void IsValidFormat(FMetalFXTextureFormatGroup& InFormats)
+	void IsValidFormat(const FMetalFXTextureFormatGroup& InFormats)
 	{
-		bIsChanged = (Color != InFormats.Color || Depth != InFormats.Depth || Motion != InFormats.Motion || Output != InFormats.Output);
+		bIsChanged = IsChanged(InFormats);
 	}
 	
-	bool GetIsChanged()
+	bool GetIsChanged() const
 	{
 		return bIsChanged;
+	}
+
+	bool IsChanged(const FMetalFXTextureFormatGroup& InFormats) const
+	{
+		return Color != InFormats.Color || Depth != InFormats.Depth || Motion != InFormats.Motion || Output != InFormats.Output;
+	}
+
+	bool IsReady() const
+	{
+		return Color != 0 && Depth != 0 && Motion != 0 && Output != 0;
 	}
 	
 	void ResetChangeState()

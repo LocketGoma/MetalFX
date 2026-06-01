@@ -175,9 +175,10 @@ ITemporalUpscaler::FOutputs FMetalFXTemporalUpscaler::AddPasses(FRDGBuilder& Gra
 	ITemporalUpscaler::FOutputs Outputs;
 
 	//2. Rect 변수 할당	
-	FIntPoint InputExtents = Inputs.SceneColor.Texture->Desc.Extent;
+	FIntPoint InputTextureExtent = Inputs.SceneColor.Texture->Desc.Extent;
+	FIntPoint InputContentExtent = Inputs.SceneColor.ViewRect.Size();
 	FIntPoint OutputExtents = Inputs.OutputViewRect.Size();
-	FIntRect InputRect(FIntPoint::ZeroValue, InputExtents);
+	FIntRect InputTextureRect(FIntPoint::ZeroValue, InputTextureExtent);
 	
 	FMetalFXDispatchParameters DispatchParams;
 	DispatchParams.JitterOffset = View.ViewMatrices.GetTemporalAAJitter();
@@ -190,7 +191,7 @@ ITemporalUpscaler::FOutputs FMetalFXTemporalUpscaler::AddPasses(FRDGBuilder& Gra
 	FRDGTextureRef GeneratedVelocityTexture = FMetalFXUpscalerCore::PrepareVelocityTexture
 	(GraphBuilder, View, Inputs.SceneColor.Texture, 
 	Inputs.SceneDepth.Texture, Inputs.SceneVelocity.Texture, 
-	InputRect, Inputs.OutputViewRect, View.ViewMatrices.GetTemporalAAJitter());
+	InputTextureRect, Inputs.OutputViewRect, View.ViewMatrices.GetTemporalAAJitter());
 	
 	//5. Output Texture 생성
 	FRDGTextureRef OutputTexture = FMetalFXUpscalerCore::CreateOutputTexture
@@ -218,7 +219,7 @@ ITemporalUpscaler::FOutputs FMetalFXTemporalUpscaler::AddPasses(FRDGBuilder& Gra
 	ERDGPassFlags Flags = ERDGPassFlags::Compute | ERDGPassFlags::Raster | ERDGPassFlags::SkipRenderPass | ERDGPassFlags::Copy | ERDGPassFlags::NeverCull;
 	
 	GraphBuilder.AddPass(RDG_EVENT_NAME("MetalFXTemporalUpscaler"), PassParams, Flags, 
-	[UpscalerCore, PassParams, InputExtents, OutputExtents, DispatchParams](FRHICommandListImmediate& RHICmdList)
+	[UpscalerCore, PassParams, InputTextureExtent, InputContentExtent, OutputExtents, DispatchParams](FRHICommandListImmediate& RHICmdList)
 	{
 		if (!UpscalerCore)
 		{
@@ -226,12 +227,16 @@ ITemporalUpscaler::FOutputs FMetalFXTemporalUpscaler::AddPasses(FRDGBuilder& Gra
 		}
 		//To do : Use Dispatch Params (Jitter Offset, Motion Vector Scale, ETC..), Use Valid History
 		FMetalFXTextureGroup LocalTextureGroup;
-		UpscalerCore->SetTexturesToGroup(*PassParams, LocalTextureGroup);
+		if (!UpscalerCore->SetTexturesToGroup(*PassParams, LocalTextureGroup))
+		{
+			UE_LOG(LogMetalFX, Error, TEXT("MetalFX upscaler texture setup failed."));
+			return;
+		}
 		
 		//실행 가능할때만 Enqueue로 보냄.
-		if (UpscalerCore->CheckForExecuteMetalFX(InputExtents, OutputExtents))
+		if (UpscalerCore->CheckForExecuteMetalFX(InputTextureExtent, InputContentExtent, OutputExtents))
 		{
-			RHICmdList.EnqueueLambda([UpscalerCore, TextureGroup = MoveTemp(LocalTextureGroup), InputExtents, OutputExtents](FRHICommandListImmediate& Cmd) mutable
+			RHICmdList.EnqueueLambda([UpscalerCore, TextureGroup = MoveTemp(LocalTextureGroup)](FRHICommandListImmediate& Cmd) mutable
 			{	
 				UpscalerCore->ExecuteMetalFX(Cmd, TextureGroup);
 			});
