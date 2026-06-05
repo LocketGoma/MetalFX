@@ -155,7 +155,7 @@ id<MTLFXTemporalScaler> MetalFXCreateTemporalUpscaler(id<MTLDevice> Device, cons
 	// 이 버전 이하에선 MetalFX 자체를 못쓰도록 처리
 	if (!IsMetalFXTemporalPolicyGPU())
 	{
-		NSLog(@"CAN NOT Active MetalFX Temporal Upscaler for this Envioment. Please Check.");
+		NSLog(@"MetalFX Temporal Upscaler cannot be activated in this environment. Please check.");
 	}
 
 	MTLFXTemporalScalerDescriptor* Desc = [MTLFXTemporalScalerDescriptor new];
@@ -196,7 +196,7 @@ bool MetalFXUpdateScalerResolution(id<MTLFXTemporalScaler> Scaler, int InputWidt
 	//Output은 둘중 하나만 0일때 실패 판정
 	if (InputWidth == 0 || InputHeight == 0)
 	{
-		NSLog(@"MetalFX Upscaler's Resolution Data Invalid.");
+		NSLog(@"MetalFX Upscaler resolution data is invalid.");
 		return false;
 	}
 
@@ -208,7 +208,7 @@ bool MetalFXUpdateScalerResolution(id<MTLFXTemporalScaler> Scaler, int InputWidt
 	}
 	else
 	{
-		NSLog(@"MetalFX Upscaler's Input Resolution Data Invalid.");
+		NSLog(@"MetalFX Upscaler input resolution data is invalid.");
 		return false;
 	}
 

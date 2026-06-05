@@ -27,7 +27,7 @@ enum class EMetalFXSupportReason : uint8
 {
 	Supported,
 	NotSupported,
-	NotSupportedOldDiviceType,
+	NotSupportedOldDeviceType,
 	NotSupportedOSVersionOutOfDate,
 	NotSupportedMetalFXFrameworkMissing,
 	NotSupportedMetalFXCreationFailed,

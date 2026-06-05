@@ -582,10 +582,10 @@ EMetalFXSupportReason FMetalFXUpscalerCore::GetIsSupportedDevice()
 			UE_LOG(LogRHI, Log, TEXT("MetalFX Supported Device."));
 			return EMetalFXSupportReason::Supported;
 		}
-	case static_cast<int32>(EMetalFXSupportReason::NotSupportedOldDiviceType) :
+	case static_cast<int32>(EMetalFXSupportReason::NotSupportedOldDeviceType) :
 		{
 			UE_LOG(LogRHI, Warning, TEXT("MetalFX is not supported on this device. The device is too old."));
-			return EMetalFXSupportReason::NotSupportedOldDiviceType;
+			return EMetalFXSupportReason::NotSupportedOldDeviceType;
 		}
 	case static_cast<int32>(EMetalFXSupportReason::NotSupportedOSVersionOutOfDate) :
 		{
