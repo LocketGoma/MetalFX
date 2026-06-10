@@ -8,8 +8,8 @@
 
 class FMetalFXCopyExposureCS;
 
-#if !UE_BUILD_SHIPPING && METALFX_PLUGIN_ENABLED
-static void AddMetalFXStatusDebugMessages(bool bCanActivate, bool bIsEnabled)
+#if !UE_BUILD_SHIPPING
+static void AddMetalFXStatusDebugMessages(bool bCanActivate, bool bIsSupported, bool bIsEnabled)
 {
 	if (!GEngine)
 	{
@@ -23,7 +23,8 @@ static void AddMetalFXStatusDebugMessages(bool bCanActivate, bool bIsEnabled)
 
 	constexpr int32 ChannelCode = 'M'+'E'+'T'+'A'+'L'+'F'+'X';
 	constexpr int32 ActivationMessageKey = ChannelCode + 'A';			//Can Activate
-	constexpr int32 RuntimeMessageKey = ChannelCode + 'R';				//Enabled
+	constexpr int32 InEditorMessageKey = ChannelCode + 'E';				//Can Activate in Editor
+	constexpr int32 RuntimeMessageKey = ChannelCode + 'R';				//Enabled (Running)
 	constexpr float MessageDuration = 0.1f;
 
 	// Availability means the current RHI and MetalFX device support checks passed.
@@ -34,6 +35,17 @@ static void AddMetalFXStatusDebugMessages(bool bCanActivate, bool bIsEnabled)
 		FString::Printf(TEXT("Apple MetalFX : %s Activate"), bCanActivate ? TEXT("Can") : TEXT("Can NOT")),
 		true);
 
+	//에디터인 경우 추가 체크
+	if (GIsEditor)
+	{
+		GEngine->AddOnScreenDebugMessage(
+			InEditorMessageKey,
+			MessageDuration,
+			bIsSupported ? FColor::Emerald : FColor::Yellow,
+			FString::Printf(TEXT("Apple MetalFX Editor SupportState : %s"), bIsSupported ? TEXT("Enabled") : TEXT("Disabled")),
+			true);
+	}
+	
 	if (bCanActivate)
 	{
 		// Runtime state means MetalFX is actively selected for the current view family.
@@ -49,6 +61,8 @@ static void AddMetalFXStatusDebugMessages(bool bCanActivate, bool bIsEnabled)
 
 FMetalFXViewExtension::FMetalFXViewExtension(const FAutoRegister& AutoRegister)
 : FSceneViewExtensionBase(AutoRegister)
+, bMetalFXEnabled(false)
+, bMetalFXSupported(true)
 {
 	// The extension can exist on Metal RHI even when MetalFX itself is not supported.
 }
@@ -57,87 +71,96 @@ void FMetalFXViewExtension::SetupViewFamily(FSceneViewFamily& InViewFamily)
 {
 	static TConsoleVariableData<bool>* CvarMetalFXEnable = IConsoleManager::Get().FindTConsoleVariableDataBool(TEXT("r.MetalFX.Enabled"));
 
+	FMetalFXModule& MetalFXModule = FModuleManager::GetModuleChecked<FMetalFXModule>(TEXT("MetalFX"));
+	bMetalFXSupported = MetalFXModule.GetIsSupportedByRHI();
+	
+	//에디터에서는 EnableInEditor로 변경
+	if (GIsEditor)
+	{
+		static TConsoleVariableData<bool>* CvarMetalFXEditorSupported = IConsoleManager::Get().FindTConsoleVariableDataBool(TEXT("r.MetalFX.EnableInEditor"));
+		bMetalFXSupported = CvarMetalFXEditorSupported ? CvarMetalFXEditorSupported->GetValueOnGameThread() : bMetalFXSupported;
+	}
+	
 	//If the CVar is not registered, MetalFX must stay disabled.
 	bMetalFXEnabled = CvarMetalFXEnable ? CvarMetalFXEnable->GetValueOnGameThread() : false;
+	
 }
 
 void FMetalFXViewExtension::BeginRenderViewFamily(FSceneViewFamily& InViewFamily)
 {
-	FMetalFXModule& MetalFXModule = FModuleManager::GetModuleChecked<FMetalFXModule>(TEXT("MetalFX"));
-	const bool bCanActivateThisFrame = MetalFXModule.GetIsSupportedByRHI();
 	bool bIsEnabledThisFrame = false;
+	bool bIsCheckPassed = true;
 
-	if (InViewFamily.ViewMode != EViewModeIndex::VMI_Lit ||
-		InViewFamily.Scene == nullptr ||
-		InViewFamily.Scene->GetShadingPath() != EShadingPath::Deferred ||
-		!InViewFamily.bRealtimeUpdate)
+	if (GIsEditor)
 	{
-#if !UE_BUILD_SHIPPING && METALFX_PLUGIN_ENABLED
-		// This view family is not realtime lit deferred scene rendering.
-		AddMetalFXStatusDebugMessages(bCanActivateThisFrame, false);
-#endif
-		return;
+		if (!(bMetalFXEnabled && bMetalFXSupported))
+		{
+			bIsCheckPassed = false;
+		}
+	}	
+	
+	if (InViewFamily.ViewMode != EViewModeIndex::VMI_Lit ||	InViewFamily.Scene == nullptr || InViewFamily.Scene->GetShadingPath() != EShadingPath::Deferred || !InViewFamily.bRealtimeUpdate)
+	{
+		bIsCheckPassed = false;
 	}
 
 	// MetalFX requires a valid view state and a primary temporal upscale request.
-	bool bFoundPrimaryTemporalUpscale = false;
-	for (const FSceneView* View : InViewFamily.Views)
+	bool bFoundPrimaryTemporalUpscale = true;
+	if (bIsCheckPassed)
 	{
-		if (View->State == nullptr)
+		for (const FSceneView* View : InViewFamily.Views)
 		{
-#if !UE_BUILD_SHIPPING && METALFX_PLUGIN_ENABLED
-			// Views without persistent state cannot provide temporal history.
-			AddMetalFXStatusDebugMessages(bCanActivateThisFrame, false);
-#endif
-			return;
+			if (View->State == nullptr)
+			{
+				bIsCheckPassed = false;	
+				break;
+			}
+			
+			if (View->bIsSceneCapture)
+			{
+				bIsCheckPassed = false;
+				break;
+			}
+			
+			//한번이라도 false 면 계속 false 처리 (안정성 이슈)
+			if (View->PrimaryScreenPercentageMethod != EPrimaryScreenPercentageMethod::TemporalUpscale)
+			{
+				bFoundPrimaryTemporalUpscale = false;
+			}
 		}
-
-		if (View->bIsSceneCapture)
-		{
-#if !UE_BUILD_SHIPPING && METALFX_PLUGIN_ENABLED
-			// Scene capture views are excluded from MetalFX temporal upscaling.
-			AddMetalFXStatusDebugMessages(bCanActivateThisFrame, false);
-#endif
-			return;
-		}
-
-		if (View->PrimaryScreenPercentageMethod == EPrimaryScreenPercentageMethod::TemporalUpscale)
-		{
-			bFoundPrimaryTemporalUpscale = true;
-		}
-	}
-	if (!bFoundPrimaryTemporalUpscale)
-	{
-#if !UE_BUILD_SHIPPING && METALFX_PLUGIN_ENABLED
-		// This view family is not requesting temporal upscaling.
-		AddMetalFXStatusDebugMessages(bCanActivateThisFrame, false);
-#endif
-		return;
 	}
 	
-	if (bCanActivateThisFrame && bMetalFXEnabled)
+	if (bIsCheckPassed)
 	{
+		if (!bFoundPrimaryTemporalUpscale)
+		{
+			bIsCheckPassed = false;
+		}
+		
+		if (bMetalFXSupported && bMetalFXEnabled && bIsCheckPassed)
+		{
+//Metal RHI 인 경우에 View Extension이 만들어지긴 하나, Plugin은 Disabled 일 수 있음.			
 #if METALFX_PLUGIN_ENABLED
-		FMetalFXUpscalerCore* Upscaler = MetalFXModule.GetMetalFXUpscaler();
-		if (!Upscaler)
-		{
-#if !UE_BUILD_SHIPPING
-			// The device passed support checks, but the upscaler core is not ready.
-			AddMetalFXStatusDebugMessages(bCanActivateThisFrame, false);
-#endif
-			return;
-		}
-		if (!InViewFamily.GetTemporalUpscalerInterface())
-		{
-			InViewFamily.SetTemporalUpscalerInterface(new FMetalFXTemporalUpscaler(Upscaler));
-		}
-		bIsEnabledThisFrame = true;
+			FMetalFXModule& MetalFXModule = FModuleManager::GetModuleChecked<FMetalFXModule>(TEXT("MetalFX"));
+			FMetalFXUpscalerCore* Upscaler = MetalFXModule.GetMetalFXUpscaler();
+			if (!Upscaler)
+			{
+				bIsCheckPassed = false;
+			}
+			
+			if (bIsCheckPassed && (!InViewFamily.GetTemporalUpscalerInterface()))
+			{
+				InViewFamily.SetTemporalUpscalerInterface(new FMetalFXTemporalUpscaler(Upscaler));
+			}
 #endif //METALFX_PLUGIN_ENABLED
+		}
 	}
 	
-#if !UE_BUILD_SHIPPING && METALFX_PLUGIN_ENABLED
+	bIsEnabledThisFrame = bIsCheckPassed && bMetalFXEnabled;
+	
+#if !UE_BUILD_SHIPPING
 	// Show availability and active runtime state as separate debug lines.
-	AddMetalFXStatusDebugMessages(bCanActivateThisFrame, bIsEnabledThisFrame);
+	AddMetalFXStatusDebugMessages(bMetalFXSupported, bMetalFXEnabled, bIsEnabledThisFrame);
 #endif
 }
 

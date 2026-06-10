@@ -2,7 +2,7 @@
 //-----------------------콘솔 명령어-----------------------
 TAutoConsoleVariable<bool> CVarEnableMetalFX(
 	TEXT("r.MetalFX.Enabled"),
-	true,
+	false,
 	TEXT("Enable MetalFX for Temporal Upscale"),
 	ECVF_RenderThreadSafe);
 

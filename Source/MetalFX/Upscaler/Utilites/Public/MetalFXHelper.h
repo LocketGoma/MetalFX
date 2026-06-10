@@ -52,6 +52,14 @@ enum class EMetalFXServiceReason : uint8
 	TemporalType
 };
 
+//MetalFX 가 현재 무슨 모드로 작동 가능한지
+enum class EMetalFXSupportType : uint8
+{
+	UnSupported,
+	ForGame,
+	ForEditor
+};
+
 //텍스쳐 포멧 그룹
 using FMetalFXPixelFormat = uint64_t;
 struct FMetalFXTextureFormatGroup

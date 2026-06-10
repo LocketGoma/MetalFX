@@ -24,4 +24,7 @@ private:
 private:
 	//The extension can be created even when MetalFX cannot activate.
 	bool bMetalFXEnabled = false;
+	
+	//bIsSupporeted && (if GIsEditor)
+	bool bMetalFXSupported = false;
 };
