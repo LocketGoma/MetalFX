@@ -81,7 +81,7 @@ private:
 	
 	//업스케일러 생성 / 업데이트 필요 시 작동 (무조건 현재 업스케일러를 릴리즈 한 뒤 재생성)
 	bool GenerateUpscaler();
-	bool EnsureUpscalerForTextures(FIntPoint InputTextureExtent, FIntPoint InputContentExtent, FIntPoint OutputExtent, const FMetalFXTextureFormatGroup& Formats);
+	bool EnsureUpscalerForConfiguration(FIntPoint InputTextureExtent, FIntPoint InputContentExtent, FIntPoint OutputExtent, const FMetalFXTextureFormatGroup& Formats);
 	
 	void UpdateInputContentSize(FIntPoint InputContentExtent);
 

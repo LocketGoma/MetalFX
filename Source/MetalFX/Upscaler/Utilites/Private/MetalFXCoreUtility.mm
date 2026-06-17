@@ -43,26 +43,7 @@ static BOOL IsSystemVersionAtLeast(NSInteger Major, NSInteger Minor = 0, NSInteg
 static BOOL IsMetalFXSupported()
 {
 #if METALFX_PLUGIN_ENABLED
-	id<MTLDevice> MetalDevice = GetMetalFXDevice();
-
-	// 1. MetalDevice가 없음 = 아예 실패
-	if (MetalDevice == nil)
-	{
-		return NO;
-	}
-	
-#if WITH_METALFX_TARGET_MAC
-	// Mac인 경우 = OS 조건 + Apple SoC
-	BOOL bIsAppleSoC = [MetalDevice supportsFamily:MTLGPUFamilyApple1];
-	
-	return IsSystemVersionAtLeast(13, 0) && bIsAppleSoC;
-#endif
-	
-#if WITH_METALFX_TARGET_IOS
-	// iOS인 경우 = OS 조건만 (짜피 그 이하 OS밖에 못쓰면 돌아가지도 않을테니)
-	return IsSystemVersionAtLeast(18, 0);
-#endif
-	
+	return MetalFXQuerySupportReason() == static_cast<int32>(EMetalFXSupportReason::Supported);
 #endif
 	return NO;
 }
@@ -78,7 +59,7 @@ static BOOL IsMetalFXTemporalPolicyGPU()
 	{
 		return NO;
 	}
-	
+
 	if (IsMetalFXSupported())
 	{		
 		return MetalDevice != nil && [MetalDevice supportsFamily:MTLGPUFamilyApple9];
@@ -98,6 +79,13 @@ int32 MetalFXQuerySupportReason()
 {
 	using Reason = EMetalFXSupportReason;
 
+	// 1. MetalDevice가 없음 = 아예 실패
+	id<MTLDevice> MetalDevice = GetMetalFXDevice();
+	if (MetalDevice == nil)
+	{
+		return static_cast<int32>(Reason::NotSupported);
+	}
+
 	// 2. OS 버전 체크
 #if WITH_METALFX_TARGET_MAC
 	// Mac OS - 최소 Mac OS 13 이상에서만 MetalFX 시도 (정책에 맞게 조절 가능)
@@ -109,28 +97,29 @@ int32 MetalFXQuerySupportReason()
 	
 #if WITH_METALFX_TARGET_IOS
 	// iOS - 최소 iOS 18 이상에서만 MetalFX 시도 (정책에 맞게 조정 가능)
-	if (!IsSystemVersionAtLeast(18.0))
+	if (!IsSystemVersionAtLeast(18, 0))
 	{
 		return static_cast<int32>(Reason::NotSupportedOSVersionOutOfDate);
 	}
 #endif
 
-	// 3. MetalFX 클래스 존재 여부 (헤더/런타임 불일치 or 프레임워크 미포함) - 보통 발생하면 안됨
+	// 3. Device Type 체크
+#if WITH_METALFX_TARGET_MAC
+	if (![MetalDevice supportsFamily:MTLGPUFamilyApple1])
+	{
+		return static_cast<int32>(Reason::NotSupportedOldDeviceType);
+	}
+#endif
+
+	// 4. MetalFX 클래스 존재 여부 (헤더/런타임 불일치 or 프레임워크 미포함) - 보통 발생하면 안됨
 	Class DescClass = NSClassFromString(@"MTLFXTemporalScalerDescriptor");
 	if (DescClass == Nil)
 	{
 		return static_cast<int32>(Reason::NotSupportedMetalFXFrameworkMissing);
 	}
 
-	// 4. Descriptor / device 지원 여부만 확인한다.
+	// 5. Descriptor / device 지원 여부만 확인한다.
 	// 실제 scaler 생성은 첫 렌더 패스에서 texture descriptor가 준비된 뒤 수행한다.
-	id<MTLDevice> MetalDevice = GetMetalFXDevice();
-
-	// 1. MetalDevice가 없음 = 아예 실패
-	if (MetalDevice == nil)
-	{
-		return static_cast<int32>(Reason::NotSupported);
-	}
 	if (![MTLFXTemporalScalerDescriptor supportsDevice:MetalDevice])
 	{
 		return static_cast<int32>(Reason::NotSupportedMetalFXCreationFailed);	
@@ -156,6 +145,7 @@ id<MTLFXTemporalScaler> MetalFXCreateTemporalUpscaler(id<MTLDevice> Device, cons
 	if (!IsMetalFXTemporalPolicyGPU())
 	{
 		NSLog(@"MetalFX Temporal Upscaler cannot be activated in this environment. Please check.");
+		return nil;
 	}
 
 	MTLFXTemporalScalerDescriptor* Desc = [MTLFXTemporalScalerDescriptor new];
