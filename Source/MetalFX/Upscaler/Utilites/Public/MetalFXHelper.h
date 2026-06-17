@@ -96,9 +96,10 @@ struct FMetalFXTextureFormatGroup
 		Output = InFormats.Output;
 	}
 	
-	void IsValidFormat(const FMetalFXTextureFormatGroup& InFormats)
+	bool UpdateChangeState(const FMetalFXTextureFormatGroup& InFormats)
 	{
 		bIsChanged = IsChanged(InFormats);
+		return bIsChanged;
 	}
 	
 	bool GetIsChanged() const
