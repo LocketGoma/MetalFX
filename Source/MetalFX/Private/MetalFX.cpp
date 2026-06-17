@@ -14,12 +14,12 @@ DEFINE_LOG_CATEGORY(LogMetalFX);
 
 //----------------------Macro Checker--------------------
 #if METALFX_PLUGIN_ENABLED
-	//Valid Mac Enviroment Check
+	//Valid Mac Environment Check
 	#if (WITH_METALFX_TARGET_MAC && !PLATFORM_MAC) || (!WITH_METALFX_TARGET_MAC && PLATFORM_MAC)
 		#error "Setting on Mac Platform, but Plugin and Platfrom Validation Failed."
 	#endif
 
-	//Valid iOS Enviroment Check
+	//Valid iOS Environment Check
 	#if (WITH_METALFX_TARGET_IOS && !PLATFORM_IOS) || (!WITH_METALFX_TARGET_IOS && PLATFORM_IOS)
 		#error "Setting on ios Platform, but Plugin and Platfrom Validation Failed."
 	#endif
