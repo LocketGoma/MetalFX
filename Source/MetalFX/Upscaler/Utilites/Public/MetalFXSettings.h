@@ -20,11 +20,14 @@ enum class EMetalFXUpscalerMode : uint8
 UENUM(BlueprintType)
 enum class EMetalFXQualityMode : uint8
 {
-	NativeAA UMETA(DisplayName = "Native AA"),
-	Quality UMETA(DisplayName = "Quality"),
-	Balanced UMETA(DisplayName = "Balanced"),
-	Performance UMETA(DisplayName = "Performance"),
-	UltraPerformance UMETA(DisplayName = "Ultra Performance"),
+	NativeAA UMETA(DisplayName = "Native AA (100%)"),
+	Quality UMETA(DisplayName = "Quality (66.7%)"),
+	Balanced UMETA(DisplayName = "Balanced (50%)"),
+	Performance UMETA(DisplayName = "Performance (33%)"),
+	UltraPerformance UMETA(DisplayName = "Ultra Performance (25%)"),
+	// This value must be placed last. It resolves to 1% in non-shipping builds and to the value immediately before Min in shipping builds.
+	Min UMETA(DisplayName = "Min"),
+	// Enum value used to return the number of quality modes.
 	MAX
 };
 

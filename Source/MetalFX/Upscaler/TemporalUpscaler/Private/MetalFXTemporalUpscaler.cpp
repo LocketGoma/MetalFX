@@ -169,7 +169,7 @@ static void LogTemporalUpscalerInputsForMetalFX(
 
 static float GetMetalFXScreenPercentageValue()
 {
-	static IConsoleVariable* CVarScreenPercentage = IConsoleManager::Get().FindConsoleVariable(TEXT("r.ScreenPercentage"));
+	IConsoleVariable* CVarScreenPercentage = IConsoleManager::Get().FindConsoleVariable(TEXT("r.ScreenPercentage"));
 	return CVarScreenPercentage ? CVarScreenPercentage->GetFloat() : 0.0f;
 }
 

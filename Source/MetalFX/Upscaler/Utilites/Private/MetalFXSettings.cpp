@@ -50,8 +50,8 @@ TAutoConsoleVariable<int32> CVarMetalFXUpscalerMode(
 
 TAutoConsoleVariable<int32> CVarMetalFXQualityMode(
 	TEXT("r.MetalFX.QualityMode"),
-	1,
-	TEXT("Quality mode to be used when upscaling with MetalFX"),
+	static_cast<int32>(EMetalFXQualityMode::Balanced),
+	TEXT("Quality mode to be used when upscaling with MetalFX. 0: 100%, 1: 66.7%, 2: 50%, 3: 33%, 4: 25%."),
 	ECVF_RenderThreadSafe);
 
 //------------------------

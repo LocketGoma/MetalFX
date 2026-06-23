@@ -154,27 +154,12 @@ struct MetalFXModule
 #if METALFX_PLUGIN_ENABLED
 const float FMetalFXUpscalerCore::GetMinUpsampleResolutionFraction() const
 {
-	//SupportedInputContextMinScale
-	if (m_OutputW == 0 || m_OutputH == 0)
-	{
-		return 1.0f;
-	}
-
-	float fracW = float(m_InputContentW) / float(m_OutputW);
-	float fracH = float(m_InputContentH) / float(m_OutputH);
-	return FMath::Min(fracW, fracH);
+	return GetMetalFXMinUpscaleResolutionFraction();
 }	
 
 const float FMetalFXUpscalerCore::GetMaxUpsampleResolutionFraction() const
 {
-	if (m_OutputW == 0 || m_OutputH == 0)
-	{
-		return 1.0f;
-	}
-
-	float fracW = float(m_InputContentW) / float(m_OutputW);
-	float fracH = float(m_InputContentH) / float(m_OutputH);
-	return FMath::Max(fracW, fracH);	
+	return GetMetalFXMaxUpscaleResolutionFraction();
 }
 
 bool FMetalFXUpscalerCore::GenerateUpscaler()

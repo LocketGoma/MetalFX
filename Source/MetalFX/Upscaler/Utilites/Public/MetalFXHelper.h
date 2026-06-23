@@ -1,5 +1,6 @@
 #pragma once
 #include "CoreMinimal.h"
+#include "MetalFXSettings.h"
 #include "RenderGraphBuilder.h"
 #include "RenderGraphResources.h"
 
@@ -59,6 +60,59 @@ enum class EMetalFXSupportType : uint8
 	ForGame,
 	ForEditor
 };
+
+inline float ConvertMetalFXQualityModeToScreenPercentage(EMetalFXQualityMode QualityMode)
+{
+	if (QualityMode == EMetalFXQualityMode::Min)
+	{
+#if !UE_BUILD_SHIPPING
+		return 1.0f;
+#else
+		return ConvertMetalFXQualityModeToScreenPercentage(static_cast<EMetalFXQualityMode>(static_cast<int32>(EMetalFXQualityMode::Min) - 1));
+#endif
+	}
+
+	switch (QualityMode)
+	{
+	case EMetalFXQualityMode::NativeAA:
+		return 100.0f;
+	case EMetalFXQualityMode::Quality:
+		return 66.7f;
+	case EMetalFXQualityMode::Balanced:
+		return 50.0f;
+	case EMetalFXQualityMode::Performance:
+		return 33.0f;
+	case EMetalFXQualityMode::UltraPerformance:
+		return 25.0f;
+	default:
+		return 50.0f;
+	}
+}
+
+inline float ConvertMetalFXQualityModeToScreenPercentage(int32 QualityMode)
+{
+	return ConvertMetalFXQualityModeToScreenPercentage(static_cast<EMetalFXQualityMode>(QualityMode));
+}
+
+inline float ConvertMetalFXQualityModeToResolutionFraction(EMetalFXQualityMode QualityMode)
+{
+	return ConvertMetalFXQualityModeToScreenPercentage(QualityMode) / 100.0f;
+}
+
+inline float ConvertMetalFXQualityModeToResolutionFraction(int32 QualityMode)
+{
+	return ConvertMetalFXQualityModeToScreenPercentage(QualityMode) / 100.0f;
+}
+
+inline float GetMetalFXMinUpscaleResolutionFraction()
+{
+	return ConvertMetalFXQualityModeToResolutionFraction(EMetalFXQualityMode::Min);
+}
+
+inline float GetMetalFXMaxUpscaleResolutionFraction()
+{
+	return ConvertMetalFXQualityModeToResolutionFraction(EMetalFXQualityMode::NativeAA);
+}
 
 //텍스쳐 포멧 그룹
 using FMetalFXPixelFormat = uint64_t;
