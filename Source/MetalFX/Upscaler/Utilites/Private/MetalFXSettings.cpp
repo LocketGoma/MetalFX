@@ -18,6 +18,24 @@ TAutoConsoleVariable<bool> CVarMetalFXDebugDisplay(
 	TEXT("Display MetalFX debug status on screen"),
 	ECVF_RenderThreadSafe);
 
+TAutoConsoleVariable<int32> CVarMetalFXJitterMode(
+	TEXT("r.MetalFX.JitterMode"),
+	1,
+	TEXT("Controls MetalFX temporal jitter. 1: normal, 0: disabled, -1: inverted."),
+	ECVF_RenderThreadSafe);
+
+TAutoConsoleVariable<float> CVarMetalFXMotionVectorScaleX(
+	TEXT("r.MetalFX.MotionVectorScaleX"),
+	0.0f,
+	TEXT("Horizontal scale applied by MetalFX to the motion vector texture. Keep 0 until the Unreal velocity conversion pass is enabled."),
+	ECVF_RenderThreadSafe);
+
+TAutoConsoleVariable<float> CVarMetalFXMotionVectorScaleY(
+	TEXT("r.MetalFX.MotionVectorScaleY"),
+	0.0f,
+	TEXT("Vertical scale applied by MetalFX to the motion vector texture. Keep 0 until the Unreal velocity conversion pass is enabled."),
+	ECVF_RenderThreadSafe);
+
 TAutoConsoleVariable<float> CVarMetalFXSharpness(
 	TEXT("r.MetalFX.Sharpness"),
 	0.0f,

@@ -498,6 +498,23 @@ bool FMetalFXUpscalerCore::CheckForExecuteMetalFX(FIntPoint InputTextureExtent, 
 	return true;
 }
 
+void FMetalFXUpscalerCore::UpdateActiveDebugInfo(FIntRect InputRect, FIntRect OutputRect, float ScreenPercentage)
+{
+	FScopeLock Lock(&ActiveDebugInfoCS);
+
+	ActiveDebugInfo.InputRect = InputRect;
+	ActiveDebugInfo.OutputRect = OutputRect;
+	ActiveDebugInfo.ScreenPercentage = ScreenPercentage;
+	ActiveDebugInfo.bIsValid = true;
+}
+
+FMetalFXActiveDebugInfo FMetalFXUpscalerCore::GetActiveDebugInfo() const
+{
+	FScopeLock Lock(&ActiveDebugInfoCS);
+
+	return ActiveDebugInfo;
+}
+
 //텍스쳐 등 모든 세팅이 끝났을때 마지막으로 호출
 void FMetalFXUpscalerCore::Encode(FRHICommandList& CmdList, FMetalFXTextureGroup& TextureGroup)
 {

@@ -6,30 +6,13 @@
 
 using ITemporalUpscaler = UE::Renderer::Private::ITemporalUpscaler;
 
-BEGIN_SHADER_PARAMETER_STRUCT(FMetalFXPassParameters, )
-	SHADER_PARAMETER(FUintVector4, Const0)
-	SHADER_PARAMETER(FUintVector4, Const1)
-	SHADER_PARAMETER(FUintVector4, Const2)
-	SHADER_PARAMETER(FUintVector4, Const3)
-	SHADER_PARAMETER(FVector2f, VPColor_ExtentInverse)
-	SHADER_PARAMETER(FVector2f, VPColor_ViewportMin)
-	SHADER_PARAMETER_SAMPLER(SamplerState, samLinearClamp)
-	SHADER_PARAMETER_RDG_TEXTURE(Texture2D, InputTexture)
-END_SHADER_PARAMETER_STRUCT()
-
-BEGIN_SHADER_PARAMETER_STRUCT(FMetalFXSharpnessPassParameters, )
-SHADER_PARAMETER_RDG_TEXTURE(Texture2D, InputTexture)
-SHADER_PARAMETER(FUintVector4, Const0)
-SHADER_PARAMETER(FVector2f, VPColor_ExtentInverse)
-END_SHADER_PARAMETER_STRUCT()
-
 struct FMetalFXDispatchParameters
 {
 	FIntRect SrcRect = FIntRect(FIntPoint::ZeroValue, FIntPoint::ZeroValue);
 	FIntRect DestRect = FIntRect(FIntPoint::ZeroValue, FIntPoint::ZeroValue);
 	FVector2D JitterOffset = FVector2D::ZeroVector;
 	FVector2D MotionVectorScale = FVector2D::UnitVector;
-		
+
 	FMatrix InvViewProjectionMatrix;
 	FMatrix ClipToPrevClipMatrix;
 };
@@ -78,9 +61,5 @@ private:
 	FMetalFXUpscalerCore* m_FxUpscaler;
 
 	mutable TRefCountPtr<IPooledRenderTarget> ReactiveExtractedTexture;
-	mutable TRefCountPtr<IPooledRenderTarget> CompositeExtractedTexture;
-
-	FIntRect ViewRect;
-	FIntRect OutputRect;
 };
 #endif //METALFX_PLUGIN_ENABLED

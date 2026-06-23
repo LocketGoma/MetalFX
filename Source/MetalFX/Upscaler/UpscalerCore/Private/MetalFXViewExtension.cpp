@@ -9,7 +9,27 @@
 class FMetalFXCopyExposureCS;
 
 #if !UE_BUILD_SHIPPING
-static void AddMetalFXStatusDebugMessages(bool bCanActivate, bool bIsSupported, bool bIsEnabled)
+static FString FormatMetalFXFullRect(const FIntRect& Rect)
+{
+	return FString::Printf(
+		TEXT("Min=(%d,%d) Max=(%d,%d) Size=%dx%d"),
+		Rect.Min.X,
+		Rect.Min.Y,
+		Rect.Max.X,
+		Rect.Max.Y,
+		Rect.Width(),
+		Rect.Height());
+}
+
+static FString FormatMetalFXRect(const FIntRect& Rect)
+{
+	return FString::Printf(
+		TEXT("Size=%dx%d"),
+		Rect.Width(),
+		Rect.Height());
+}
+
+static void AddMetalFXStatusDebugMessages(bool bCanActivate, bool bIsSupported, bool bIsActive, const FMetalFXActiveDebugInfo* ActiveDebugInfo = nullptr)
 {
 	if (!GEngine)
 	{
@@ -25,6 +45,7 @@ static void AddMetalFXStatusDebugMessages(bool bCanActivate, bool bIsSupported, 
 	constexpr int32 ActivationMessageKey = ChannelCode + 'A';			//Can Activate
 	constexpr int32 InEditorMessageKey = ChannelCode + 'E';				//Can Activate in Editor
 	constexpr int32 RuntimeMessageKey = ChannelCode + 'R';				//Enabled (Running)
+	constexpr int32 ActiveDetailsMessageKey = ChannelCode + 'D';		//Active Details
 	constexpr float MessageDuration = 0.1f;
 
 	// Availability means the current RHI and MetalFX device support checks passed.
@@ -52,9 +73,24 @@ static void AddMetalFXStatusDebugMessages(bool bCanActivate, bool bIsSupported, 
 		GEngine->AddOnScreenDebugMessage(
 			RuntimeMessageKey,
 			MessageDuration,
-			bIsEnabled ? FColor::Emerald : FColor::Yellow,
-			FString::Printf(TEXT("Apple MetalFX : %s"), bIsEnabled ? TEXT("Enabled") : TEXT("Disabled")),
+			bIsActive ? FColor::Emerald : FColor::Yellow,
+			FString::Printf(TEXT("Apple MetalFX : %s"), bIsActive ? TEXT("Enabled") : TEXT("Disabled")),
 			true);
+
+		if (ActiveDebugInfo && ActiveDebugInfo->bIsValid)
+		{
+			GEngine->AddOnScreenDebugMessage(
+				ActiveDetailsMessageKey,
+				MessageDuration,
+				bIsActive ? FColor::Emerald : FColor::Red,
+				FString::Printf(
+					TEXT("Apple MetalFX %s : InputRect[%s] OutputRect[%s] ScreenPercentage=%.2f"),
+					bIsActive ? TEXT("Active") : TEXT("Deactive"),
+					*FormatMetalFXRect(ActiveDebugInfo->InputRect),
+					*FormatMetalFXRect(ActiveDebugInfo->OutputRect),
+					ActiveDebugInfo->ScreenPercentage),
+				true);
+		}
 	}
 }
 #endif
@@ -160,7 +196,20 @@ void FMetalFXViewExtension::BeginRenderViewFamily(FSceneViewFamily& InViewFamily
 	
 #if !UE_BUILD_SHIPPING
 	// Show availability and active runtime state as separate debug lines.
-	AddMetalFXStatusDebugMessages(bMetalFXSupported, bMetalFXEnabled, bIsEnabledThisFrame);
+	FMetalFXActiveDebugInfo ActiveDebugInfo;
+#if METALFX_PLUGIN_ENABLED
+	if (bMetalFXSupported)
+	{
+		FMetalFXModule& MetalFXModule = FModuleManager::GetModuleChecked<FMetalFXModule>(TEXT("MetalFX"));
+		FMetalFXUpscalerCore* Upscaler = MetalFXModule.GetMetalFXUpscaler();
+		if (Upscaler)
+		{
+			ActiveDebugInfo = Upscaler->GetActiveDebugInfo();
+		}
+	}
+#endif //METALFX_PLUGIN_ENABLED
+
+	AddMetalFXStatusDebugMessages(bMetalFXSupported, bMetalFXEnabled, bIsEnabledThisFrame, &ActiveDebugInfo);
 #endif
 }
 

@@ -167,6 +167,32 @@ static void LogTemporalUpscalerInputsForMetalFX(
 }
 #endif
 
+static float GetMetalFXScreenPercentageValue()
+{
+	static IConsoleVariable* CVarScreenPercentage = IConsoleManager::Get().FindConsoleVariable(TEXT("r.ScreenPercentage"));
+	return CVarScreenPercentage ? CVarScreenPercentage->GetFloat() : 0.0f;
+}
+
+static FVector2D GetMetalFXJitterOffset(FVector2f TemporalJitterPixels)
+{
+	const FVector2D JitterOffset(TemporalJitterPixels);
+	const int32 JitterMode = CVarMetalFXJitterMode.GetValueOnRenderThread();
+
+	if (JitterMode == 0)
+	{
+		return FVector2D::ZeroVector;
+	}
+
+	return JitterMode < 0 ? -JitterOffset : JitterOffset;
+}
+
+static FVector2f GetMetalFXMotionVectorScale()
+{
+	return FVector2f(
+		CVarMetalFXMotionVectorScaleX.GetValueOnRenderThread(),
+		CVarMetalFXMotionVectorScaleY.GetValueOnRenderThread());
+}
+
 ITemporalUpscaler::FOutputs FMetalFXTemporalUpscaler::AddPasses(FRDGBuilder& GraphBuilder, const FSceneView& View, const ITemporalUpscaler::FInputs& Inputs) const
 {
 	CheckValidate();
@@ -179,9 +205,11 @@ ITemporalUpscaler::FOutputs FMetalFXTemporalUpscaler::AddPasses(FRDGBuilder& Gra
 	FIntPoint InputContentExtent = Inputs.SceneColor.ViewRect.Size();
 	FIntPoint OutputExtents = Inputs.OutputViewRect.Size();
 	FIntRect InputTextureRect(FIntPoint::ZeroValue, InputTextureExtent);
-	
+	FIntRect InputContentRect = Inputs.SceneColor.ViewRect;
+	const float ScreenPercentage = GetMetalFXScreenPercentageValue();
 	FMetalFXDispatchParameters DispatchParams;
-	DispatchParams.JitterOffset = View.ViewMatrices.GetTemporalAAJitter();
+	DispatchParams.JitterOffset = GetMetalFXJitterOffset(Inputs.TemporalJitterPixels);
+	DispatchParams.MotionVectorScale = FVector2D(GetMetalFXMotionVectorScale());
 
 	//3. Histroy 생성
 	const TRefCountPtr<ITemporalUpscaler::IHistory> InputCustomHistory = Inputs.PrevHistory != nullptr ? Inputs.PrevHistory : new FMetalFXHistory();
@@ -206,12 +234,6 @@ ITemporalUpscaler::FOutputs FMetalFXTemporalUpscaler::AddPasses(FRDGBuilder& Gra
 	PassParams->DepthTexture = Inputs.SceneDepth.Texture;
 	PassParams->VelocityTexture = GeneratedVelocityTexture;
 	PassParams->OutputTexture = OutputTexture;
-		
-	FMetalFXTextureParameterGroup TextureGroupParams;
-	TextureGroupParams.ColorTexture = Inputs.SceneColor.Texture;
-	TextureGroupParams.DepthTexture = Inputs.SceneDepth.Texture;
-	TextureGroupParams.VelocityTexture = GeneratedVelocityTexture;
-	TextureGroupParams.OutputTexture = OutputTexture;
 
 	FMetalFXUpscalerCore* UpscalerCore = m_FxUpscaler;
 	
@@ -219,13 +241,14 @@ ITemporalUpscaler::FOutputs FMetalFXTemporalUpscaler::AddPasses(FRDGBuilder& Gra
 	ERDGPassFlags Flags = ERDGPassFlags::Compute | ERDGPassFlags::Raster | ERDGPassFlags::SkipRenderPass | ERDGPassFlags::Copy | ERDGPassFlags::NeverCull;
 	
 	GraphBuilder.AddPass(RDG_EVENT_NAME("MetalFXTemporalUpscaler"), PassParams, Flags, 
-	[UpscalerCore, PassParams, InputTextureExtent, InputContentExtent, OutputExtents, DispatchParams](FRHICommandListImmediate& RHICmdList)
+	[UpscalerCore, PassParams, InputTextureExtent, InputContentExtent, InputContentRect, OutputExtents, OutputViewRect = Inputs.OutputViewRect, ScreenPercentage, DispatchParams](FRHICommandListImmediate& RHICmdList)
 	{
 		if (!UpscalerCore)
 		{
 			return;
 		}
-		//To do : Use Dispatch Params (Jitter Offset, Motion Vector Scale, ETC..), Use Valid History
+
+		//To do : Use Motion Vector Scale, ETC.., Use Valid History
 		FMetalFXTextureGroup LocalTextureGroup;
 		if (!UpscalerCore->SetTexturesToGroup(*PassParams, LocalTextureGroup))
 		{
@@ -236,6 +259,10 @@ ITemporalUpscaler::FOutputs FMetalFXTemporalUpscaler::AddPasses(FRDGBuilder& Gra
 		//실행 가능할때만 Enqueue로 보냄.
 		if (UpscalerCore->CheckForExecuteMetalFX(InputTextureExtent, InputContentExtent, OutputExtents))
 		{
+			UpscalerCore->SetJitterOffset(DispatchParams.JitterOffset);
+			UpscalerCore->SetMotionVectorScale(FVector2f(DispatchParams.MotionVectorScale));
+			UpscalerCore->UpdateActiveDebugInfo(InputContentRect, OutputViewRect, ScreenPercentage);
+
 			RHICmdList.EnqueueLambda([UpscalerCore, TextureGroup = MoveTemp(LocalTextureGroup)](FRHICommandListImmediate& Cmd) mutable
 			{	
 				UpscalerCore->ExecuteMetalFX(Cmd, TextureGroup);

@@ -233,7 +233,7 @@ void MetalFXEncode(id<MTLFXTemporalScaler> Scaler, id<MTLCommandBuffer> CmdBuffe
 #ifdef __cplusplus
 extern "C"
 #endif
-void MetalFXSetJitterOffset(id<MTLFXTemporalScaler> Scaler, int OffsetX, int OffsetY)
+void MetalFXSetJitterOffset(id<MTLFXTemporalScaler> Scaler, float OffsetX, float OffsetY)
 {
 #if PLATFORM_IOS || PLATFORM_MAC
 	if (!Scaler)
@@ -250,7 +250,7 @@ void MetalFXSetJitterOffset(id<MTLFXTemporalScaler> Scaler, int OffsetX, int Off
 #ifdef __cplusplus
 extern "C"
 #endif
-void MetalFXSetMotionVectorScale(id<MTLFXTemporalScaler> Scaler, int OffsetX, int OffsetY)
+void MetalFXSetMotionVectorScale(id<MTLFXTemporalScaler> Scaler, float ScaleX, float ScaleY)
 {
 #if METALFX_PLUGIN_ENABLED
 	if (!Scaler)
@@ -259,8 +259,8 @@ void MetalFXSetMotionVectorScale(id<MTLFXTemporalScaler> Scaler, int OffsetX, in
 		return;
 	}
 
-	Scaler.motionVectorScaleX	= OffsetX;
-	Scaler.motionVectorScaleY	= OffsetY;
+	Scaler.motionVectorScaleX	= ScaleX;
+	Scaler.motionVectorScaleY	= ScaleY;
 #endif //METALFX_PLUGIN_ENABLED
 }
 //------------MetalFX System Utility Functions-------------------- (End)

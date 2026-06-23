@@ -1,8 +1,17 @@
 #pragma once
 #include "CoreMinimal.h"
 #include "CustomResourcePool.h"
+#include "HAL/CriticalSection.h"
 #include "MetalFXHelper.h"
 #include <memory>
+
+struct FMetalFXActiveDebugInfo
+{
+	FIntRect InputRect = FIntRect();
+	FIntRect OutputRect = FIntRect();
+	float ScreenPercentage = 100.0f;
+	bool bIsValid = false;
+};
 
 //DLSS의 FDLSSUpscaler 클래스 포지션
 class FMetalFXUpscalerCore final : public ICustomResourcePool
@@ -75,6 +84,9 @@ public:
 	//Execute 가능한지 체크
 	bool CheckForExecuteMetalFX(FIntPoint InputTextureExtent, FIntPoint InputContentExtent, FIntPoint OutputExtent);
 	bool SetTexturesToGroup(const FMetalFXParameters& Parameters, FMetalFXTextureGroup& OutTexGroup);
+
+	void UpdateActiveDebugInfo(FIntRect InputRect, FIntRect OutputRect, float ScreenPercentage);
+	FMetalFXActiveDebugInfo GetActiveDebugInfo() const;
 private:
 	//모든 Execute 조건 통과시 수행
 	void Encode(FRHICommandList& CmdList, FMetalFXTextureGroup& TextureGroup);
@@ -101,4 +113,7 @@ private:
 	uint32_t m_InputTextureW, m_InputTextureH;
 	uint32_t m_InputContentW, m_InputContentH;
 	uint32_t m_OutputW, m_OutputH;
+
+	mutable FCriticalSection ActiveDebugInfoCS;
+	FMetalFXActiveDebugInfo ActiveDebugInfo;
 };

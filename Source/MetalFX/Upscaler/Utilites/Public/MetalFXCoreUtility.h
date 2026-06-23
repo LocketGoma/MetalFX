@@ -26,12 +26,12 @@ void MetalFXEncode(id<MTLFXTemporalScaler> Scaler, id<MTLCommandBuffer> CmdBuffe
 #ifdef __cplusplus
 extern "C"
 #endif
-void MetalFXSetJitterOffset(id<MTLFXTemporalScaler> Scaler, int OffsetX, int OffsetY);
+void MetalFXSetJitterOffset(id<MTLFXTemporalScaler> Scaler, float OffsetX, float OffsetY);
 
 #ifdef __cplusplus
 extern "C"
 #endif
-void MetalFXSetMotionVectorScale(id<MTLFXTemporalScaler> Scaler, int OffsetX, int OffsetY);
+void MetalFXSetMotionVectorScale(id<MTLFXTemporalScaler> Scaler, float ScaleX, float ScaleY);
 
 //MetalFX Upscaler 외의 유틸함수
 #ifdef __cplusplus
