@@ -12,7 +12,7 @@ public:
 	virtual void SetupView(FSceneViewFamily& InViewFamily, FSceneView& InView) override {};
 	virtual void BeginRenderViewFamily(FSceneViewFamily& InViewFamily) override;
 	
-	virtual void PreRenderViewFamily_RenderThread(FRenderGraphType& GraphBuilder, FSceneViewFamily& InViewFamily) override {};
+	virtual void PreRenderViewFamily_RenderThread(FRenderGraphType& GraphBuilder, FSceneViewFamily& InViewFamily) override;
 	virtual void PreRenderView_RenderThread(FRenderGraphType& GraphBuilder, FSceneView& InView) override {};
 	virtual void PostRenderViewFamily_RenderThread(FRenderGraphType& GraphBuilder, FSceneViewFamily& InViewFamily) override {};
 

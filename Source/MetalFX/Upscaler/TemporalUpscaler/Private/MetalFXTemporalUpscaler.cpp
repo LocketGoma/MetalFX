@@ -201,10 +201,8 @@ ITemporalUpscaler::FOutputs FMetalFXTemporalUpscaler::AddPasses(FRDGBuilder& Gra
 	ITemporalUpscaler::FOutputs Outputs;
 
 	//2. Rect 변수 할당	
-	FIntPoint InputTextureExtent = Inputs.SceneColor.Texture->Desc.Extent;
 	FIntPoint InputContentExtent = Inputs.SceneColor.ViewRect.Size();
 	FIntPoint OutputExtents = Inputs.OutputViewRect.Size();
-	FIntRect InputTextureRect(FIntPoint::ZeroValue, InputTextureExtent);
 	FIntRect InputContentRect = Inputs.SceneColor.ViewRect;
 	const float ScreenPercentage = GetMetalFXScreenPercentageValue();
 	FMetalFXDispatchParameters DispatchParams;
@@ -219,7 +217,7 @@ ITemporalUpscaler::FOutputs FMetalFXTemporalUpscaler::AddPasses(FRDGBuilder& Gra
 	FRDGTextureRef GeneratedVelocityTexture = FMetalFXUpscalerCore::PrepareVelocityTexture
 	(GraphBuilder, View, Inputs.SceneColor.Texture, 
 	Inputs.SceneDepth.Texture, Inputs.SceneVelocity.Texture, 
-	InputTextureRect, Inputs.OutputViewRect, View.ViewMatrices.GetTemporalAAJitter());
+	InputContentRect, Inputs.OutputViewRect, View.ViewMatrices.GetTemporalAAJitter());
 	
 	//5. Output Texture 생성
 	FRDGTextureRef OutputTexture = FMetalFXUpscalerCore::CreateOutputTexture
@@ -241,7 +239,7 @@ ITemporalUpscaler::FOutputs FMetalFXTemporalUpscaler::AddPasses(FRDGBuilder& Gra
 	ERDGPassFlags Flags = ERDGPassFlags::Compute | ERDGPassFlags::Raster | ERDGPassFlags::SkipRenderPass | ERDGPassFlags::Copy | ERDGPassFlags::NeverCull;
 	
 	GraphBuilder.AddPass(RDG_EVENT_NAME("MetalFXTemporalUpscaler"), PassParams, Flags, 
-	[UpscalerCore, PassParams, InputTextureExtent, InputContentExtent, InputContentRect, OutputExtents, OutputViewRect = Inputs.OutputViewRect, ScreenPercentage, DispatchParams](FRHICommandListImmediate& RHICmdList)
+	[UpscalerCore, PassParams, InputContentExtent, InputContentRect, OutputExtents, OutputViewRect = Inputs.OutputViewRect, ScreenPercentage, DispatchParams](FRHICommandListImmediate& RHICmdList)
 	{
 		if (!UpscalerCore)
 		{
@@ -257,7 +255,7 @@ ITemporalUpscaler::FOutputs FMetalFXTemporalUpscaler::AddPasses(FRDGBuilder& Gra
 		}
 		
 		//실행 가능할때만 Enqueue로 보냄.
-		if (UpscalerCore->CheckForExecuteMetalFX(InputTextureExtent, InputContentExtent, OutputExtents))
+		if (UpscalerCore->CheckForExecuteMetalFX(InputContentExtent, InputContentExtent, OutputExtents))
 		{
 			UpscalerCore->SetJitterOffset(DispatchParams.JitterOffset);
 			UpscalerCore->SetMotionVectorScale(FVector2f(DispatchParams.MotionVectorScale));

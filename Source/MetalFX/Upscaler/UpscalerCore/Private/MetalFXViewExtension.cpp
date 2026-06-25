@@ -29,6 +29,32 @@ static FString FormatMetalFXRect(const FIntRect& Rect)
 		Rect.Height());
 }
 
+static float GetMetalFXDebugScreenPercentageValue()
+{
+	IConsoleVariable* CVarScreenPercentage = IConsoleManager::Get().FindConsoleVariable(TEXT("r.ScreenPercentage"));
+	return CVarScreenPercentage ? CVarScreenPercentage->GetFloat() : 0.0f;
+}
+
+static FIntPoint GetMetalFXExpectedInputSize(const FIntRect& OutputRect, float ScreenPercentage)
+{
+	const float ResolutionFraction = ScreenPercentage > 0.0f ? (ScreenPercentage / 100.0f) : 1.0f;
+	return FIntPoint(
+		FMath::RoundToInt(static_cast<float>(OutputRect.Width()) * ResolutionFraction),
+		FMath::RoundToInt(static_cast<float>(OutputRect.Height()) * ResolutionFraction));
+}
+
+static FVector2D GetMetalFXActualScreenPercentage(const FIntRect& InputRect, const FIntRect& OutputRect)
+{
+	if (OutputRect.Width() <= 0 || OutputRect.Height() <= 0)
+	{
+		return FVector2D::ZeroVector;
+	}
+
+	return FVector2D(
+		static_cast<double>(InputRect.Width()) / static_cast<double>(OutputRect.Width()) * 100.0,
+		static_cast<double>(InputRect.Height()) / static_cast<double>(OutputRect.Height()) * 100.0);
+}
+
 static void AddMetalFXStatusDebugMessages(bool bCanActivate, bool bIsSupported, bool bIsActive, const FMetalFXActiveDebugInfo* ActiveDebugInfo = nullptr)
 {
 	if (!GEngine)
@@ -79,16 +105,23 @@ static void AddMetalFXStatusDebugMessages(bool bCanActivate, bool bIsSupported, 
 
 		if (ActiveDebugInfo && ActiveDebugInfo->bIsValid)
 		{
+			const FIntPoint ExpectedInputSize = GetMetalFXExpectedInputSize(ActiveDebugInfo->OutputRect, ActiveDebugInfo->ScreenPercentage);
+			const FVector2D ActualScreenPercentage = GetMetalFXActualScreenPercentage(ActiveDebugInfo->InputRect, ActiveDebugInfo->OutputRect);
+
 			GEngine->AddOnScreenDebugMessage(
 				ActiveDetailsMessageKey,
 				MessageDuration,
 				bIsActive ? FColor::Emerald : FColor::Red,
 				FString::Printf(
-					TEXT("Apple MetalFX %s : InputRect[%s] OutputRect[%s] ScreenPercentage=%.2f"),
+					TEXT("Apple MetalFX %s : InputRect[%s] OutputRect[%s] ExpectedInput[Size=%dx%d] ScreenPercentage=%.2f ActualSP=%.2f/%.2f"),
 					bIsActive ? TEXT("Active") : TEXT("Deactive"),
 					*FormatMetalFXRect(ActiveDebugInfo->InputRect),
 					*FormatMetalFXRect(ActiveDebugInfo->OutputRect),
-					ActiveDebugInfo->ScreenPercentage),
+					ExpectedInputSize.X,
+					ExpectedInputSize.Y,
+					ActiveDebugInfo->ScreenPercentage,
+					ActualScreenPercentage.X,
+					ActualScreenPercentage.Y),
 				true);
 		}
 	}
@@ -210,6 +243,39 @@ void FMetalFXViewExtension::BeginRenderViewFamily(FSceneViewFamily& InViewFamily
 #endif //METALFX_PLUGIN_ENABLED
 
 	AddMetalFXStatusDebugMessages(bMetalFXSupported, bMetalFXEnabled, bIsEnabledThisFrame, &ActiveDebugInfo);
+#endif
+}
+
+void FMetalFXViewExtension::PreRenderViewFamily_RenderThread(FRenderGraphType& GraphBuilder, FSceneViewFamily& InViewFamily)
+{
+#if !UE_BUILD_SHIPPING && METALFX_PLUGIN_ENABLED
+	if (!CVarMetalFXDebugDisplay.GetValueOnRenderThread() || InViewFamily.Views.Num() == 0)
+	{
+		return;
+	}
+
+	const FSceneView* View = InViewFamily.Views[0];
+	if (!View || View->UnscaledViewRect.IsEmpty())
+	{
+		return;
+	}
+
+	FMetalFXModule& MetalFXModule = FModuleManager::GetModuleChecked<FMetalFXModule>(TEXT("MetalFX"));
+	FMetalFXUpscalerCore* Upscaler = MetalFXModule.GetMetalFXUpscaler();
+	if (!Upscaler)
+	{
+		return;
+	}
+
+	const FIntRect OutputRect(FIntPoint::ZeroValue, View->UnscaledViewRect.Size());
+	if (OutputRect.IsEmpty())
+	{
+		return;
+	}
+
+	const float ScreenPercentage = GetMetalFXDebugScreenPercentageValue();
+	const FIntRect ExpectedInputRect(FIntPoint::ZeroValue, GetMetalFXExpectedInputSize(OutputRect, ScreenPercentage));
+	Upscaler->UpdateActiveDebugInfo(ExpectedInputRect, OutputRect, ScreenPercentage);
 #endif
 }
 
