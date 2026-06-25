@@ -193,6 +193,19 @@ static FVector2f GetMetalFXMotionVectorScale()
 		CVarMetalFXMotionVectorScaleY.GetValueOnRenderThread());
 }
 
+static FIntPoint GetMetalFXExperimentalInputExtent(FIntPoint InputTextureExtent, FIntPoint InputContentExtent, FIntPoint OutputExtent)
+{
+	switch (CVarMetalFXExperimentalInputExtentMode.GetValueOnRenderThread())
+	{
+	case 1:
+		return InputTextureExtent;
+	case 2:
+		return OutputExtent;
+	default:
+		return InputContentExtent;
+	}
+}
+
 ITemporalUpscaler::FOutputs FMetalFXTemporalUpscaler::AddPasses(FRDGBuilder& GraphBuilder, const FSceneView& View, const ITemporalUpscaler::FInputs& Inputs) const
 {
 	CheckValidate();
@@ -201,8 +214,16 @@ ITemporalUpscaler::FOutputs FMetalFXTemporalUpscaler::AddPasses(FRDGBuilder& Gra
 	ITemporalUpscaler::FOutputs Outputs;
 
 	//2. Rect 변수 할당	
+	FIntPoint InputTextureExtent = Inputs.SceneColor.Texture->Desc.Extent;
 	FIntPoint InputContentExtent = Inputs.SceneColor.ViewRect.Size();
 	FIntPoint OutputExtents = Inputs.OutputViewRect.Size();
+	FIntPoint DescriptorInputExtent = GetMetalFXExperimentalInputExtent(InputTextureExtent, InputContentExtent, OutputExtents);
+	if (DescriptorInputExtent.X > InputContentExtent.X || DescriptorInputExtent.Y > InputContentExtent.Y)
+	{
+		// MetalFX validates the actual content scale against the descriptor scale.
+		// Constrained ViewRects can be slightly smaller than the texture allocation, so keep both sizes aligned in that case.
+		DescriptorInputExtent = InputContentExtent;
+	}
 	FIntRect InputContentRect = Inputs.SceneColor.ViewRect;
 	const float ScreenPercentage = GetMetalFXScreenPercentageValue();
 	FMetalFXDispatchParameters DispatchParams;
@@ -239,7 +260,7 @@ ITemporalUpscaler::FOutputs FMetalFXTemporalUpscaler::AddPasses(FRDGBuilder& Gra
 	ERDGPassFlags Flags = ERDGPassFlags::Compute | ERDGPassFlags::Raster | ERDGPassFlags::SkipRenderPass | ERDGPassFlags::Copy | ERDGPassFlags::NeverCull;
 	
 	GraphBuilder.AddPass(RDG_EVENT_NAME("MetalFXTemporalUpscaler"), PassParams, Flags, 
-	[UpscalerCore, PassParams, InputContentExtent, InputContentRect, OutputExtents, OutputViewRect = Inputs.OutputViewRect, ScreenPercentage, DispatchParams](FRHICommandListImmediate& RHICmdList)
+	[UpscalerCore, PassParams, DescriptorInputExtent, InputContentExtent, InputContentRect, OutputExtents, OutputViewRect = Inputs.OutputViewRect, ScreenPercentage, DispatchParams](FRHICommandListImmediate& RHICmdList)
 	{
 		if (!UpscalerCore)
 		{
@@ -255,7 +276,7 @@ ITemporalUpscaler::FOutputs FMetalFXTemporalUpscaler::AddPasses(FRDGBuilder& Gra
 		}
 		
 		//실행 가능할때만 Enqueue로 보냄.
-		if (UpscalerCore->CheckForExecuteMetalFX(InputContentExtent, InputContentExtent, OutputExtents))
+		if (UpscalerCore->CheckForExecuteMetalFX(DescriptorInputExtent, InputContentExtent, OutputExtents))
 		{
 			UpscalerCore->SetJitterOffset(DispatchParams.JitterOffset);
 			UpscalerCore->SetMotionVectorScale(FVector2f(DispatchParams.MotionVectorScale));

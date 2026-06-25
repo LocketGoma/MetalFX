@@ -81,9 +81,8 @@ inline float ConvertMetalFXQualityModeToScreenPercentage(EMetalFXQualityMode Qua
 	case EMetalFXQualityMode::Balanced:
 		return 50.0f;
 	case EMetalFXQualityMode::Performance:
-		return 33.0f;
-	case EMetalFXQualityMode::UltraPerformance:
-		return 25.0f;
+		// MetalFX TemporalScaler does not support upscaling greater than 3x per dimension.
+		return 35.0f;
 	default:
 		return 50.0f;
 	}

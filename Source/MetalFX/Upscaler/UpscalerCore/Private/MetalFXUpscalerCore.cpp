@@ -162,6 +162,19 @@ const float FMetalFXUpscalerCore::GetMaxUpsampleResolutionFraction() const
 	return GetMetalFXMaxUpscaleResolutionFraction();
 }
 
+static bool IsMetalFXUpscaleRatioSupported(FIntPoint InputExtent, FIntPoint OutputExtent)
+{
+	constexpr int32 MetalFXMaxUpscaleFactor = 3;
+
+	if (InputExtent.X <= 0 || InputExtent.Y <= 0 || OutputExtent.X <= 0 || OutputExtent.Y <= 0)
+	{
+		return false;
+	}
+
+	return OutputExtent.X <= InputExtent.X * MetalFXMaxUpscaleFactor
+		&& OutputExtent.Y <= InputExtent.Y * MetalFXMaxUpscaleFactor;
+}
+
 bool FMetalFXUpscalerCore::GenerateUpscaler()
 {
 	bool bSuccess = false;
@@ -385,14 +398,30 @@ bool FMetalFXUpscalerCore::EnsureUpscalerForConfiguration(FIntPoint InputTexture
 		return false;
 	}
 
+	if (!IsMetalFXUpscaleRatioSupported(InputContentExtent, OutputExtent))
+	{
+		UE_LOG(
+			LogMetalFX,
+			Warning,
+			TEXT("MetalFX TemporalScaler configuration skipped because content scaling exceeds 3x per dimension. InputTexture=%dx%d, InputContent=%dx%d, Output=%dx%d"),
+			InputTextureExtent.X,
+			InputTextureExtent.Y,
+			InputContentExtent.X,
+			InputContentExtent.Y,
+			OutputExtent.X,
+			OutputExtent.Y);
+		return false;
+	}
+
 	const bool bHasScaler = pModules->HasScaler();
 
 	const bool bInputTextureResolutionChanged = (m_InputTextureW != InputTextureExtent.X) || (m_InputTextureH != InputTextureExtent.Y);
 	const bool bInputContentResolutionChanged = (m_InputContentW != InputContentExtent.X) || (m_InputContentH != InputContentExtent.Y);
 	const bool bOutputResolutionChanged = (m_OutputW != OutputExtent.X) || (m_OutputH != OutputExtent.Y);
 	const bool bFormatChanged = pModules->Formats.GetIsChanged() || pModules->Formats.IsChanged(Formats);
+	const bool bRecreateOnInputContentChange = CVarMetalFXExperimentalRecreateOnInputContentChange.GetValueOnRenderThread() != 0;
 
-	if (bHasScaler && !bFormatChanged && !bInputTextureResolutionChanged && !bOutputResolutionChanged)
+	if (bHasScaler && !bFormatChanged && !bInputTextureResolutionChanged && !bOutputResolutionChanged && !(bInputContentResolutionChanged && bRecreateOnInputContentChange))
 	{
 		if (bInputContentResolutionChanged)
 		{

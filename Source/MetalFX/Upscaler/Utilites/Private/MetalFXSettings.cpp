@@ -24,6 +24,18 @@ TAutoConsoleVariable<int32> CVarMetalFXJitterMode(
 	TEXT("Controls MetalFX temporal jitter. 1: normal, 0: disabled, -1: inverted."),
 	ECVF_RenderThreadSafe);
 
+TAutoConsoleVariable<int32> CVarMetalFXExperimentalInputExtentMode(
+	TEXT("r.MetalFX.Experimental.InputExtentMode"),
+	1,
+	TEXT("Experimental MetalFX descriptor input size source. 0: SceneColor.ViewRect, 1: SceneColor.Texture extent, 2: OutputViewRect. Default 1 matches MetalFX texture allocation size."),
+	ECVF_RenderThreadSafe);
+
+TAutoConsoleVariable<int32> CVarMetalFXExperimentalRecreateOnInputContentChange(
+	TEXT("r.MetalFX.Experimental.RecreateOnInputContentChange"),
+	1,
+	TEXT("Recreate the MetalFX TemporalScaler when inputContentWidth/Height changes. This resets MetalFX internal temporal state after r.ScreenPercentage changes."),
+	ECVF_RenderThreadSafe);
+
 TAutoConsoleVariable<float> CVarMetalFXMotionVectorScaleX(
 	TEXT("r.MetalFX.MotionVectorScaleX"),
 	0.0f,
@@ -51,7 +63,7 @@ TAutoConsoleVariable<int32> CVarMetalFXUpscalerMode(
 TAutoConsoleVariable<int32> CVarMetalFXQualityMode(
 	TEXT("r.MetalFX.QualityMode"),
 	static_cast<int32>(EMetalFXQualityMode::Balanced),
-	TEXT("Quality mode to be used when upscaling with MetalFX. 0: 100%, 1: 66.7%, 2: 50%, 3: 33%, 4: 25%."),
+	TEXT("Quality mode to be used when upscaling with MetalFX. 0: 100%, 1: 66.7%, 2: 50%, 3: 35%. MetalFX TemporalScaler does not support greater than 3x upscaling, so 25% Ultra Performance is disabled."),
 	ECVF_RenderThreadSafe);
 
 //------------------------

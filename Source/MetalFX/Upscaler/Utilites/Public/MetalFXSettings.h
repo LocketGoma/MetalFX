@@ -23,8 +23,9 @@ enum class EMetalFXQualityMode : uint8
 	NativeAA UMETA(DisplayName = "Native AA (100%)"),
 	Quality UMETA(DisplayName = "Quality (66.7%)"),
 	Balanced UMETA(DisplayName = "Balanced (50%)"),
-	Performance UMETA(DisplayName = "Performance (33%)"),
-	UltraPerformance UMETA(DisplayName = "Ultra Performance (25%)"),
+	Performance UMETA(DisplayName = "Performance (35%)"),
+	// MetalFX TemporalScaler does not support upscaling greater than 3x per dimension, so Ultra Performance (25%) is disabled for now.
+	// UltraPerformance UMETA(DisplayName = "Ultra Performance (25%)"),
 	// This value must be placed last. It resolves to 1% in non-shipping builds and to the value immediately before Min in shipping builds.
 	Min UMETA(DisplayName = "Min"),
 	// Enum value used to return the number of quality modes.
@@ -35,6 +36,8 @@ extern TAutoConsoleVariable<bool> CVarEnableMetalFX;
 extern TAutoConsoleVariable<bool> CvarEnableMetalFXInEditor;
 extern TAutoConsoleVariable<bool> CVarMetalFXDebugDisplay;
 extern TAutoConsoleVariable<int32> CVarMetalFXJitterMode;
+extern TAutoConsoleVariable<int32> CVarMetalFXExperimentalInputExtentMode;
+extern TAutoConsoleVariable<int32> CVarMetalFXExperimentalRecreateOnInputContentChange;
 extern TAutoConsoleVariable<float> CVarMetalFXMotionVectorScaleX;
 extern TAutoConsoleVariable<float> CVarMetalFXMotionVectorScaleY;
 extern TAutoConsoleVariable<float> CVarMetalFXSharpness;
