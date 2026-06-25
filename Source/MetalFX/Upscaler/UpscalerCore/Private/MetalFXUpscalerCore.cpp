@@ -162,17 +162,17 @@ const float FMetalFXUpscalerCore::GetMaxUpsampleResolutionFraction() const
 	return GetMetalFXMaxUpscaleResolutionFraction();
 }
 
-static bool IsMetalFXUpscaleRatioSupported(FIntPoint InputExtent, FIntPoint OutputExtent)
+static bool IsMetalFXContentScaleSupported(FIntPoint InputContentExtent, FIntPoint OutputExtent)
 {
 	constexpr int32 MetalFXMaxUpscaleFactor = 3;
 
-	if (InputExtent.X <= 0 || InputExtent.Y <= 0 || OutputExtent.X <= 0 || OutputExtent.Y <= 0)
+	if (InputContentExtent.X <= 0 || InputContentExtent.Y <= 0 || OutputExtent.X <= 0 || OutputExtent.Y <= 0)
 	{
 		return false;
 	}
 
-	return OutputExtent.X <= InputExtent.X * MetalFXMaxUpscaleFactor
-		&& OutputExtent.Y <= InputExtent.Y * MetalFXMaxUpscaleFactor;
+	return OutputExtent.X <= InputContentExtent.X * MetalFXMaxUpscaleFactor
+		&& OutputExtent.Y <= InputContentExtent.Y * MetalFXMaxUpscaleFactor;
 }
 
 bool FMetalFXUpscalerCore::GenerateUpscaler()
@@ -377,7 +377,7 @@ void FMetalFXUpscalerCore::SetMotionVectorScale(FVector2f Scale)
 }
 
 // Ensure the TemporalScaler matches the current render configuration.
-// Recreate the scaler when descriptor-level requirements change, and update input content size when possible.
+// Recreate the scaler when descriptor-level requirements or input content size change.
 bool FMetalFXUpscalerCore::EnsureUpscalerForConfiguration(FIntPoint InputTextureExtent, FIntPoint InputContentExtent, FIntPoint OutputExtent, const FMetalFXTextureFormatGroup& Formats)
 {
 	if (!pModules)
@@ -398,12 +398,12 @@ bool FMetalFXUpscalerCore::EnsureUpscalerForConfiguration(FIntPoint InputTexture
 		return false;
 	}
 
-	if (!IsMetalFXUpscaleRatioSupported(InputContentExtent, OutputExtent))
+	if (!IsMetalFXContentScaleSupported(InputContentExtent, OutputExtent))
 	{
 		UE_LOG(
 			LogMetalFX,
 			Warning,
-			TEXT("MetalFX TemporalScaler configuration skipped because content scaling exceeds 3x per dimension. InputTexture=%dx%d, InputContent=%dx%d, Output=%dx%d"),
+			TEXT("MetalFX TemporalScaler configuration skipped because InputContent to Output scale exceeds 3x per dimension. InputTexture=%dx%d, InputContent=%dx%d, Output=%dx%d"),
 			InputTextureExtent.X,
 			InputTextureExtent.Y,
 			InputContentExtent.X,
@@ -419,15 +419,9 @@ bool FMetalFXUpscalerCore::EnsureUpscalerForConfiguration(FIntPoint InputTexture
 	const bool bInputContentResolutionChanged = (m_InputContentW != InputContentExtent.X) || (m_InputContentH != InputContentExtent.Y);
 	const bool bOutputResolutionChanged = (m_OutputW != OutputExtent.X) || (m_OutputH != OutputExtent.Y);
 	const bool bFormatChanged = pModules->Formats.GetIsChanged() || pModules->Formats.IsChanged(Formats);
-	const bool bRecreateOnInputContentChange = CVarMetalFXExperimentalRecreateOnInputContentChange.GetValueOnRenderThread() != 0;
 
-	if (bHasScaler && !bFormatChanged && !bInputTextureResolutionChanged && !bOutputResolutionChanged && !(bInputContentResolutionChanged && bRecreateOnInputContentChange))
+	if (bHasScaler && !bFormatChanged && !bInputTextureResolutionChanged && !bOutputResolutionChanged && !bInputContentResolutionChanged)
 	{
-		if (bInputContentResolutionChanged)
-		{
-			UpdateInputContentSize(InputContentExtent);
-		}
-
 		return true;
 	}
 

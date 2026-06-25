@@ -37,7 +37,6 @@ extern TAutoConsoleVariable<bool> CvarEnableMetalFXInEditor;
 extern TAutoConsoleVariable<bool> CVarMetalFXDebugDisplay;
 extern TAutoConsoleVariable<int32> CVarMetalFXJitterMode;
 extern TAutoConsoleVariable<int32> CVarMetalFXExperimentalInputExtentMode;
-extern TAutoConsoleVariable<int32> CVarMetalFXExperimentalRecreateOnInputContentChange;
 extern TAutoConsoleVariable<float> CVarMetalFXMotionVectorScaleX;
 extern TAutoConsoleVariable<float> CVarMetalFXMotionVectorScaleY;
 extern TAutoConsoleVariable<float> CVarMetalFXSharpness;

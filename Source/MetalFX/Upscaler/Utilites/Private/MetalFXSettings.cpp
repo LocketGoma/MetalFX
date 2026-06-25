@@ -30,12 +30,6 @@ TAutoConsoleVariable<int32> CVarMetalFXExperimentalInputExtentMode(
 	TEXT("Experimental MetalFX descriptor input size source. 0: SceneColor.ViewRect, 1: SceneColor.Texture extent, 2: OutputViewRect. Default 1 matches MetalFX texture allocation size."),
 	ECVF_RenderThreadSafe);
 
-TAutoConsoleVariable<int32> CVarMetalFXExperimentalRecreateOnInputContentChange(
-	TEXT("r.MetalFX.Experimental.RecreateOnInputContentChange"),
-	1,
-	TEXT("Recreate the MetalFX TemporalScaler when inputContentWidth/Height changes. This resets MetalFX internal temporal state after r.ScreenPercentage changes."),
-	ECVF_RenderThreadSafe);
-
 TAutoConsoleVariable<float> CVarMetalFXMotionVectorScaleX(
 	TEXT("r.MetalFX.MotionVectorScaleX"),
 	0.0f,

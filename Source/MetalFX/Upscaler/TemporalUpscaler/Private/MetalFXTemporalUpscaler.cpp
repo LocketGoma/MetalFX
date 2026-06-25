@@ -230,7 +230,7 @@ ITemporalUpscaler::FOutputs FMetalFXTemporalUpscaler::AddPasses(FRDGBuilder& Gra
 	DispatchParams.JitterOffset = GetMetalFXJitterOffset(Inputs.TemporalJitterPixels);
 	DispatchParams.MotionVectorScale = FVector2D(GetMetalFXMotionVectorScale());
 
-	//3. Histroy 생성
+	//3. History 생성
 	const TRefCountPtr<ITemporalUpscaler::IHistory> InputCustomHistory = Inputs.PrevHistory != nullptr ? Inputs.PrevHistory : new FMetalFXHistory();
 	TRefCountPtr<ITemporalUpscaler::IHistory>* OutputCustomHistory = &Outputs.NewHistory;
 		
@@ -256,7 +256,6 @@ ITemporalUpscaler::FOutputs FMetalFXTemporalUpscaler::AddPasses(FRDGBuilder& Gra
 
 	FMetalFXUpscalerCore* UpscalerCore = m_FxUpscaler;
 	
-	//실험 필요
 	ERDGPassFlags Flags = ERDGPassFlags::Compute | ERDGPassFlags::Raster | ERDGPassFlags::SkipRenderPass | ERDGPassFlags::Copy | ERDGPassFlags::NeverCull;
 	
 	GraphBuilder.AddPass(RDG_EVENT_NAME("MetalFXTemporalUpscaler"), PassParams, Flags, 
@@ -267,7 +266,6 @@ ITemporalUpscaler::FOutputs FMetalFXTemporalUpscaler::AddPasses(FRDGBuilder& Gra
 			return;
 		}
 
-		//To do : Use Motion Vector Scale, ETC.., Use Valid History
 		FMetalFXTextureGroup LocalTextureGroup;
 		if (!UpscalerCore->SetTexturesToGroup(*PassParams, LocalTextureGroup))
 		{
