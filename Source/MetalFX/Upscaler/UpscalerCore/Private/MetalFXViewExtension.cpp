@@ -6,8 +6,6 @@
 #include "Engine/Engine.h"
 #include "RenderGraphUtils.h"
 
-class FMetalFXCopyExposureCS;
-
 #if !UE_BUILD_SHIPPING
 static FString FormatMetalFXFullRect(const FIntRect& Rect)
 {
