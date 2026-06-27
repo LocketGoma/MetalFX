@@ -179,23 +179,11 @@ private:
 	bool bIsChanged = false;
 };
 
-struct FMetalFXTextureParameterGroup
-{
-	FRDGTextureRef ColorTexture = nullptr;
-	FRDGTextureRef DepthTexture = nullptr;
-	FRDGTextureRef VelocityTexture = nullptr;
-	FRDGTextureRef OutputTexture = nullptr;
-};
-
 BEGIN_SHADER_PARAMETER_STRUCT(FMetalFXParameters, )
 	RDG_TEXTURE_ACCESS(ColorTexture, ERHIAccess::SRVMask)
 	RDG_TEXTURE_ACCESS(DepthTexture, ERHIAccess::SRVMask)
 	RDG_TEXTURE_ACCESS(VelocityTexture, ERHIAccess::SRVMask)
-	RDG_TEXTURE_ACCESS(ReactiveMaskTexture, ERHIAccess::SRVMask)
-	RDG_TEXTURE_ACCESS(CompositeMaskTexture, ERHIAccess::SRVMask)
 	RDG_TEXTURE_ACCESS(OutputTexture, ERHIAccess::UAVMask)
-	SHADER_PARAMETER(float,      PreExposure)
-	SHADER_PARAMETER(uint32,     bReversedDepth)   // 0 or 1
 END_SHADER_PARAMETER_STRUCT()
 
 //MetalFX 활성화때만 사용

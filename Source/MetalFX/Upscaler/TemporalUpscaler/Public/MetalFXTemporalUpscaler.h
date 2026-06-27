@@ -6,17 +6,6 @@
 
 using ITemporalUpscaler = UE::Renderer::Private::ITemporalUpscaler;
 
-struct FMetalFXDispatchParameters
-{
-	FIntRect SrcRect = FIntRect(FIntPoint::ZeroValue, FIntPoint::ZeroValue);
-	FIntRect DestRect = FIntRect(FIntPoint::ZeroValue, FIntPoint::ZeroValue);
-	FVector2D JitterOffset = FVector2D::ZeroVector;
-	FVector2D MotionVectorScale = FVector2D::UnitVector;
-
-	FMatrix InvViewProjectionMatrix;
-	FMatrix ClipToPrevClipMatrix;
-};
-
 class FMetalFXHistory final : public ITemporalUpscaler::IHistory, public FRefCountBase
 {
 public:
