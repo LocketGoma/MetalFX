@@ -2,6 +2,34 @@
 
 > English section is automatically translated from the Korean README draft.
 
+## Notice
+
+### English
+
+When packaging with **Xcode 26.6 or later**, Metal native shader library packaging may fail because `metal-pack` is no longer available in the Xcode toolchain.
+
+If this occurs, disable shared native material shader libraries in your project's `DefaultGame.ini`:
+
+```ini
+[/Script/UnrealEd.ProjectPackagingSettings]
+bShareMaterialShaderCode=True
+bSharedMaterialNativeLibraries=False
+```
+
+### 한국어
+
+**Xcode 26.6 이상**에서 패키징할 경우, Xcode toolchain에서 `metal-pack`을 찾을 수 없어 Metal native shader library 패키징이 실패할 수 있습니다.
+
+이 문제가 발생하면 프로젝트의 `DefaultGame.ini`에서 shared native material shader library 설정을 비활성화하세요:
+
+```ini
+[/Script/UnrealEd.ProjectPackagingSettings]
+bShareMaterialShaderCode=True
+bSharedMaterialNativeLibraries=False
+```
+
+---
+
 ## Overview
 
 MetalFX For Unreal Plugin is an engine plugin for using Apple MetalFX in Unreal Engine.
