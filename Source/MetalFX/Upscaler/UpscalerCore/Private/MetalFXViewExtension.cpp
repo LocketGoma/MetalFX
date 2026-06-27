@@ -174,7 +174,6 @@ void FMetalFXViewExtension::BeginRenderViewFamily(FSceneViewFamily& InViewFamily
 	}
 
 	// MetalFX requires a valid view state and a primary temporal upscale request.
-	bool bFoundPrimaryTemporalUpscale = true;
 	if (bIsCheckPassed)
 	{
 		for (const FSceneView* View : InViewFamily.Views)
@@ -194,24 +193,21 @@ void FMetalFXViewExtension::BeginRenderViewFamily(FSceneViewFamily& InViewFamily
 			//한번이라도 false 면 계속 false 처리 (안정성 이슈)
 			if (View->PrimaryScreenPercentageMethod != EPrimaryScreenPercentageMethod::TemporalUpscale)
 			{
-				bFoundPrimaryTemporalUpscale = false;
+				bIsCheckPassed = false;
+				break;
 			}
 		}
 	}
 	
 	if (bIsCheckPassed)
 	{
-		if (!bFoundPrimaryTemporalUpscale)
-		{
-			bIsCheckPassed = false;
-		}
-		
 		if (bMetalFXSupported && bMetalFXEnabled && bIsCheckPassed)
 		{
 //Metal RHI 인 경우에 View Extension이 만들어지긴 하나, Plugin은 Disabled 일 수 있음.			
 #if METALFX_PLUGIN_ENABLED
 			FMetalFXModule& MetalFXModule = FModuleManager::GetModuleChecked<FMetalFXModule>(TEXT("MetalFX"));
 			FMetalFXUpscalerCore* Upscaler = MetalFXModule.GetMetalFXUpscaler();
+			
 			if (!Upscaler)
 			{
 				bIsCheckPassed = false;
@@ -241,7 +237,6 @@ void FMetalFXViewExtension::BeginRenderViewFamily(FSceneViewFamily& InViewFamily
 		}
 	}
 #endif //METALFX_PLUGIN_ENABLED
-
 	AddMetalFXStatusDebugMessages(bMetalFXSupported, bMetalFXEnabled, bIsEnabledThisFrame, &ActiveDebugInfo);
 #endif
 }
@@ -273,6 +268,7 @@ void FMetalFXViewExtension::PreRenderViewFamily_RenderThread(FRenderGraphType& G
 		return;
 	}
 
+	//For debug status update.
 	const float ScreenPercentage = GetMetalFXDebugScreenPercentageValue();
 	const FIntRect ExpectedInputRect(FIntPoint::ZeroValue, GetMetalFXExpectedInputSize(OutputRect, ScreenPercentage));
 	Upscaler->UpdateActiveDebugInfo(ExpectedInputRect, OutputRect, ScreenPercentage);
