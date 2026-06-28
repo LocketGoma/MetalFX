@@ -10,8 +10,6 @@
 class FMetalFXViewExtension;
 class FMetalFXTemporalUpscaler;
 
-using IMetalFXTemporalUpscaler = UE::Renderer::Private::ITemporalUpscaler;
-
 class METALFX_API FMetalFXModule : public IModuleInterface
 {
 public:
