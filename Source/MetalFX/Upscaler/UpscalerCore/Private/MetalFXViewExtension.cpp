@@ -155,7 +155,6 @@ void FMetalFXViewExtension::SetupViewFamily(FSceneViewFamily& InViewFamily)
 
 void FMetalFXViewExtension::BeginRenderViewFamily(FSceneViewFamily& InViewFamily)
 {
-	bool bIsEnabledThisFrame = false;
 	bool bIsCheckPassed = true;
 
 	if (GIsEditor)
@@ -166,7 +165,16 @@ void FMetalFXViewExtension::BeginRenderViewFamily(FSceneViewFamily& InViewFamily
 		}
 	}	
 	
-	if (InViewFamily.ViewMode != EViewModeIndex::VMI_Lit ||	InViewFamily.Scene == nullptr || InViewFamily.Scene->GetShadingPath() != EShadingPath::Deferred || !InViewFamily.bRealtimeUpdate)
+	if (InViewFamily.Scene == nullptr)
+	{
+		return;
+	}
+
+	// MetalFX can be selected from deferred desktop rendering and mobile/iOS rendering paths.
+	const EShadingPath ShadingPath = InViewFamily.Scene->GetShadingPath();
+	const bool bSupportedShadingPath = (ShadingPath == EShadingPath::Deferred || ShadingPath == EShadingPath::Mobile);
+
+	if (InViewFamily.ViewMode != EViewModeIndex::VMI_Lit || !bSupportedShadingPath || !InViewFamily.bRealtimeUpdate)
 	{
 		bIsCheckPassed = false;
 	}
@@ -189,6 +197,7 @@ void FMetalFXViewExtension::BeginRenderViewFamily(FSceneViewFamily& InViewFamily
 			}
 			
 			//한번이라도 false 면 계속 false 처리 (안정성 이슈)
+			//패치 스크립트를 작동했다면 모바일에서도 성공해야됨. (근데 애초에 패치 제대로 안했으면 빌드 자체가 안될거긴 해...)
 			if (View->PrimaryScreenPercentageMethod != EPrimaryScreenPercentageMethod::TemporalUpscale)
 			{
 				bIsCheckPassed = false;
@@ -219,10 +228,10 @@ void FMetalFXViewExtension::BeginRenderViewFamily(FSceneViewFamily& InViewFamily
 		}
 	}
 	
-	bIsEnabledThisFrame = bIsCheckPassed && bMetalFXEnabled;
-	
+	//For Debug messages.
 #if !UE_BUILD_SHIPPING
 	// Show availability and active runtime state as separate debug lines.
+	const bool bIsEnabledThisFrame = bIsCheckPassed && bMetalFXEnabled;
 	FMetalFXActiveDebugInfo ActiveDebugInfo;
 #if METALFX_PLUGIN_ENABLED
 	if (bMetalFXSupported)
@@ -241,6 +250,10 @@ void FMetalFXViewExtension::BeginRenderViewFamily(FSceneViewFamily& InViewFamily
 
 void FMetalFXViewExtension::PreRenderViewFamily_RenderThread(FRenderGraphType& GraphBuilder, FSceneViewFamily& InViewFamily)
 {
+	// Explicitly call the base implementation for completeness. In the current 5.7.4 baseline this is a no-op.
+	FSceneViewExtensionBase::PreRenderViewFamily_RenderThread(GraphBuilder, InViewFamily);
+
+	//Debug Settings
 #if !UE_BUILD_SHIPPING && METALFX_PLUGIN_ENABLED
 	if (!CVarMetalFXDebugDisplay.GetValueOnRenderThread() || InViewFamily.Views.Num() == 0)
 	{
