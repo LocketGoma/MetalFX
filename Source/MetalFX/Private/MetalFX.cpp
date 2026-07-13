@@ -60,10 +60,20 @@ void FMetalFXModule::StartupModule()
 			{				
 				CvarMetalFXEnable->Set(Settings->bEnabled, ECVF_SetByCode);
 			}
+
+			if (IConsoleVariable* CvarMetalFXEnableInEditor = IConsoleManager::Get().FindConsoleVariable(TEXT("r.MetalFX.EnableInEditor")))
+			{
+				CvarMetalFXEnableInEditor->Set(Settings->bEnableInEditor, ECVF_SetByCode);
+			}
+
+			if (IConsoleVariable* CvarMetalFXDebugDisplay = IConsoleManager::Get().FindConsoleVariable(TEXT("r.MetalFX.DebugDisplay")))
+			{
+				CvarMetalFXDebugDisplay->Set(Settings->bDebugDisplay, ECVF_SetByCode);
+			}
 			
 			if (IConsoleVariable* CvarMetalFXMode = IConsoleManager::Get().FindConsoleVariable(TEXT("r.MetalFX.UpscalerMode")))
 			{				
-				CvarMetalFXMode->Set(Settings->UpscalerMode, ECVF_SetByCode);
+				CvarMetalFXMode->Set(static_cast<int32>(Settings->UpscalerMode), ECVF_SetByCode);
 			}
 			
 			if (IConsoleVariable* CvarMetalFSharpness = IConsoleManager::Get().FindConsoleVariable(TEXT("r.MetalFX.Sharpness")))
@@ -74,6 +84,21 @@ void FMetalFXModule::StartupModule()
 			if (IConsoleVariable* CvarMetalFXQuality = IConsoleManager::Get().FindConsoleVariable(TEXT("r.MetalFX.QualityMode")))
 			{
 				CvarMetalFXQuality->Set(static_cast<int32>(Settings->QualityMode), ECVF_SetByCode);
+			}
+
+			if (IConsoleVariable* CvarMetalFXJitterMode = IConsoleManager::Get().FindConsoleVariable(TEXT("r.MetalFX.JitterMode")))
+			{
+				CvarMetalFXJitterMode->Set(Settings->JitterMode, ECVF_SetByCode);
+			}
+
+			if (IConsoleVariable* CvarMetalFXMotionVectorScaleX = IConsoleManager::Get().FindConsoleVariable(TEXT("r.MetalFX.MotionVectorScaleX")))
+			{
+				CvarMetalFXMotionVectorScaleX->Set(Settings->MotionVectorScaleX, ECVF_SetByCode);
+			}
+
+			if (IConsoleVariable* CvarMetalFXMotionVectorScaleY = IConsoleManager::Get().FindConsoleVariable(TEXT("r.MetalFX.MotionVectorScaleY")))
+			{
+				CvarMetalFXMotionVectorScaleY->Set(Settings->MotionVectorScaleY, ECVF_SetByCode);
 			}
 		});
 		UE_LOG(LogMetalFX, Log, TEXT("MetalFX Temporal Upscaling Module Start"));
