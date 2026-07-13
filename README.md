@@ -62,7 +62,7 @@ Its purpose is to verify Unreal Engine and MetalFX SDK integration, required eng
   - [Installation and Application Overview](#installation-and-application-overview)
   - [MetalCPP Notes](#metalcpp-notes)
   - [Engine Source Modification Script](#engine-source-modification-script)
-  - [Console Variable](#console-variable)
+  - [Console Variables](#console-variables)
   - [Current Implementation Scope](#current-implementation-scope)
   - [Work in Progress / Unverified Items](#work-in-progress--unverified-items)
   - [Limitations](#limitations)
@@ -207,17 +207,21 @@ It is recommended to review the changes before applying them.
 
 ---
 
-## Console Variable
+## Console Variables
 
-MetalFX testing can be controlled with the following console variable:
+MetalFX testing can be controlled with the following console variables:
 
 | Command | Parameters | Description |
 | --- | --- | --- |
 | `r.MetalFX.Enabled` | bool (0,1) | Enable / Disable MetalFX. |
-| `r.MetalFX.EnableInEditor` | bool (0,1) | Allow MetalFX activation in editor viewports. |
+| `r.MetalFX.EnableInEditor` | bool (0,1) | Allow MetalFX activation in Play In Editor (PIE). `r.MetalFX.Enabled` must also be enabled. |
 | `r.MetalFX.DebugDisplay` | bool (0,1) | Show / Hide MetalFX on-screen debug status. |
+| `r.MetalFX.UpscalerMode` | int | Select the MetalFX upscaler mode. `0:Off`, `1:Spatial (WIP)`, `2:Temporal`. |
+| `r.MetalFX.Sharpness` | float | WIP sharpness control. Range: `0.0` to `1.0`. |
 | `r.MetalFX.QualityMode` | int | Select the MetalFX quality preset. `0:100%`, `1:66.7%`, `2:50%`, `3:35%`. |
 | `r.MetalFX.JitterMode` | int | Control temporal jitter forwarding. `1:normal`, `0:disabled`, `-1:inverted`. |
+| `r.MetalFX.MotionVectorScaleX` | float | WIP horizontal motion vector scale passed to MetalFX. |
+| `r.MetalFX.MotionVectorScaleY` | float | WIP vertical motion vector scale passed to MetalFX. |
 
 
 ---
@@ -242,7 +246,7 @@ Currently implemented and verified scope:
 - Motion vector scale forwarding to MetalFX TemporalScaler
 - Temporal Scaler lazy creation / recreation based on texture format, input texture size, input content size, and output size
 - Runtime guard for MetalFX TemporalScaler's 3x maximum upscaling limitation
-- Editor viewport activation policy using `r.MetalFX.EnableInEditor`
+- Play In Editor (PIE) activation policy using `r.MetalFX.EnableInEditor`
 - Partial engine source modification automation script
 - Structure targeting Apple Silicon Mac and MetalFX-supported iOS / iPadOS devices
 
@@ -427,15 +431,19 @@ MetalFX/Source/Thirdparty/EngineEditScript.sh
 
 ## 콘솔 변수
 
-MetalFX 테스트는 다음 콘솔 변수를 통해 제어할 수 있습니다.
+MetalFX 테스트는 다음 콘솔 변수들을 통해 제어할 수 있습니다.
 
 | Command | Parameters | Description |
 | --- | --- | --- |
 | `r.MetalFX.Enabled` | bool (0,1) | Enable / Disable MetalFX. |
-| `r.MetalFX.EnableInEditor` | bool (0,1) | 에디터 뷰포트에서 MetalFX 활성화를 허용합니다. |
+| `r.MetalFX.EnableInEditor` | bool (0,1) | PIE 환경에서 MetalFX 활성화를 허용합니다. `r.MetalFX.Enabled`도 함께 켜야 합니다. |
 | `r.MetalFX.DebugDisplay` | bool (0,1) | MetalFX 화면 디버그 상태 표시를 켜거나 끕니다. |
+| `r.MetalFX.UpscalerMode` | int | MetalFX 업스케일러 모드를 선택합니다. `0:Off`, `1:Spatial (WIP)`, `2:Temporal`. |
+| `r.MetalFX.Sharpness` | float | WIP sharpness 제어 값입니다. 범위: `0.0` ~ `1.0`. |
 | `r.MetalFX.QualityMode` | int | MetalFX 품질 프리셋을 선택합니다. `0:100%`, `1:66.7%`, `2:50%`, `3:35%`. |
 | `r.MetalFX.JitterMode` | int | Temporal jitter 전달 방식을 제어합니다. `1:normal`, `0:disabled`, `-1:inverted`. |
+| `r.MetalFX.MotionVectorScaleX` | float | WIP horizontal motion vector scale 값입니다. |
+| `r.MetalFX.MotionVectorScaleY` | float | WIP vertical motion vector scale 값입니다. |
 
 
 ---
@@ -457,7 +465,7 @@ MetalFX 테스트는 다음 콘솔 변수를 통해 제어할 수 있습니다.
 - MetalFX TemporalScaler에 Motion Vector Scale 전달
 - 텍스처 포맷, 입력 텍스처 크기, 입력 콘텐츠 크기, 출력 크기 기반 Temporal Scaler 지연 생성 / 재생성
 - MetalFX TemporalScaler의 3x 최대 업스케일 제한에 대한 런타임 방어 처리
-- `r.MetalFX.EnableInEditor` 기반 에디터 뷰포트 활성화 정책
+- `r.MetalFX.EnableInEditor` 기반 PIE 활성화 정책
 - 일부 엔진 소스 수정 자동화 스크립트 제공
 - Apple Silicon Mac 및 MetalFX 지원 iOS/iPadOS 기기 대상 구조 구성
 

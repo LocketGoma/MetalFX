@@ -142,7 +142,7 @@ void FMetalFXViewExtension::SetupViewFamily(FSceneViewFamily& InViewFamily)
 	FMetalFXModule& MetalFXModule = FModuleManager::GetModuleChecked<FMetalFXModule>(TEXT("MetalFX"));
 	bMetalFXSupported = MetalFXModule.GetIsSupportedByRHI();
 	
-	//에디터에서는 EnableInEditor로 변경
+	// In editor builds, only PIE can opt into MetalFX through EnableInEditor.
 	if (GIsEditor)
 	{
 		static TConsoleVariableData<bool>* CvarMetalFXEditorSupported = IConsoleManager::Get().FindTConsoleVariableDataBool(TEXT("r.MetalFX.EnableInEditor"));

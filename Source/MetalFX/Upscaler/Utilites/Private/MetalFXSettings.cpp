@@ -9,7 +9,7 @@ TAutoConsoleVariable<bool> CVarEnableMetalFX(
 TAutoConsoleVariable<bool> CvarEnableMetalFXInEditor(
 	TEXT("r.MetalFX.EnableInEditor"),
 	false,
-	TEXT("Enable MetalFX in editor viewports"),
+	TEXT("Enable MetalFX in Play In Editor"),
 	ECVF_RenderThreadSafe);
 
 TAutoConsoleVariable<bool> CVarMetalFXDebugDisplay(
