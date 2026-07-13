@@ -4,6 +4,7 @@
 #include "MetalFXSettings.h"
 #include "MetalFXTemporalUpscaler.h"
 #include "Engine/Engine.h"
+#include "Engine/World.h"
 #include "RenderGraphUtils.h"
 
 #if !UE_BUILD_SHIPPING
@@ -145,7 +146,7 @@ void FMetalFXViewExtension::SetupViewFamily(FSceneViewFamily& InViewFamily)
 	if (GIsEditor)
 	{
 		static TConsoleVariableData<bool>* CvarMetalFXEditorSupported = IConsoleManager::Get().FindTConsoleVariableDataBool(TEXT("r.MetalFX.EnableInEditor"));
-		bMetalFXSupported = CvarMetalFXEditorSupported ? CvarMetalFXEditorSupported->GetValueOnGameThread() : bMetalFXSupported;
+		bMetalFXSupported = bMetalFXSupported && (CvarMetalFXEditorSupported ? CvarMetalFXEditorSupported->GetValueOnGameThread() : false);
 	}
 	
 	//If the CVar is not registered, MetalFX must stay disabled.
@@ -289,5 +290,24 @@ void FMetalFXViewExtension::PreRenderViewFamily_RenderThread(FRenderGraphType& G
 
 bool FMetalFXViewExtension::IsActiveThisFrame_Internal(const FSceneViewExtensionContext& Context) const
 {
-	return FSceneViewExtensionBase::IsActiveThisFrame_Internal(Context);
+	if (!FSceneViewExtensionBase::IsActiveThisFrame_Internal(Context))
+	{
+		return false;
+	}
+
+	//에디터에서는 PIE 환경에서만 켜지도록 처리
+	if (GIsEditor)
+	{
+		const bool bEnableInEditor = CvarEnableMetalFXInEditor.GetValueOnGameThread();
+		const UWorld* World = Context.GetWorld();
+
+		if (!IsValid(World))
+		{
+			return false;
+		}
+		
+		return bEnableInEditor && (World->WorldType == EWorldType::PIE);
+	}
+
+	return true;
 }
