@@ -16,6 +16,8 @@ bShareMaterialShaderCode=True
 bSharedMaterialNativeLibraries=False
 ```
 
+Changing this setting may cause unknown issues depending on your project configuration.
+
 ### 한국어
 
 **Xcode 26.6 이상**에서 패키징할 경우, Xcode toolchain에서 `metal-pack`을 찾을 수 없어 Metal native shader library 패키징이 실패할 수 있습니다.
@@ -27,6 +29,8 @@ bSharedMaterialNativeLibraries=False
 bShareMaterialShaderCode=True
 bSharedMaterialNativeLibraries=False
 ```
+
+해당 설정 변경 시 개인 프로젝트 설정에 따라 알려지지 않은 문제가 발생할 수 있습니다.
 
 ---
 
