@@ -1,9 +1,71 @@
 #include "MetalFXSettings.h"
+#include "MetalFXHelper.h"
+
+void ApplyMetalFXQualityModeToScreenPercentage(EMetalFXQualityMode QualityMode)
+{
+	if (!CVarEnableMetalFX.GetValueOnGameThread())
+	{
+		return;
+	}
+
+	if (IConsoleVariable* CVarScreenPercentage = IConsoleManager::Get().FindConsoleVariable(TEXT("r.ScreenPercentage")))
+	{
+		CVarScreenPercentage->SetWithCurrentPriority(ConvertMetalFXQualityModeToScreenPercentage(QualityMode));
+	}
+}
+
+static bool NeedRestoreScreenPercentageOnDisable()
+{
+#if UE_BUILD_SHIPPING
+	return true;
+#endif
+//if Debug Mode On -> Disable Screenpercentage Auto Restore
+  return (!METALFX_DEBUG);
+}
+
+static void RestoreScreenPercentage()
+{
+	if (IConsoleVariable* CVarScreenPercentage = IConsoleManager::Get().FindConsoleVariable(TEXT("r.ScreenPercentage")))
+	{
+		CVarScreenPercentage->SetWithCurrentPriority(100.0f);
+	}
+}
+
+// Apply the last selected QualityMode when MetalFX is enabled at runtime.
+static void HandleEnabledChanged(IConsoleVariable* Variable)
+{
+	if (!Variable)
+	{
+		return;
+	}
+
+	if (Variable->GetBool())
+	{
+		ApplyMetalFXQualityModeToScreenPercentage(static_cast<EMetalFXQualityMode>(CVarMetalFXQualityMode.GetValueOnGameThread()));
+	}
+	else if (NeedRestoreScreenPercentageOnDisable())
+	{
+		RestoreScreenPercentage();
+	}
+}
+
+// For runtime QualityMode changes from CVar.
+static void HandleQualityModeChanged(IConsoleVariable* Variable)
+{
+	if (!Variable)
+	{
+		return;
+	}
+
+	ApplyMetalFXQualityModeToScreenPercentage(static_cast<EMetalFXQualityMode>(Variable->GetInt()));
+}
+
 //-----------------------콘솔 명령어-----------------------
 TAutoConsoleVariable<bool> CVarEnableMetalFX(
 	TEXT("r.MetalFX.Enabled"),
 	false,
 	TEXT("Enable MetalFX for Temporal Upscale"),
+	FConsoleVariableDelegate::CreateStatic(&HandleEnabledChanged),
 	ECVF_RenderThreadSafe);
 
 TAutoConsoleVariable<bool> CvarEnableMetalFXInEditor(
@@ -56,8 +118,9 @@ TAutoConsoleVariable<int32> CVarMetalFXUpscalerMode(
 
 TAutoConsoleVariable<int32> CVarMetalFXQualityMode(
 	TEXT("r.MetalFX.QualityMode"),
-	static_cast<int32>(EMetalFXQualityMode::Balanced),
+	static_cast<int32>(EMetalFXQualityMode::NativeAA),
 	TEXT("Quality mode to be used when upscaling with MetalFX. 0: 100%, 1: 66.7%, 2: 50%, 3: 35%. MetalFX TemporalScaler does not support greater than 3x upscaling, so 25% Ultra Performance is disabled."),
+	FConsoleVariableDelegate::CreateStatic(&HandleQualityModeChanged),
 	ECVF_RenderThreadSafe);
 
 //------------------------
@@ -69,7 +132,7 @@ UMetalFXSettings::UMetalFXSettings(const FObjectInitializer& ObjectInitializer)
 	bDebugDisplay = true;
 	UpscalerMode = EMetalFXUpscalerMode::Temporal;
 	Sharpness = 0.0f;
-	QualityMode = EMetalFXQualityMode::Balanced;
+	QualityMode = EMetalFXQualityMode::NativeAA;
 	JitterMode = 1;
 	MotionVectorScaleX = 0.0f;
 	MotionVectorScaleY = 0.0f;
@@ -109,5 +172,15 @@ void UMetalFXSettings::PostInitProperties()
 void UMetalFXSettings::PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent)
 {
 	Super::PostEditChangeProperty(PropertyChangedEvent);
+
+	if (PropertyChangedEvent.Property)
+	{
+		ExportValuesToConsoleVariables(PropertyChangedEvent.Property);
+
+		if (PropertyChangedEvent.Property->GetFName() == GET_MEMBER_NAME_CHECKED(UMetalFXSettings, QualityMode))
+		{
+			ApplyMetalFXQualityModeToScreenPercentage(QualityMode);
+		}
+	}
 }
 #endif

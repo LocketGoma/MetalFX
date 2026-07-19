@@ -12,6 +12,30 @@ IMPLEMENT_MODULE(FMetalFXModule, MetalFX)
 #define LOCTEXT_NAMESPACE "FMetalFXModule"
 DEFINE_LOG_CATEGORY(LogMetalFX);
 
+static void SetBoolCVarWithCurrentPriorityIfChanged(IConsoleVariable* CVar, bool Value)
+{
+	if (CVar && CVar->GetBool() != Value)
+	{
+		CVar->SetWithCurrentPriority(Value);
+	}
+}
+
+static void SetIntCVarWithCurrentPriorityIfChanged(IConsoleVariable* CVar, int32 Value)
+{
+	if (CVar && CVar->GetInt() != Value)
+	{
+		CVar->SetWithCurrentPriority(Value);
+	}
+}
+
+static void SetFloatCVarWithCurrentPriorityIfChanged(IConsoleVariable* CVar, float Value)
+{
+	if (CVar && !FMath::IsNearlyEqual(CVar->GetFloat(), Value))
+	{
+		CVar->SetWithCurrentPriority(Value);
+	}
+}
+
 //----------------------Macro Checker--------------------
 #if METALFX_PLUGIN_ENABLED
 	//Valid Mac Environment Check
@@ -58,47 +82,48 @@ void FMetalFXModule::StartupModule()
 			// CVar 세팅
 			if (IConsoleVariable* CvarMetalFXEnable = IConsoleManager::Get().FindConsoleVariable(TEXT("r.MetalFX.Enabled")))
 			{				
-				CvarMetalFXEnable->Set(Settings->bEnabled, ECVF_SetByCode);
+				SetBoolCVarWithCurrentPriorityIfChanged(CvarMetalFXEnable, Settings->bEnabled);
 			}
 
 			if (IConsoleVariable* CvarMetalFXEnableInEditor = IConsoleManager::Get().FindConsoleVariable(TEXT("r.MetalFX.EnableInEditor")))
 			{
-				CvarMetalFXEnableInEditor->Set(Settings->bEnableInEditor, ECVF_SetByCode);
+				SetBoolCVarWithCurrentPriorityIfChanged(CvarMetalFXEnableInEditor, Settings->bEnableInEditor);
 			}
 
 			if (IConsoleVariable* CvarMetalFXDebugDisplay = IConsoleManager::Get().FindConsoleVariable(TEXT("r.MetalFX.DebugDisplay")))
 			{
-				CvarMetalFXDebugDisplay->Set(Settings->bDebugDisplay, ECVF_SetByCode);
+				SetBoolCVarWithCurrentPriorityIfChanged(CvarMetalFXDebugDisplay, Settings->bDebugDisplay);
 			}
 			
 			if (IConsoleVariable* CvarMetalFXMode = IConsoleManager::Get().FindConsoleVariable(TEXT("r.MetalFX.UpscalerMode")))
 			{				
-				CvarMetalFXMode->Set(static_cast<int32>(Settings->UpscalerMode), ECVF_SetByCode);
+				SetIntCVarWithCurrentPriorityIfChanged(CvarMetalFXMode, static_cast<int32>(Settings->UpscalerMode));
 			}
 			
 			if (IConsoleVariable* CvarMetalFSharpness = IConsoleManager::Get().FindConsoleVariable(TEXT("r.MetalFX.Sharpness")))
 			{
-				CvarMetalFSharpness->Set(Settings->Sharpness, ECVF_SetByCode);
+				SetFloatCVarWithCurrentPriorityIfChanged(CvarMetalFSharpness, Settings->Sharpness);
 			}
 			
 			if (IConsoleVariable* CvarMetalFXQuality = IConsoleManager::Get().FindConsoleVariable(TEXT("r.MetalFX.QualityMode")))
 			{
-				CvarMetalFXQuality->Set(static_cast<int32>(Settings->QualityMode), ECVF_SetByCode);
+				SetIntCVarWithCurrentPriorityIfChanged(CvarMetalFXQuality, static_cast<int32>(Settings->QualityMode));
+				ApplyMetalFXQualityModeToScreenPercentage(Settings->QualityMode);
 			}
 
 			if (IConsoleVariable* CvarMetalFXJitterMode = IConsoleManager::Get().FindConsoleVariable(TEXT("r.MetalFX.JitterMode")))
 			{
-				CvarMetalFXJitterMode->Set(Settings->JitterMode, ECVF_SetByCode);
+				SetIntCVarWithCurrentPriorityIfChanged(CvarMetalFXJitterMode, Settings->JitterMode);
 			}
 
 			if (IConsoleVariable* CvarMetalFXMotionVectorScaleX = IConsoleManager::Get().FindConsoleVariable(TEXT("r.MetalFX.MotionVectorScaleX")))
 			{
-				CvarMetalFXMotionVectorScaleX->Set(Settings->MotionVectorScaleX, ECVF_SetByCode);
+				SetFloatCVarWithCurrentPriorityIfChanged(CvarMetalFXMotionVectorScaleX, Settings->MotionVectorScaleX);
 			}
 
 			if (IConsoleVariable* CvarMetalFXMotionVectorScaleY = IConsoleManager::Get().FindConsoleVariable(TEXT("r.MetalFX.MotionVectorScaleY")))
 			{
-				CvarMetalFXMotionVectorScaleY->Set(Settings->MotionVectorScaleY, ECVF_SetByCode);
+				SetFloatCVarWithCurrentPriorityIfChanged(CvarMetalFXMotionVectorScaleY, Settings->MotionVectorScaleY);
 			}
 		});
 		UE_LOG(LogMetalFX, Log, TEXT("MetalFX Temporal Upscaling Module Start"));

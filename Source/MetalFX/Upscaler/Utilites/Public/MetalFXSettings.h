@@ -43,6 +43,8 @@ extern TAutoConsoleVariable<float> CVarMetalFXSharpness;
 extern TAutoConsoleVariable<int32> CVarMetalFXUpscalerMode;
 extern TAutoConsoleVariable<int32> CVarMetalFXQualityMode;
 
+METALFX_API void ApplyMetalFXQualityModeToScreenPercentage(EMetalFXQualityMode QualityMode);
+
 UCLASS(Config = Engine, DefaultConfig, DisplayName = "Apple MetalFX")
 class METALFX_API UMetalFXSettings : public UDeveloperSettings
 {
