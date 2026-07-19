@@ -39,33 +39,62 @@ static BOOL IsSystemVersionAtLeast(NSInteger Major, NSInteger Minor = 0, NSInteg
 	return NO;
 }
 
-//내부 함수 - MetalFX 기동 조건 체크
-static BOOL IsMetalFXSupported()
+//기본 MetalFX Upscaler인 Spatial Upscaler 가능한지 여부 (Temporal 보다는 조건이 간단함)
+static BOOL IsMetalFXSpatialSupported()
 {
-#if METALFX_PLUGIN_ENABLED
-	return MetalFXQuerySupportReason() == static_cast<int32>(EMetalFXSupportReason::Supported);
-#endif
-	return NO;
+	id<MTLDevice> MetalDevice = GetMetalFXDevice();
+	if (MetalDevice == nil)
+	{
+		return NO;
+	}
+
+	const BOOL bHasMetalFXSpatial = NSClassFromString(@"MTLFXSpatialScalerDescriptor") != Nil;
+	const BOOL bSupportsMetal3 = [MetalDevice supportsFamily:MTLGPUFamilyMetal3];
+	return bHasMetalFXSpatial && bSupportsMetal3;
 }
 
 //MetalFX 는 가능한데, Temporal 이 가능한지 체크 여부 (Mac - M3 / iPhone&iPad - A17Pro)
-static BOOL IsMetalFXTemporalPolicyGPU()
+static BOOL IsMetalFXTemporalSupported()
 {
-#if METALFX_PLUGIN_ENABLED
 	id<MTLDevice> MetalDevice = GetMetalFXDevice();
-
 	// 1. MetalDevice가 없음 = 아예 실패
 	if (MetalDevice == nil)
 	{
 		return NO;
 	}
 
-	if (IsMetalFXSupported())
-	{		
-		return MetalDevice != nil && [MetalDevice supportsFamily:MTLGPUFamilyApple9];
+#if WITH_METALFX_TARGET_MAC
+	if (!IsSystemVersionAtLeast(13, 0) || ![MetalDevice supportsFamily:MTLGPUFamilyApple1])
+	{
+		return NO;
 	}
 #endif
-	return NO;
+
+#if WITH_METALFX_TARGET_IOS
+	if (!IsSystemVersionAtLeast(18, 0))
+	{
+		return NO;
+	}
+#endif
+
+	return NSClassFromString(@"MTLFXTemporalScalerDescriptor") != Nil
+		&& [MTLFXTemporalScalerDescriptor supportsDevice:MetalDevice]
+		&& [MetalDevice supportsFamily:MTLGPUFamilyApple9];
+}
+
+//내부 함수 - MetalFX 기동 조건 체크
+static BOOL IsMetalFXSupported()
+{
+	return IsMetalFXSpatialSupported() || IsMetalFXTemporalSupported();
+}
+
+EMetalFXSupportedType GetMetalFXSupportedType()
+{
+	if (!IsMetalFXSupported())
+	{
+		return EMetalFXSupportedType::None;
+	}
+	return IsMetalFXTemporalSupported() ? EMetalFXSupportedType::Temporal : EMetalFXSupportedType::Spatial;
 }
 
 //------------Inner Utility Functions------------ (End)
@@ -142,7 +171,7 @@ id<MTLFXTemporalScaler> MetalFXCreateTemporalUpscaler(id<MTLDevice> Device, cons
 {
 #if METALFX_PLUGIN_ENABLED
 	// 이 버전 이하에선 MetalFX 자체를 못쓰도록 처리
-	if (!IsMetalFXTemporalPolicyGPU())
+	if (!IsMetalFXTemporalSupported())
 	{
 		NSLog(@"MetalFX Temporal Upscaler cannot be activated in this environment. Please check.");
 		return nil;

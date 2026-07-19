@@ -35,31 +35,15 @@ enum class EMetalFXSupportReason : uint8
 };
 
 //= MetalFX 관련 최종 판단 (SpatialType / TemporalType 인 경우에만 MetalFX 정상 작동)
-enum class EMetalFXServiceReason : uint8
+enum class EMetalFXSupportedType : uint8
 {
-	//Something Wrong
-	Error,
-	
-	//=aka Intel System or Windows OS or... other.
-	NotAppleDevice,
-	
-	//=aka Apple Device but not AppleSilicon or Very Very Older Device
-	AppleDeviceButNotSupported,
-	
-	//=aka Apple Device but Older Device 
-	SpatialType,
-	
-	//=aka Apple Device & (like) flagship devices.
-	TemporalType
+	None = 0,
+	Spatial = 1 << 0,
+	Temporal = 1 << 1
 };
+ENUM_CLASS_FLAGS(EMetalFXSupportedType);
 
 //MetalFX 가 현재 무슨 모드로 작동 가능한지
-enum class EMetalFXSupportType : uint8
-{
-	UnSupported,
-	ForGame,
-	ForEditor
-};
 
 inline float ConvertMetalFXQualityModeToScreenPercentage(EMetalFXQualityMode QualityMode)
 {
@@ -177,6 +161,27 @@ struct FMetalFXTemporalTextureFormatGroup
 	
 private:
 	bool bIsChanged = false;
+};
+
+struct FMetalFXSpatialTextureFormatGroup
+{
+	FMetalFXPixelFormat Color = 0;
+	FMetalFXPixelFormat Output = 0;
+
+	bool IsReady() const
+	{
+		return Color != 0 && Output != 0;
+	}
+
+	bool operator==(const FMetalFXSpatialTextureFormatGroup& Other) const
+	{
+		return Color == Other.Color && Output == Other.Output;
+	}
+
+	bool operator!=(const FMetalFXSpatialTextureFormatGroup& Other) const
+	{
+		return !(*this == Other);
+	}
 };
 
 BEGIN_SHADER_PARAMETER_STRUCT(FMetalFXTemporalPassParameters, )

@@ -3,6 +3,7 @@
 #include "MetalFX.h"
 #include "MetalFXSettings.h"
 #include "MetalFXTemporalUpscaler.h"
+#include "MetalFXSpatialUpscaler.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "RenderGraphUtils.h"
@@ -212,15 +213,18 @@ void FMetalFXViewExtension::BeginRenderViewFamily(FSceneViewFamily& InViewFamily
 				break;
 			}
 			
-			const bool bIsTemporalMode = UpscalerMode == EMetalFXUpscalerMode::Temporal;
-			// Spatial mode path is disabled until the integration model is confirmed.
-			const bool bIsSpatialMode = false;
-			const bool bIsMatchingUpscaleMethod =
-				(bIsTemporalMode && View->PrimaryScreenPercentageMethod == EPrimaryScreenPercentageMethod::TemporalUpscale)
-				|| (bIsSpatialMode && View->PrimaryScreenPercentageMethod == EPrimaryScreenPercentageMethod::SpatialUpscale);
-
-			if (!bIsMatchingUpscaleMethod)
+			switch (UpscalerMode)
 			{
+			case EMetalFXUpscalerMode::None:
+				bIsCheckPassed = false;
+				break;
+			case EMetalFXUpscalerMode::Spatial:
+				bIsCheckPassed = (View->PrimaryScreenPercentageMethod == EPrimaryScreenPercentageMethod::SpatialUpscale);
+				break;
+			case EMetalFXUpscalerMode::Temporal:
+				bIsCheckPassed = (View->PrimaryScreenPercentageMethod == EPrimaryScreenPercentageMethod::TemporalUpscale);
+				break;
+			case EMetalFXUpscalerMode::MAX:
 				bIsCheckPassed = false;
 				break;
 			}
@@ -241,27 +245,32 @@ void FMetalFXViewExtension::BeginRenderViewFamily(FSceneViewFamily& InViewFamily
 				bIsCheckPassed = false;
 			}
 
-			if (UpscalerMode == EMetalFXUpscalerMode::Temporal
-				&& bIsCheckPassed
-				&& !InViewFamily.GetTemporalUpscalerInterface())
+			if (bIsCheckPassed)
 			{
-				if (FMetalFXTemporalUpscalerCore* TemporalCore = MetalFXModule.GetMetalFXTemporalUpscaler())
+				if (UpscalerMode == EMetalFXUpscalerMode::Spatial && !InViewFamily.GetPrimarySpatialUpscalerInterface())
 				{
-					InViewFamily.SetTemporalUpscalerInterface(new FMetalFXTemporalUpscaler(TemporalCore));
+					if (FMetalFXSpatialUpscalerCore* SpatialCore = MetalFXModule.GetMetalFXSpatialUpscaler())
+					{
+						InViewFamily.SetPrimarySpatialUpscalerInterface(new FMetalFXSpatialUpscaler(SpatialCore));
+					}
+					else
+					{
+						bIsCheckPassed = false;
+					}
 				}
-				else
+				
+				if (UpscalerMode == EMetalFXUpscalerMode::Temporal && !InViewFamily.GetTemporalUpscalerInterface())
 				{
-					bIsCheckPassed = false;
+					if (FMetalFXTemporalUpscalerCore* TemporalCore = MetalFXModule.GetMetalFXTemporalUpscaler())
+					{
+						InViewFamily.SetTemporalUpscalerInterface(new FMetalFXTemporalUpscaler(TemporalCore));
+					}
+					else
+					{
+						bIsCheckPassed = false;
+					}
 				}
 			}
-			// WIP: when SpatialScaler encode is implemented, request the typed
-			// Spatial Core here with GetMetalFXSpatialUpscaler(). Do not register
-			// the bilinear fallback adapter as a real MetalFX path yet.
-			// else if (UpscalerMode == EMetalFXUpscalerMode::Spatial && bIsCheckPassed && !InViewFamily.GetPrimarySpatialUpscalerInterface())
-			// {
-			// 	FMetalFXSpatialUpscalerCore* SpatialCore = MetalFXModule.GetMetalFXSpatialUpscaler();
-			// 	InViewFamily.SetPrimarySpatialUpscalerInterface(new FMetalFXSpatialUpscaler(SpatialCore));
-			// }
 #endif //METALFX_PLUGIN_ENABLED
 		}
 	}

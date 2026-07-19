@@ -28,6 +28,7 @@ public:
 	
 	EMetalSupportDevice QueryMetalSupport() const;
 	EMetalFXSupportReason QueryMetalFXSupport() const;
+	EMetalFXSupportedType QueryMetalFXSupportedType() const;
 
 	/** Returns the Core created during startup RHI initialization. */
 	FMetalFXUpscalerCore* GetMetalFXUpscaler() const;
@@ -50,4 +51,5 @@ private:
 
 	EMetalSupportDevice MetalSupport = EMetalSupportDevice::NotSupported;
 	EMetalFXSupportReason MetalFXSupport = EMetalFXSupportReason::NotSupported;
+	EMetalFXSupportedType MetalFXSupportedType = EMetalFXSupportedType::None;
 };

@@ -38,6 +38,10 @@ public:
 	virtual EMetalFXUpscalerMode GetUpscalerMode() const = 0;
 
 	static EMetalFXSupportReason GetIsSupportedDevice();
+	static bool IsMetalFXSupported();
+	static EMetalFXSupportedType GetMetalFXSupportedType();
+	static EMetalFXSupportReason GetMetalFXSupportReason();
+	static bool IsUpscalerModeSupported(EMetalFXSupportedType SupportedTypes, EMetalFXUpscalerMode UpscalerMode);
 
 	static FRDGTextureRef CreateOutputTexture(
 		FRDGBuilder& GraphBuilder,

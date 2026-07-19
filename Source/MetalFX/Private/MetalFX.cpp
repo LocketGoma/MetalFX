@@ -147,6 +147,7 @@ void FMetalFXModule::ShutdownModule()
 	// Stop new ViewExtension activation before destroying the module-owned Core.
 	MetalSupport = EMetalSupportDevice::NotSupported;
 	MetalFXSupport = EMetalFXSupportReason::NotSupported;
+	MetalFXSupportedType = EMetalFXSupportedType::None;
 	MetalFXViewExtension = nullptr;
 
 	// Existing ViewFamily upscaler adapters and queued RDG/RHI lambdas only keep
@@ -169,6 +170,11 @@ EMetalSupportDevice FMetalFXModule::QueryMetalSupport() const
 EMetalFXSupportReason FMetalFXModule::QueryMetalFXSupport() const
 {
 	return MetalFXSupport;
+}
+
+EMetalFXSupportedType FMetalFXModule::QueryMetalFXSupportedType() const
+{
+	return MetalFXSupportedType;
 }
 
 FMetalFXUpscalerCore* FMetalFXModule::GetMetalFXUpscaler() const
@@ -241,7 +247,9 @@ FMetalFXUpscalerCore* FMetalFXModule::CreateMetalFXUpscaler(EMetalFXUpscalerMode
 #if METALFX_PLUGIN_ENABLED
 	check(IsInGameThread());
 
-	if (!GetIsSupportedByRHI() || RequestedMode == EMetalFXUpscalerMode::None)
+	if (!GetIsSupportedByRHI()
+		|| RequestedMode == EMetalFXUpscalerMode::None
+		|| !FMetalFXUpscalerCore::IsUpscalerModeSupported(MetalFXSupportedType, RequestedMode))
 	{
 		return nullptr;
 	}
@@ -304,25 +312,23 @@ void FMetalFXModule::HandlePostRHIInitialized()
 		return;
 	}
 
+	EMetalFXUpscalerMode StartupUpscalerMode = EMetalFXUpscalerMode::None;
 #if METALFX_PLUGIN_ENABLED
-	const EMetalFXUpscalerMode StartupUpscalerMode = static_cast<EMetalFXUpscalerMode>(CVarMetalFXUpscalerMode.GetValueOnGameThread());
+	StartupUpscalerMode = static_cast<EMetalFXUpscalerMode>(CVarMetalFXUpscalerMode.GetValueOnGameThread());
 #endif
 	
 	MetalSupport = (IsMetalPlatform(GMaxRHIShaderPlatform) ? EMetalSupportDevice::Supported : EMetalSupportDevice::NotSupported);
 	
 	if (MetalSupport == EMetalSupportDevice::Supported)
 	{
-		MetalFXSupport = FMetalFXUpscalerCore::GetIsSupportedDevice();
 #if METALFX_PLUGIN_ENABLED
-		if (MetalFXSupport == EMetalFXSupportReason::Supported)
+		MetalFXSupportedType = FMetalFXUpscalerCore::GetMetalFXSupportedType();
+		MetalFXSupport = FMetalFXUpscalerCore::GetMetalFXSupportReason();
+		if (MetalFXSupport == EMetalFXSupportReason::Supported && FMetalFXUpscalerCore::IsUpscalerModeSupported(MetalFXSupportedType, StartupUpscalerMode))
 		{
 			CreateMetalFXUpscaler(StartupUpscalerMode);
 		}
 #endif
-	}
-	else
-	{
-		MetalFXSupport = EMetalFXSupportReason::NotSupported;
 	}
 
 	if (MetalSupport == EMetalSupportDevice::Supported)
@@ -338,6 +344,10 @@ void FMetalFXModule::HandlePostRHIInitialized()
 		if (StartupUpscalerMode == EMetalFXUpscalerMode::None)
 		{
 			UE_LOG(LogMetalFX, Log, TEXT("Apple MetalFX is available. Core creation was skipped because the startup mode is Off."));
+		}
+		else if (!FMetalFXUpscalerCore::IsUpscalerModeSupported(MetalFXSupportedType, StartupUpscalerMode))
+		{
+			UE_LOG(LogMetalFX, Warning, TEXT("Apple MetalFX is available, but the selected upscaler mode %d is not supported by this device."), static_cast<int32>(StartupUpscalerMode));
 		}
 		else if (MetalFXUpscaler)
 		{

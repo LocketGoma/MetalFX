@@ -11,6 +11,8 @@
 #include <Foundation/Foundation.hpp>
 #include <Metal/Metal.hpp>
 #include <MetalFX/MetalFX.hpp>
+
+extern "C" int32 MetalFXQuerySupportReason();
 #endif
 
 FMetalFXUpscalerCore::FMetalFXUpscalerCore() = default;
@@ -148,10 +150,20 @@ void* FMetalFXUpscalerCore::GetMetalDevice()
 }
 #endif
 
-EMetalFXSupportReason FMetalFXUpscalerCore::GetIsSupportedDevice()
+static EMetalFXSupportReason QueryMetalFXSupportReasonWithoutLogging()
 {
 #if METALFX_PLUGIN_ENABLED
-	const EMetalFXSupportReason SupportReason = static_cast<EMetalFXSupportReason>(MetalFXQuerySupportReason());
+	return static_cast<EMetalFXSupportReason>(MetalFXQuerySupportReason());
+#else
+	return EMetalFXSupportReason::NotSupported;
+#endif
+}
+
+EMetalFXSupportReason FMetalFXUpscalerCore::GetIsSupportedDevice()
+{
+	const EMetalFXSupportReason SupportReason = IsMetalFXSupported()
+		? EMetalFXSupportReason::Supported
+		: QueryMetalFXSupportReasonWithoutLogging();
 
 	switch (SupportReason)
 	{
@@ -174,8 +186,41 @@ EMetalFXSupportReason FMetalFXUpscalerCore::GetIsSupportedDevice()
 		UE_LOG(LogRHI, Warning, TEXT("MetalFX is not supported because the scaler support check failed."));
 		return SupportReason;
 	}
-#endif
 
 	UE_LOG(LogRHI, Warning, TEXT("MetalFX is not supported in this environment."));
 	return EMetalFXSupportReason::NotSupported;
+}
+
+bool FMetalFXUpscalerCore::IsMetalFXSupported()
+{
+	return GetMetalFXSupportedType() != EMetalFXSupportedType::None;
+}
+
+EMetalFXSupportedType FMetalFXUpscalerCore::GetMetalFXSupportedType()
+{
+#if METALFX_PLUGIN_ENABLED
+	return ::GetMetalFXSupportedType();
+#else
+	return EMetalFXSupportedType::None;
+#endif
+}
+
+EMetalFXSupportReason FMetalFXUpscalerCore::GetMetalFXSupportReason()
+{
+	return GetIsSupportedDevice();
+}
+
+bool FMetalFXUpscalerCore::IsUpscalerModeSupported(
+	EMetalFXSupportedType SupportedTypes,
+	EMetalFXUpscalerMode UpscalerMode)
+{
+	switch (UpscalerMode)
+	{
+	case EMetalFXUpscalerMode::Spatial:
+		return EnumHasAnyFlags(SupportedTypes, EMetalFXSupportedType::Spatial);
+	case EMetalFXUpscalerMode::Temporal:
+		return EnumHasAnyFlags(SupportedTypes, EMetalFXSupportedType::Temporal);
+	default:
+		return false;
+	}
 }

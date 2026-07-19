@@ -12,7 +12,7 @@ UENUM(BlueprintType)
 enum class EMetalFXUpscalerMode : uint8
 {
 	None UMETA(DisplayName = "Off", ToolTip = "Disables MetalFX upscaling."),
-	Spatial UMETA(DisplayName = "Spatial", ToolTip = "(WIP) Spatial upscaler mode is exposed for configuration."),
+	Spatial UMETA(DisplayName = "Spatial", ToolTip = "Uses the MetalFX Spatial upscaler."),
 	Temporal UMETA(DisplayName = "Temporal", ToolTip = "Uses the MetalFX Temporal upscaler."),
 	MAX
 };
@@ -72,7 +72,7 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "Debug Settings", meta = (ConsoleVariable = "r.MetalFX.DebugDisplay", DisplayName = "Debug Display", ToolTip = "Shows MetalFX runtime status and resolution information on screen."))
 	bool bDebugDisplay;
 	
-	UPROPERTY(Config, EditAnywhere, Category = "General Settings", meta = (ConsoleVariable = "r.MetalFX.UpscalerMode", DisplayName = "Upscaler Mode", ToolTip = "(WIP) Selects the MetalFX upscaler mode."))
+	UPROPERTY(Config, EditAnywhere, Category = "General Settings", meta = (ConsoleVariable = "r.MetalFX.UpscalerMode", DisplayName = "Upscaler Mode", ToolTip = "Selects the MetalFX upscaler mode."))
 	EMetalFXUpscalerMode UpscalerMode;
 
 	UPROPERTY(Config, EditAnywhere, Category = "Quality Settings", meta = (ConsoleVariable = "r.MetalFX.Sharpness", DisplayName = "Sharpness", ClampMin = 0, ClampMax = 1, ToolTip = "(WIP) Applies the Robust Contrast Adaptive Sharpening Filter to sharpen the output image."))

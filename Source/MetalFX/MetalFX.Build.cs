@@ -35,6 +35,7 @@ public class MetalFX : ModuleRules
 
 		string UpscalerPrivatePath = Path.Combine(ModuleDirectory, "Upscaler");
         PrivateIncludePaths.Add(UpscalerPrivatePath);
+        PrivateIncludePaths.Add(Path.Combine(GetModuleDirectory("Renderer"), "Private"));
         PrivateIncludePaths.AddRange(
 		Directory.GetDirectories(UpscalerPrivatePath, "*", SearchOption.AllDirectories)
 		);
