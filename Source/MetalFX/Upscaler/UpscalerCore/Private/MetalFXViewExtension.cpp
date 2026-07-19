@@ -2,6 +2,7 @@
 #include "MetalFXUpscalerCore.h"
 #include "MetalFX.h"
 #include "MetalFXSettings.h"
+//#include "MetalFXSpatialUpscaler.h"
 #include "MetalFXTemporalUpscaler.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
@@ -54,7 +55,20 @@ static FVector2D GetMetalFXActualScreenPercentage(const FIntRect& InputRect, con
 		static_cast<double>(InputRect.Height()) / static_cast<double>(OutputRect.Height()) * 100.0);
 }
 
-static void AddMetalFXStatusDebugMessages(bool bCanActivate, bool bIsSupported, bool bIsActive, const FMetalFXActiveDebugInfo* ActiveDebugInfo = nullptr)
+static const TCHAR* GetMetalFXUpscalerModeName(EMetalFXUpscalerMode UpscalerMode)
+{
+	switch (UpscalerMode)
+	{
+	case EMetalFXUpscalerMode::Spatial:
+		return TEXT("Spatial");
+	case EMetalFXUpscalerMode::Temporal:
+		return TEXT("Temporal");
+	default:
+		return TEXT("Off");
+	}
+}
+
+static void AddMetalFXStatusDebugMessages(bool bCanActivate, bool bIsSupported, bool bIsActive, EMetalFXUpscalerMode UpscalerMode, const FMetalFXActiveDebugInfo* ActiveDebugInfo = nullptr)
 {
 	if (!GEngine)
 	{
@@ -99,7 +113,7 @@ static void AddMetalFXStatusDebugMessages(bool bCanActivate, bool bIsSupported, 
 			RuntimeMessageKey,
 			MessageDuration,
 			bIsActive ? FColor::Emerald : FColor::Yellow,
-			FString::Printf(TEXT("Apple MetalFX : %s"), bIsActive ? TEXT("Enabled") : TEXT("Disabled")),
+			FString::Printf(TEXT("Apple MetalFX Mode : %s"), bIsActive ? GetMetalFXUpscalerModeName(UpscalerMode) : TEXT("Off")),
 			true);
 
 		if (ActiveDebugInfo && ActiveDebugInfo->bIsValid)
@@ -180,7 +194,9 @@ void FMetalFXViewExtension::BeginRenderViewFamily(FSceneViewFamily& InViewFamily
 		bIsCheckPassed = false;
 	}
 
-	// MetalFX requires a valid view state and a primary temporal upscale request.
+	const EMetalFXUpscalerMode UpscalerMode = static_cast<EMetalFXUpscalerMode>(CVarMetalFXUpscalerMode.GetValueOnGameThread());
+
+	// MetalFX requires a valid view state and a matching primary upscale request.
 	if (bIsCheckPassed)
 	{
 		for (const FSceneView* View : InViewFamily.Views)
@@ -197,9 +213,14 @@ void FMetalFXViewExtension::BeginRenderViewFamily(FSceneViewFamily& InViewFamily
 				break;
 			}
 			
-			//한번이라도 false 면 계속 false 처리 (안정성 이슈)
-			//패치 스크립트를 작동했다면 모바일에서도 성공해야됨. (근데 애초에 패치 제대로 안했으면 빌드 자체가 안될거긴 해...)
-			if (View->PrimaryScreenPercentageMethod != EPrimaryScreenPercentageMethod::TemporalUpscale)
+			const bool bIsTemporalMode = UpscalerMode == EMetalFXUpscalerMode::Temporal;
+			// Spatial mode path is disabled until the integration model is confirmed.
+			const bool bIsSpatialMode = false;
+			const bool bIsMatchingUpscaleMethod =
+				(bIsTemporalMode && View->PrimaryScreenPercentageMethod == EPrimaryScreenPercentageMethod::TemporalUpscale)
+				|| (bIsSpatialMode && View->PrimaryScreenPercentageMethod == EPrimaryScreenPercentageMethod::SpatialUpscale);
+
+			if (!bIsMatchingUpscaleMethod)
 			{
 				bIsCheckPassed = false;
 				break;
@@ -221,10 +242,14 @@ void FMetalFXViewExtension::BeginRenderViewFamily(FSceneViewFamily& InViewFamily
 				bIsCheckPassed = false;
 			}
 			
-			if (bIsCheckPassed && (!InViewFamily.GetTemporalUpscalerInterface()))
+			if (UpscalerMode == EMetalFXUpscalerMode::Temporal && bIsCheckPassed && (!InViewFamily.GetTemporalUpscalerInterface()))
 			{
 				InViewFamily.SetTemporalUpscalerInterface(new FMetalFXTemporalUpscaler(Upscaler));
 			}
+			// else if (UpscalerMode == EMetalFXUpscalerMode::Spatial && bIsCheckPassed && (!InViewFamily.GetPrimarySpatialUpscalerInterface()))
+			// {
+			// 	InViewFamily.SetPrimarySpatialUpscalerInterface(new FMetalFXSpatialUpscaler(Upscaler));
+			// }
 #endif //METALFX_PLUGIN_ENABLED
 		}
 	}
@@ -245,7 +270,7 @@ void FMetalFXViewExtension::BeginRenderViewFamily(FSceneViewFamily& InViewFamily
 		}
 	}
 #endif //METALFX_PLUGIN_ENABLED
-	AddMetalFXStatusDebugMessages(bMetalFXSupported, bMetalFXEnabled, bIsEnabledThisFrame, &ActiveDebugInfo);
+	AddMetalFXStatusDebugMessages(bMetalFXSupported, bMetalFXEnabled, bIsEnabledThisFrame, UpscalerMode, &ActiveDebugInfo);
 #endif
 }
 

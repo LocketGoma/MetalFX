@@ -1,5 +1,4 @@
 #include "MetalFXTemporalUpscaler.h"
-
 #include "MetalFXSettings.h"
 
 #if METALFX_PLUGIN_ENABLED
