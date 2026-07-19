@@ -76,7 +76,7 @@ void FMetalFXModule::StartupModule()
 	if (FApp::IsGame() || GIsEditor)
 	{
 		//콘솔 설정 추가
-		FCoreDelegates::OnPostEngineInit.AddLambda([]() {
+		OnPostEngineInitSettings = FCoreDelegates::OnPostEngineInit.AddLambda([]() {
 			const UMetalFXSettings* Settings = GetDefault<UMetalFXSettings>();
 			if (!Settings)
 			{
@@ -140,6 +140,7 @@ void FMetalFXModule::StartupModule()
 
 void FMetalFXModule::ShutdownModule()
 {
+	FCoreDelegates::OnPostEngineInit.Remove(OnPostEngineInitSettings);
 	FCoreDelegates::OnPostEngineInit.Remove(OnPostRHIInitialized);
 	FCoreDelegates::OnPostEngineInit.RemoveAll(this);
 

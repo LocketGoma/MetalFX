@@ -40,6 +40,7 @@ public:
 private:
 	FMetalFXUpscalerCore* CreateMetalFXUpscaler(EMetalFXUpscalerMode RequestedMode);
 	void HandlePostRHIInitialized();
+	FDelegateHandle OnPostEngineInitSettings;
 	FDelegateHandle OnPostRHIInitialized;
 private:
 	// The module is the sole Core owner. Adapters keep non-owning typed pointers.
