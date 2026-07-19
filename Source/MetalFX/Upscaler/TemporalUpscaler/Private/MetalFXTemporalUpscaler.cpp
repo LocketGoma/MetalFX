@@ -204,7 +204,11 @@ ITemporalUpscaler::FOutputs FMetalFXTemporalUpscaler::AddPasses(FRDGBuilder& Gra
 
 	FMetalFXUpscalerCore* UpscalerCore = m_FxUpscaler;
 	
-	ERDGPassFlags Flags = ERDGPassFlags::Compute | ERDGPassFlags::Raster | ERDGPassFlags::SkipRenderPass | ERDGPassFlags::Copy | ERDGPassFlags::NeverCull;
+	/* Note : MetalFX encodes directly into the active Metal command buffer rather than using an RDG shader dispatch.
+	 * Keep this on the graphics/raster path, but skip RDG render-pass begin/end so MetalFX can encode outside an active
+	 *  render pass. Removing Raster/SkipRenderPass has caused MetalRHI command buffer failures.
+	 */
+	ERDGPassFlags Flags = ERDGPassFlags::Compute | ERDGPassFlags::Raster | ERDGPassFlags::SkipRenderPass | ERDGPassFlags::NeverCull;
 	
 	GraphBuilder.AddPass(RDG_EVENT_NAME("MetalFXTemporalUpscaler"), PassParams, Flags, 
 	[UpscalerCore, PassParams, DescriptorInputExtent, InputContentExtent, InputContentRect, OutputExtents, OutputViewRect = Inputs.OutputViewRect, ScreenPercentage, JitterOffset, MotionVectorScale](FRHICommandListImmediate& RHICmdList)
