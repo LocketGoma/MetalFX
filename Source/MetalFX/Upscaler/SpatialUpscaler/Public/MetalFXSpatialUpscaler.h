@@ -1,26 +1,37 @@
 #pragma once
 
+#include "MetalFXSpatialUpscalerCore.h"
+
+
+
+/**
+ * WIP Unreal spatial adapter.
+ *
+ * It is compiled against the dedicated Spatial Core, but ViewExtension does
+ * not register it until real MetalFX SpatialScaler encode is implemented.
+ */
+
 /*
-#include "MetalFXUpscalerCore.h"
-#include "MetalFXHelper.h"
-
 #if METALFX_PLUGIN_ENABLED
-class ISpatialUpscaler;
-
 class FMetalFXSpatialUpscaler final : public ISpatialUpscaler
 {
 public:
-	FMetalFXSpatialUpscaler(FMetalFXUpscalerCore* InUpscaler);
+	explicit FMetalFXSpatialUpscaler(FMetalFXSpatialUpscalerCore* InUpscaler);
 
-	const bool GetIsSupportedDevice();
-	const TCHAR* GetDebugName() const override { return TEXT("MetalFXSpatialUpscaler"); }
+	bool GetIsSupportedDevice() const;
+	virtual const TCHAR* GetDebugName() const override { return TEXT("MetalFXSpatialUpscaler"); }
 
-	virtual ISpatialUpscaler* Fork_GameThread(const class FSceneViewFamily& ViewFamily) const final override;
-	virtual FScreenPassTexture AddPasses(FRDGBuilder& GraphBuilder, const FViewInfo& View, const FInputs& PassInputs) const override;
-	const void CheckValidate() const;
+	virtual ISpatialUpscaler* Fork_GameThread(const FSceneViewFamily& ViewFamily) const final override;
+	virtual FScreenPassTexture AddPasses(
+		FRDGBuilder& GraphBuilder,
+		const FViewInfo& View,
+		const FInputs& PassInputs) const override;
 
 private:
-	FMetalFXUpscalerCore* m_FxUpscaler;
+	void CheckValidate() const;
+
+	// Non-owning. FMetalFXModule owns the Core for the module lifetime.
+	FMetalFXSpatialUpscalerCore* m_FxUpscaler = nullptr;
 };
-#endif //METALFX_PLUGIN_ENABLED
+#endif
 */

@@ -138,7 +138,7 @@ int32 MetalFXQuerySupportReason()
 #ifdef __cplusplus
 extern "C"
 #endif
-id<MTLFXTemporalScaler> MetalFXCreateTemporalUpscaler(id<MTLDevice> Device, const FMetalFXTextureFormatGroup Formats, int InputWidth, int InputHeight, int OutputWidth, int OutputHeight) 
+id<MTLFXTemporalScaler> MetalFXCreateTemporalUpscaler(id<MTLDevice> Device, const FMetalFXTemporalTextureFormatGroup Formats, int InputWidth, int InputHeight, int OutputWidth, int OutputHeight)
 {
 #if METALFX_PLUGIN_ENABLED
 	// 이 버전 이하에선 MetalFX 자체를 못쓰도록 처리
@@ -162,6 +162,7 @@ id<MTLFXTemporalScaler> MetalFXCreateTemporalUpscaler(id<MTLDevice> Device, cons
 	Desc.autoExposureEnabled = true;
 	
 	id<MTLFXTemporalScaler> Scaler = [Desc newTemporalScalerWithDevice:Device];
+	[Desc release];
 	
 	return Scaler;
 

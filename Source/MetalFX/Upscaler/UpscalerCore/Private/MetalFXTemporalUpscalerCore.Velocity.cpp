@@ -6,7 +6,7 @@
  *
  * Do not copy proprietary DLSS implementation code into this file.
  */
-#include "MetalFXUpscalerCore.h"
+#include "MetalFXTemporalUpscalerCore.h"
 #include "RenderGraphBuilder.h"
 #include "RenderGraphUtils.h"
 
@@ -16,30 +16,30 @@ static bool IsFallbackVelocityTexture(FRDGTextureRef VelocityTexture)
 }
 
 //Color 와의 비교 기준이 "Input" 인지 "output" 인지 반드시 확인 필요!
-FRDGTextureRef FMetalFXUpscalerCore::PrepareVelocityTexture(FRDGBuilder& GraphBuilder, const FSceneView& View, FRDGTextureRef InSceneColorTexture, FRDGTextureRef InSceneDepthTexture, FRDGTextureRef InVelocityTexture, FIntRect InputViewRect, FIntRect OutputViewRect, FVector2D TemporalJitterPixels)
+FRDGTextureRef FMetalFXTemporalUpscalerCore::PrepareVelocityTexture(FRDGBuilder& GraphBuilder, const FSceneView& View, FRDGTextureRef InSceneColorTexture, FRDGTextureRef InSceneDepthTexture, FRDGTextureRef InVelocityTexture, FIntRect InputViewRect, FIntRect OutputViewRect, FVector2D TemporalJitterPixels)
 {
 	if (!InSceneColorTexture)
 	{
 		return InVelocityTexture;
 	}
-	
+
 	if (IsFallbackVelocityTexture(InVelocityTexture))
 	{
 		return AddBlackVelocityTexturePass(GraphBuilder, InputViewRect.Size());
-	}	
-	
+	}
+
 	//To do
 	return GenerateVelocityTexturePass(GraphBuilder, View, InSceneDepthTexture, InVelocityTexture, InputViewRect, InputViewRect, TemporalJitterPixels);
 }
 
 
-FRDGTextureRef FMetalFXUpscalerCore::GenerateVelocityTexturePass(FRDGBuilder& GraphBuilder, const FSceneView& View, FRDGTextureRef InSceneDepthTexture, FRDGTextureRef InVelocityTexture, FIntRect InputViewRect, FIntRect OutputViewRect, FVector2D TemporalJitterPixels)
+FRDGTextureRef FMetalFXTemporalUpscalerCore::GenerateVelocityTexturePass(FRDGBuilder& GraphBuilder, const FSceneView& View, FRDGTextureRef InSceneDepthTexture, FRDGTextureRef InVelocityTexture, FIntRect InputViewRect, FIntRect OutputViewRect, FVector2D TemporalJitterPixels)
 {
-	return InVelocityTexture;	
+	return InVelocityTexture;
 }
 
 //임시 조치용 검은색 VelocityTexture
-FRDGTextureRef FMetalFXUpscalerCore::AddBlackVelocityTexturePass(FRDGBuilder& GraphBuilder, FIntPoint OutputExtent)
+FRDGTextureRef FMetalFXTemporalUpscalerCore::AddBlackVelocityTexturePass(FRDGBuilder& GraphBuilder, FIntPoint OutputExtent)
 {
 	FRDGTextureDesc Desc = FRDGTextureDesc::Create2D(
 	OutputExtent,

@@ -1,37 +1,38 @@
-/*
 #include "MetalFXSpatialUpscaler.h"
 
+/*
 #if METALFX_PLUGIN_ENABLED
-const void FMetalFXSpatialUpscaler::CheckValidate() const
+void FMetalFXSpatialUpscaler::CheckValidate() const
 {
-	checkf(m_FxUpscaler, TEXT("MetalFX Upscaler is not ready. Check MetalFXSpatialUpscaler for more information."));
+	checkf(m_FxUpscaler, TEXT("MetalFX Spatial Core is not ready."));
 }
 
-FMetalFXSpatialUpscaler::FMetalFXSpatialUpscaler(FMetalFXUpscalerCore* InUpscaler)
+FMetalFXSpatialUpscaler::FMetalFXSpatialUpscaler(FMetalFXSpatialUpscalerCore* InUpscaler)
+	: m_FxUpscaler(InUpscaler)
 {
-	m_FxUpscaler = InUpscaler;
 }
 
-const bool FMetalFXSpatialUpscaler::GetIsSupportedDevice()
+bool FMetalFXSpatialUpscaler::GetIsSupportedDevice() const
 {
-	if (m_FxUpscaler)
-	{
-		return (m_FxUpscaler->GetIsSupportedDevice() == EMetalFXSupportReason::Supported);
-	}
-	return false;
+	return m_FxUpscaler
+		&& m_FxUpscaler->GetIsSupportedDevice() == EMetalFXSupportReason::Supported;
 }
 
-ISpatialUpscaler* FMetalFXSpatialUpscaler::Fork_GameThread(const class FSceneViewFamily& ViewFamily) const
+ISpatialUpscaler* FMetalFXSpatialUpscaler::Fork_GameThread(const FSceneViewFamily& ViewFamily) const
 {
 	return new FMetalFXSpatialUpscaler(m_FxUpscaler);
 }
 
-FScreenPassTexture FMetalFXSpatialUpscaler::AddPasses(FRDGBuilder& GraphBuilder, const FViewInfo& View, const FInputs& PassInputs) const
+FScreenPassTexture FMetalFXSpatialUpscaler::AddPasses(
+	FRDGBuilder& GraphBuilder,
+	const FViewInfo& View,
+	const FInputs& PassInputs) const
 {
 	CheckValidate();
 
-	// WIP: keep the spatial mode path alive until MetalFX SpatialScaler is wired.
+	// WIP: registration remains disabled. If the adapter is exercised directly,
+	// preserve a safe Unreal bilinear fallback instead of pretending to encode.
 	return ISpatialUpscaler::AddDefaultUpscalePass(GraphBuilder, View, PassInputs, EUpscaleMethod::Bilinear);
 }
-#endif //METALFX_PLUGIN_ENABLED
+#endif
 */

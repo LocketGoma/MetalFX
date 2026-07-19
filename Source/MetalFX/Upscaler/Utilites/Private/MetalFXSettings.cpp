@@ -1,6 +1,11 @@
 #include "MetalFXSettings.h"
 #include "MetalFXHelper.h"
 
+static void ResetScreenPercentageCurrentSetBy(IConsoleVariable* CVarScreenPercentage)
+{
+	CVarScreenPercentage->Unset(static_cast<EConsoleVariableFlags>(CVarScreenPercentage->GetFlags() & ECVF_SetByMask));
+}
+
 void ApplyMetalFXQualityModeToScreenPercentage(EMetalFXQualityMode QualityMode)
 {
 	if (!CVarEnableMetalFX.GetValueOnGameThread())
@@ -10,7 +15,8 @@ void ApplyMetalFXQualityModeToScreenPercentage(EMetalFXQualityMode QualityMode)
 
 	if (IConsoleVariable* CVarScreenPercentage = IConsoleManager::Get().FindConsoleVariable(TEXT("r.ScreenPercentage")))
 	{
-		CVarScreenPercentage->SetWithCurrentPriority(ConvertMetalFXQualityModeToScreenPercentage(QualityMode));
+		ResetScreenPercentageCurrentSetBy(CVarScreenPercentage);
+		CVarScreenPercentage->Set(ConvertMetalFXQualityModeToScreenPercentage(QualityMode), ECVF_SetByCode);
 	}
 }
 
@@ -23,11 +29,12 @@ static bool NeedRestoreScreenPercentageOnDisable()
   return (!METALFX_DEBUG);
 }
 
-static void RestoreScreenPercentage()
+static void RestoreScreenPercentage(EConsoleVariableFlags SetBy = ECVF_SetByCode)
 {
 	if (IConsoleVariable* CVarScreenPercentage = IConsoleManager::Get().FindConsoleVariable(TEXT("r.ScreenPercentage")))
 	{
-		CVarScreenPercentage->SetWithCurrentPriority(100.0f);
+		ResetScreenPercentageCurrentSetBy(CVarScreenPercentage);
+		CVarScreenPercentage->Set(100.0f, SetBy);
 	}
 }
 

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "TemporalUpscaler.h"
-#include "MetalFXUpscalerCore.h"
+#include "MetalFXTemporalUpscalerCore.h"
 #include "MetalFXHelper.h"
 
 using ITemporalUpscaler = UE::Renderer::Private::ITemporalUpscaler;
@@ -37,7 +37,7 @@ class FMetalFXTemporalUpscaler final : public ITemporalUpscaler
 public:
 	virtual float GetMinUpsampleResolutionFraction() const override;
 	virtual float GetMaxUpsampleResolutionFraction() const override;
-	FMetalFXTemporalUpscaler(FMetalFXUpscalerCore* InUpscaler);
+	explicit FMetalFXTemporalUpscaler(FMetalFXTemporalUpscalerCore* InUpscaler);
 
 	const bool GetIsSupportedDevice();
 
@@ -47,7 +47,8 @@ public:
 	virtual ITemporalUpscaler::FOutputs AddPasses(FRDGBuilder& GraphBuilder, const FSceneView& View, const FInputs& Inputs) const override;
 	const void CheckValidate() const;
 private:
-	FMetalFXUpscalerCore* m_FxUpscaler;
+	// Non-owning. FMetalFXModule owns the Core for the module lifetime.
+	FMetalFXTemporalUpscalerCore* m_FxUpscaler;
 
 	mutable TRefCountPtr<IPooledRenderTarget> ReactiveExtractedTexture;
 };

@@ -17,7 +17,7 @@ float FMetalFXTemporalUpscaler::GetMaxUpsampleResolutionFraction() const
 	return m_FxUpscaler->GetMaxUpsampleResolutionFraction();
 }
 
-FMetalFXTemporalUpscaler::FMetalFXTemporalUpscaler(FMetalFXUpscalerCore* InUpscaler)
+FMetalFXTemporalUpscaler::FMetalFXTemporalUpscaler(FMetalFXTemporalUpscalerCore* InUpscaler)
 {
 	m_FxUpscaler = InUpscaler;
 }
@@ -182,7 +182,7 @@ ITemporalUpscaler::FOutputs FMetalFXTemporalUpscaler::AddPasses(FRDGBuilder& Gra
 	TRefCountPtr<ITemporalUpscaler::IHistory>* OutputCustomHistory = &Outputs.NewHistory;
 		
 	//4. Velocity Texture 보정 & 생성
-	FRDGTextureRef GeneratedVelocityTexture = FMetalFXUpscalerCore::PrepareVelocityTexture
+	FRDGTextureRef GeneratedVelocityTexture = FMetalFXTemporalUpscalerCore::PrepareVelocityTexture
 	(GraphBuilder, View, Inputs.SceneColor.Texture, 
 	Inputs.SceneDepth.Texture, Inputs.SceneVelocity.Texture, 
 	InputContentRect, Inputs.OutputViewRect, View.ViewMatrices.GetTemporalAAJitter());
@@ -195,13 +195,23 @@ ITemporalUpscaler::FOutputs FMetalFXTemporalUpscaler::AddPasses(FRDGBuilder& Gra
 	LogTemporalUpscalerInputsForMetalFX(Inputs, OutputTexture);
 #endif
 	
-	auto* PassParams = GraphBuilder.AllocParameters<FMetalFXParameters>();
+	auto* PassParams = GraphBuilder.AllocParameters<FMetalFXTemporalPassParameters>();
 	PassParams->ColorTexture = Inputs.SceneColor.Texture;
 	PassParams->DepthTexture = Inputs.SceneDepth.Texture;
 	PassParams->VelocityTexture = GeneratedVelocityTexture;
 	PassParams->OutputTexture = OutputTexture;
 
-	FMetalFXUpscalerCore* UpscalerCore = m_FxUpscaler;
+	FMetalFXTemporalUpscalerCore* UpscalerCore = m_FxUpscaler;
+
+	FMetalFXTemporalEncodeInputs EncodeInputs;
+	EncodeInputs.InputTextureExtent = DescriptorInputExtent;
+	EncodeInputs.InputContentExtent = InputContentExtent;
+	EncodeInputs.OutputExtent = OutputExtents;
+	EncodeInputs.InputRect = InputContentRect;
+	EncodeInputs.OutputRect = Inputs.OutputViewRect;
+	EncodeInputs.JitterOffset = JitterOffset;
+	EncodeInputs.MotionVectorScale = MotionVectorScale;
+	EncodeInputs.ScreenPercentage = ScreenPercentage;
 	
 	/* Note : MetalFX encodes directly into the active Metal command buffer rather than using an RDG shader dispatch.
 	 * Keep this on the graphics/raster path, but skip RDG render-pass begin/end so MetalFX can encode outside an active
@@ -210,14 +220,14 @@ ITemporalUpscaler::FOutputs FMetalFXTemporalUpscaler::AddPasses(FRDGBuilder& Gra
 	ERDGPassFlags Flags = ERDGPassFlags::Compute | ERDGPassFlags::Raster | ERDGPassFlags::SkipRenderPass | ERDGPassFlags::NeverCull;
 	
 	GraphBuilder.AddPass(RDG_EVENT_NAME("MetalFXTemporalUpscaler"), PassParams, Flags, 
-	[UpscalerCore, PassParams, DescriptorInputExtent, InputContentExtent, InputContentRect, OutputExtents, OutputViewRect = Inputs.OutputViewRect, ScreenPercentage, JitterOffset, MotionVectorScale](FRHICommandListImmediate& RHICmdList)
+	[UpscalerCore, PassParams, EncodeInputs](FRHICommandListImmediate& RHICmdList)
 	{
 		if (!UpscalerCore)
 		{
 			return;
 		}
 
-		FMetalFXTextureGroup LocalTextureGroup;
+		FMetalFXTemporalTextureGroup LocalTextureGroup;
 		if (!UpscalerCore->SetTexturesToGroup(*PassParams, LocalTextureGroup))
 		{
 			UE_LOG(LogMetalFX, Error, TEXT("MetalFX upscaler texture setup failed."));
@@ -225,12 +235,8 @@ ITemporalUpscaler::FOutputs FMetalFXTemporalUpscaler::AddPasses(FRDGBuilder& Gra
 		}
 		
 		//실행 가능할때만 Enqueue로 보냄.
-		if (UpscalerCore->CheckForExecuteMetalFX(DescriptorInputExtent, InputContentExtent, OutputExtents))
+		if (UpscalerCore->PrepareToEncode(EncodeInputs))
 		{
-			UpscalerCore->SetJitterOffset(JitterOffset);
-			UpscalerCore->SetMotionVectorScale(MotionVectorScale);
-			UpscalerCore->UpdateActiveDebugInfo(InputContentRect, OutputViewRect, ScreenPercentage);
-
 			RHICmdList.EnqueueLambda([UpscalerCore, TextureGroup = MoveTemp(LocalTextureGroup)](FRHICommandListImmediate& Cmd) mutable
 			{	
 				UpscalerCore->ExecuteMetalFX(Cmd, TextureGroup);

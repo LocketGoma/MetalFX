@@ -115,16 +115,16 @@ inline float GetMetalFXMaxUpscaleResolutionFraction()
 
 //텍스쳐 포멧 그룹
 using FMetalFXPixelFormat = uint64_t;
-struct FMetalFXTextureFormatGroup
+struct FMetalFXTemporalTextureFormatGroup
 {
 	FMetalFXPixelFormat Color = 0;
 	FMetalFXPixelFormat Depth = 0;
 	FMetalFXPixelFormat Motion = 0;
 	FMetalFXPixelFormat Output = 0;
 
-	FMetalFXTextureFormatGroup() = default;
+	FMetalFXTemporalTextureFormatGroup() = default;
 	
-	FMetalFXTextureFormatGroup& operator =(const FMetalFXTextureFormatGroup& InFormats)
+	FMetalFXTemporalTextureFormatGroup& operator =(const FMetalFXTemporalTextureFormatGroup& InFormats)
 	{
 		if (this != &InFormats)
 		{
@@ -139,7 +139,7 @@ struct FMetalFXTextureFormatGroup
 		return *this;
 	}
 	
-	FMetalFXTextureFormatGroup(const FMetalFXTextureFormatGroup& InFormats)
+	FMetalFXTemporalTextureFormatGroup(const FMetalFXTemporalTextureFormatGroup& InFormats)
 	{
 		bIsChanged = (Color != InFormats.Color || Depth != InFormats.Depth || Motion != InFormats.Motion || Output != InFormats.Output);
 		
@@ -149,7 +149,7 @@ struct FMetalFXTextureFormatGroup
 		Output = InFormats.Output;
 	}
 	
-	bool UpdateChangeState(const FMetalFXTextureFormatGroup& InFormats)
+	bool UpdateChangeState(const FMetalFXTemporalTextureFormatGroup& InFormats)
 	{
 		bIsChanged = IsChanged(InFormats);
 		return bIsChanged;
@@ -160,7 +160,7 @@ struct FMetalFXTextureFormatGroup
 		return bIsChanged;
 	}
 
-	bool IsChanged(const FMetalFXTextureFormatGroup& InFormats) const
+	bool IsChanged(const FMetalFXTemporalTextureFormatGroup& InFormats) const
 	{
 		return Color != InFormats.Color || Depth != InFormats.Depth || Motion != InFormats.Motion || Output != InFormats.Output;
 	}
@@ -179,10 +179,15 @@ private:
 	bool bIsChanged = false;
 };
 
-BEGIN_SHADER_PARAMETER_STRUCT(FMetalFXParameters, )
+BEGIN_SHADER_PARAMETER_STRUCT(FMetalFXTemporalPassParameters, )
 	RDG_TEXTURE_ACCESS(ColorTexture, ERHIAccess::SRVMask)
 	RDG_TEXTURE_ACCESS(DepthTexture, ERHIAccess::SRVMask)
 	RDG_TEXTURE_ACCESS(VelocityTexture, ERHIAccess::SRVMask)
+	RDG_TEXTURE_ACCESS(OutputTexture, ERHIAccess::UAVMask)
+END_SHADER_PARAMETER_STRUCT()
+
+BEGIN_SHADER_PARAMETER_STRUCT(FMetalFXSpatialPassParameters, )
+	RDG_TEXTURE_ACCESS(ColorTexture, ERHIAccess::SRVMask)
 	RDG_TEXTURE_ACCESS(OutputTexture, ERHIAccess::UAVMask)
 END_SHADER_PARAMETER_STRUCT()
 
@@ -198,6 +203,8 @@ namespace MTL
 
 namespace MTLFX
 {
+	class SpatialScaler;
+	class SpatialScalerDescriptor;
 	class TemporalScaler;
 	class TemporalScalerDescriptor;
 }
@@ -209,27 +216,37 @@ namespace MTLFX
 struct FMetalFXCppTextureView
 {	
 	FMetalFXCppTextureView() = default;
-	FMetalFXCppTextureView(const FMetalFXCppTextureView& inTexview)
+	FMetalFXCppTextureView(const FMetalFXCppTextureView&) = delete;
+	FMetalFXCppTextureView& operator=(const FMetalFXCppTextureView&) = delete;
+
+	FMetalFXCppTextureView(FMetalFXCppTextureView&& Other) noexcept
+	{
+		MoveFrom(Other);
+	}
+
+	FMetalFXCppTextureView& operator=(FMetalFXCppTextureView&& Other) noexcept
+	{
+		if (this != &Other)
+		{
+			ReleaseTexture();
+			MoveFrom(Other);
+		}
+		return *this;
+	}
+
+	~FMetalFXCppTextureView()
 	{
 		ReleaseTexture();
-		
-		Texture = inTexview.Texture;
-		bNeedsRelease = inTexview.bNeedsRelease;
-		bIsValid = inTexview.bIsValid;	
 	}
 
 public:
 	void SetTexture(MTL::Texture* inTexture, bool isNeedRelease = false)
 	{
-		//기존 텍스쳐 정리
-		if (bIsValid == false)
-		{
-			ReleaseTexture();
-		}
+		ReleaseTexture();
 		
 		Texture = inTexture;
 		bNeedsRelease = isNeedRelease;
-		bIsValid = true;
+		bIsValid = inTexture != nullptr;
 	}
 	
 	MTL::Texture* GetTexture()
@@ -282,7 +299,18 @@ public:
 		return bIsValid && Texture != nullptr;
 	}
 	
-private:	
+private:
+	void MoveFrom(FMetalFXCppTextureView& Other)
+	{
+		Texture = Other.Texture;
+		bNeedsRelease = Other.bNeedsRelease;
+		bIsValid = Other.bIsValid;
+
+		Other.Texture = nullptr;
+		Other.bNeedsRelease = false;
+		Other.bIsValid = false;
+	}
+
 	MTL::Texture* Texture = nullptr;
 	bool bNeedsRelease = false;
 	bool bIsValid = false;
@@ -295,13 +323,22 @@ private:
 struct FMetalFXObjCTextureView
 {	
 	FMetalFXObjCTextureView() = default;
-	FMetalFXObjCTextureView(const FMetalFXObjCTextureView& inTexview)
+	FMetalFXObjCTextureView(const FMetalFXObjCTextureView&) = delete;
+	FMetalFXObjCTextureView& operator=(const FMetalFXObjCTextureView&) = delete;
+
+	FMetalFXObjCTextureView(FMetalFXObjCTextureView&& Other) noexcept
 	{
-		ReleaseTexture();
-		
-		Texture = inTexview.Texture;
-		bNeedsRelease = inTexview.bNeedsRelease;
-		bIsValid = inTexview.bIsValid;
+		MoveFrom(Other);
+	}
+
+	FMetalFXObjCTextureView& operator=(FMetalFXObjCTextureView&& Other) noexcept
+	{
+		if (this != &Other)
+		{
+			ReleaseTexture();
+			MoveFrom(Other);
+		}
+		return *this;
 	}
 
 	~FMetalFXObjCTextureView()
@@ -311,15 +348,11 @@ struct FMetalFXObjCTextureView
 	
 	void SetTexture(id<MTLTexture> inTexture, bool isNeedRelease = false)
 	{
-		//기존 텍스쳐 정리
-		if (bIsValid == false)
-		{
-			ReleaseTexture();
-		}
+		ReleaseTexture();
 		
 		Texture = inTexture;
 		bNeedsRelease = isNeedRelease;
-		bIsValid = true;
+		bIsValid = inTexture != nil;
 	}
 	
 	id<MTLTexture> GetTexture()
@@ -368,19 +401,36 @@ struct FMetalFXObjCTextureView
 		return bIsValid && Texture != nil;
 	}
 	
-private:	
+private:
+	void MoveFrom(FMetalFXObjCTextureView& Other)
+	{
+		Texture = Other.Texture;
+		bNeedsRelease = Other.bNeedsRelease;
+		bIsValid = Other.bIsValid;
+
+		Other.Texture = nil;
+		Other.bNeedsRelease = false;
+		Other.bIsValid = false;
+	}
+
 	id<MTLTexture> Texture = nil;
 	bool bNeedsRelease = false;
 	bool bIsValid = false;
 };
 #endif
 
-//해제 일괄처리
-struct FMetalFXTextureGroup
+#if METALFX_METALCPP
+using FMetalFXTextureView = FMetalFXCppTextureView;
+#elif METALFX_NATIVE
+using FMetalFXTextureView = FMetalFXObjCTextureView;
+#endif
+
+// Temporal 전용 텍스처 그룹. Spatial Core에서 재사용하지 않는다.
+struct FMetalFXTemporalTextureGroup
 {
-	FMetalFXTextureGroup() = default;
+	FMetalFXTemporalTextureGroup() = default;
 	
-	FMetalFXTextureGroup(FMetalFXTextureGroup&& Other) noexcept
+	FMetalFXTemporalTextureGroup(FMetalFXTemporalTextureGroup&& Other) noexcept
 	{
 		ColorTexture 	= MoveTemp(Other.ColorTexture);
 		DepthTexture 	= MoveTemp(Other.DepthTexture);
@@ -391,7 +441,7 @@ struct FMetalFXTextureGroup
 		Other.bReleased = true; // 포인터가 옮겨진것 뿐이라, 원본 그룹에서 소멸 처리하면 꼬임
 	}
 	
-	~FMetalFXTextureGroup()
+	~FMetalFXTemporalTextureGroup()
 	{
 		if (!bReleased)
 		{
@@ -411,12 +461,12 @@ public:
 	}
 	
 #if METALFX_METALCPP
-	void TextureRelease(FMetalFXCppTextureView TargetTexture)
+	void TextureRelease(FMetalFXCppTextureView& TargetTexture)
 	{
 		TargetTexture.ReleaseTexture();
 	}
 	
-	void ReleaseTextureDeferred(FMetalFXCppTextureView TargetTexture, MTL::CommandBuffer* CommandBuffer)
+	void ReleaseTextureDeferred(FMetalFXCppTextureView& TargetTexture, MTL::CommandBuffer* CommandBuffer)
 	{
 		TargetTexture.ReleaseTextureDeferred(CommandBuffer);
 	}
@@ -438,12 +488,12 @@ public:
 #endif
 	
 #if METALFX_NATIVE
-	void TextureRelease(FMetalFXObjCTextureView TargetTexture)
+	void TextureRelease(FMetalFXObjCTextureView& TargetTexture)
 	{
 		TargetTexture.ReleaseTexture();
 	}
 	
-	void ReleaseTextureDeferred(FMetalFXObjCTextureView TargetTexture, id<MTLCommandBuffer> CommandBuffer)
+	void ReleaseTextureDeferred(FMetalFXObjCTextureView& TargetTexture, id<MTLCommandBuffer> CommandBuffer)
 	{
 		TargetTexture.ReleaseTextureDeferred(CommandBuffer);
 	}
@@ -464,6 +514,56 @@ public:
 	FMetalFXObjCTextureView OutputTexture;
 #endif
 	
+	bool bReleased = false;
+};
+
+// Spatial 전용 텍스처 그룹. Temporal history 입력을 의도적으로 포함하지 않는다.
+struct FMetalFXSpatialTextureGroup
+{
+	FMetalFXSpatialTextureGroup() = default;
+
+	FMetalFXSpatialTextureGroup(FMetalFXSpatialTextureGroup&& Other) noexcept
+	{
+		ColorTexture = MoveTemp(Other.ColorTexture);
+		OutputTexture = MoveTemp(Other.OutputTexture);
+
+		bReleased = Other.bReleased;
+		Other.bReleased = true;
+	}
+
+	~FMetalFXSpatialTextureGroup()
+	{
+		if (!bReleased)
+		{
+			ReleaseAllTexture();
+		}
+	}
+
+	void ReleaseAllTexture()
+	{
+		ColorTexture.ReleaseTexture();
+		OutputTexture.ReleaseTexture();
+		bReleased = true;
+	}
+
+#if METALFX_METALCPP
+	void ReleaseAllTextureDeferred(MTL::CommandBuffer* CommandBuffer)
+	{
+		ColorTexture.ReleaseTextureDeferred(CommandBuffer);
+		OutputTexture.ReleaseTextureDeferred(CommandBuffer);
+		bReleased = true;
+	}
+#elif METALFX_NATIVE
+	void ReleaseAllTextureDeferred(id<MTLCommandBuffer> CommandBuffer)
+	{
+		ColorTexture.ReleaseTextureDeferred(CommandBuffer);
+		OutputTexture.ReleaseTextureDeferred(CommandBuffer);
+		bReleased = true;
+	}
+#endif
+
+	FMetalFXTextureView ColorTexture;
+	FMetalFXTextureView OutputTexture;
 	bool bReleased = false;
 };
 

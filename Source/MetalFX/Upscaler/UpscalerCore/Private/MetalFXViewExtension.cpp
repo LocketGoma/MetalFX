@@ -2,7 +2,6 @@
 #include "MetalFXUpscalerCore.h"
 #include "MetalFX.h"
 #include "MetalFXSettings.h"
-//#include "MetalFXSpatialUpscaler.h"
 #include "MetalFXTemporalUpscaler.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
@@ -68,7 +67,7 @@ static const TCHAR* GetMetalFXUpscalerModeName(EMetalFXUpscalerMode UpscalerMode
 	}
 }
 
-static void AddMetalFXStatusDebugMessages(bool bCanActivate, bool bIsSupported, bool bIsActive, EMetalFXUpscalerMode UpscalerMode, const FMetalFXActiveDebugInfo* ActiveDebugInfo = nullptr)
+static void AddMetalFXStatusDebugMessages(bool bCanActivate, bool bEnableInEditor, bool bIsActive, EMetalFXUpscalerMode UpscalerMode, const FMetalFXActiveDebugInfo* ActiveDebugInfo = nullptr)
 {
 	if (!GEngine)
 	{
@@ -101,8 +100,8 @@ static void AddMetalFXStatusDebugMessages(bool bCanActivate, bool bIsSupported, 
 		GEngine->AddOnScreenDebugMessage(
 			InEditorMessageKey,
 			MessageDuration,
-			bIsSupported ? FColor::Emerald : FColor::Yellow,
-			FString::Printf(TEXT("Apple MetalFX Editor SupportState : %s"), bIsSupported ? TEXT("Enabled") : TEXT("Disabled")),
+			bEnableInEditor ? FColor::Emerald : FColor::Yellow,
+			FString::Printf(TEXT("Apple MetalFX Editor SupportState : %s"), bEnableInEditor ? TEXT("Enabled") : TEXT("Disabled")),
 			true);
 	}
 	
@@ -235,20 +234,33 @@ void FMetalFXViewExtension::BeginRenderViewFamily(FSceneViewFamily& InViewFamily
 //Metal RHI 인 경우에 View Extension이 만들어지긴 하나, Plugin은 Disabled 일 수 있음.			
 #if METALFX_PLUGIN_ENABLED
 			FMetalFXModule& MetalFXModule = FModuleManager::GetModuleChecked<FMetalFXModule>(TEXT("MetalFX"));
-			FMetalFXUpscalerCore* Upscaler = MetalFXModule.GetMetalFXUpscaler();
-			
-			if (!Upscaler)
+			if (!MetalFXModule.GetMetalFXUpscaler())
 			{
+				// Enabled only controls activation. Without the startup-created
+				// Core, no upscaler logic is allowed to run.
 				bIsCheckPassed = false;
 			}
-			
-			if (UpscalerMode == EMetalFXUpscalerMode::Temporal && bIsCheckPassed && (!InViewFamily.GetTemporalUpscalerInterface()))
+
+			if (UpscalerMode == EMetalFXUpscalerMode::Temporal
+				&& bIsCheckPassed
+				&& !InViewFamily.GetTemporalUpscalerInterface())
 			{
-				InViewFamily.SetTemporalUpscalerInterface(new FMetalFXTemporalUpscaler(Upscaler));
+				if (FMetalFXTemporalUpscalerCore* TemporalCore = MetalFXModule.GetMetalFXTemporalUpscaler())
+				{
+					InViewFamily.SetTemporalUpscalerInterface(new FMetalFXTemporalUpscaler(TemporalCore));
+				}
+				else
+				{
+					bIsCheckPassed = false;
+				}
 			}
-			// else if (UpscalerMode == EMetalFXUpscalerMode::Spatial && bIsCheckPassed && (!InViewFamily.GetPrimarySpatialUpscalerInterface()))
+			// WIP: when SpatialScaler encode is implemented, request the typed
+			// Spatial Core here with GetMetalFXSpatialUpscaler(). Do not register
+			// the bilinear fallback adapter as a real MetalFX path yet.
+			// else if (UpscalerMode == EMetalFXUpscalerMode::Spatial && bIsCheckPassed && !InViewFamily.GetPrimarySpatialUpscalerInterface())
 			// {
-			// 	InViewFamily.SetPrimarySpatialUpscalerInterface(new FMetalFXSpatialUpscaler(Upscaler));
+			// 	FMetalFXSpatialUpscalerCore* SpatialCore = MetalFXModule.GetMetalFXSpatialUpscaler();
+			// 	InViewFamily.SetPrimarySpatialUpscalerInterface(new FMetalFXSpatialUpscaler(SpatialCore));
 			// }
 #endif //METALFX_PLUGIN_ENABLED
 		}
@@ -258,6 +270,7 @@ void FMetalFXViewExtension::BeginRenderViewFamily(FSceneViewFamily& InViewFamily
 #if !UE_BUILD_SHIPPING
 	// Show availability and active runtime state as separate debug lines.
 	const bool bIsEnabledThisFrame = bIsCheckPassed && bMetalFXEnabled;
+	const bool bEnableInEditor = CvarEnableMetalFXInEditor.GetValueOnGameThread();
 	FMetalFXActiveDebugInfo ActiveDebugInfo;
 #if METALFX_PLUGIN_ENABLED
 	if (bMetalFXSupported)
@@ -270,7 +283,7 @@ void FMetalFXViewExtension::BeginRenderViewFamily(FSceneViewFamily& InViewFamily
 		}
 	}
 #endif //METALFX_PLUGIN_ENABLED
-	AddMetalFXStatusDebugMessages(bMetalFXSupported, bMetalFXEnabled, bIsEnabledThisFrame, UpscalerMode, &ActiveDebugInfo);
+	AddMetalFXStatusDebugMessages(bMetalFXSupported, bEnableInEditor, bIsEnabledThisFrame, UpscalerMode, &ActiveDebugInfo);
 #endif
 }
 
@@ -320,7 +333,7 @@ bool FMetalFXViewExtension::IsActiveThisFrame_Internal(const FSceneViewExtension
 		return false;
 	}
 
-	//에디터에서는 PIE 환경에서만 켜지도록 처리
+	// Editor builds only allow MetalFX during PIE.
 	if (GIsEditor)
 	{
 		const bool bEnableInEditor = CvarEnableMetalFXInEditor.GetValueOnGameThread();
@@ -331,7 +344,7 @@ bool FMetalFXViewExtension::IsActiveThisFrame_Internal(const FSceneViewExtension
 			return false;
 		}
 		
-		return bEnableInEditor && (World->WorldType == EWorldType::PIE);
+		return bEnableInEditor && World->IsPlayInEditor();
 	}
 
 	return true;
