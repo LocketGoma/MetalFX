@@ -51,6 +51,11 @@ Its purpose is to verify Unreal Engine and MetalFX SDK integration, required eng
 [Latest Release Notes](https://github.com/LocketGoma/MetalFX/releases/latest)
 
 ---
+## Performance Profiling Results
+
+[Performance Validation (Apple M5 Pro)](Docs/PerformanceValidation.md)
+
+---
 ## Table of Contents
 
 - [English](#metalfx-for-unreal-plugin)
