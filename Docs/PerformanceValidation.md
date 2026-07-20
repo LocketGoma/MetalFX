@@ -1,7 +1,7 @@
 # Performance Validation
 
 > [!NOTE]
-> ### Performance Validation (Apple M5 Pro)
+> ### Performance Validation (Apple M5 Pro) - 260720 Ver 0.22
 >
 > | Screen Percentage | Upscaler Mode | Input Resolution | Output Resolution | CPU (FPS) | GPU (Frame Time) | MetalFX |
 > |:-----------------:|:-------------:|:----------------:|:-----------------:|----------:|-----------------:|:--------:|
