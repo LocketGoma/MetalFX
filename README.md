@@ -53,7 +53,7 @@ Its purpose is to verify Unreal Engine and MetalFX SDK integration, required eng
 ---
 ## Performance Profiling Results
 
-[Performance Validation (Apple M5 Pro)](Docs/PerformanceValidation.md)
+[Performance Profiling Lists](Docs/PerformanceValidation.md)
 
 ---
 ## Table of Contents
