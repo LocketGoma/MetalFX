@@ -219,7 +219,9 @@ void FMetalFXViewExtension::BeginRenderViewFamily(FSceneViewFamily& InViewFamily
 				bIsCheckPassed = false;
 				break;
 			case EMetalFXUpscalerMode::Spatial:
-				bIsCheckPassed = (View->PrimaryScreenPercentageMethod == EPrimaryScreenPercentageMethod::SpatialUpscale);
+				//bIsCheckPassed = (View->PrimaryScreenPercentageMethod == EPrimaryScreenPercentageMethod::SpatialUpscale);
+				// The Spatial adapter is intentionally disabled while its integration is still being implemented.
+				bIsCheckPassed = false;
 				break;
 			case EMetalFXUpscalerMode::Temporal:
 				bIsCheckPassed = (View->PrimaryScreenPercentageMethod == EPrimaryScreenPercentageMethod::TemporalUpscale);
@@ -249,6 +251,7 @@ void FMetalFXViewExtension::BeginRenderViewFamily(FSceneViewFamily& InViewFamily
 			{
 				if (UpscalerMode == EMetalFXUpscalerMode::Spatial && !InViewFamily.GetPrimarySpatialUpscalerInterface())
 				{
+					/*
 					if (FMetalFXSpatialUpscalerCore* SpatialCore = MetalFXModule.GetMetalFXSpatialUpscaler())
 					{
 						InViewFamily.SetPrimarySpatialUpscalerInterface(new FMetalFXSpatialUpscaler(SpatialCore));
@@ -257,6 +260,7 @@ void FMetalFXViewExtension::BeginRenderViewFamily(FSceneViewFamily& InViewFamily
 					{
 						bIsCheckPassed = false;
 					}
+					 */
 				}
 				
 				if (UpscalerMode == EMetalFXUpscalerMode::Temporal && !InViewFamily.GetTemporalUpscalerInterface())
@@ -316,6 +320,7 @@ void FMetalFXViewExtension::PreRenderViewFamily_RenderThread(FRenderGraphType& G
 
 	FMetalFXModule& MetalFXModule = FModuleManager::GetModuleChecked<FMetalFXModule>(TEXT("MetalFX"));
 	FMetalFXUpscalerCore* Upscaler = MetalFXModule.GetMetalFXUpscaler();
+	
 	if (!Upscaler)
 	{
 		return;
