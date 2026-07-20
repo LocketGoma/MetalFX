@@ -4,7 +4,6 @@
 
 class FMetalFXSpatialUpscalerCore;
 
-/*
 #if METALFX_PLUGIN_ENABLED
 class FMetalFXSpatialUpscaler final : public ISpatialUpscaler
 {
@@ -23,4 +22,3 @@ private:
 	FMetalFXSpatialUpscalerCore* m_FxUpscaler = nullptr;
 };
 #endif
-*/

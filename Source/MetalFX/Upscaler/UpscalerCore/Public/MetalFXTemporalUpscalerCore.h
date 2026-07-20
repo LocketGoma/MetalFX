@@ -30,9 +30,9 @@ public:
 	FMetalFXTemporalUpscalerCore();
 	virtual ~FMetalFXTemporalUpscalerCore() override;
 
-	virtual EMetalFXUpscalerMode GetUpscalerMode() const override
+	virtual EMetalFXUpscalerType GetUpscalerType() const override
 	{
-		return EMetalFXUpscalerMode::Temporal;
+		return EMetalFXUpscalerType::Temporal;
 	}
 
 	float GetMinUpsampleResolutionFraction() const;

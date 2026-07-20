@@ -119,7 +119,7 @@ TAutoConsoleVariable<float> CVarMetalFXSharpness(
 
 TAutoConsoleVariable<int32> CVarMetalFXUpscalerMode(
 	TEXT("r.MetalFX.UpscalerMode"),
-	static_cast<int32>(EMetalFXUpscalerMode::Temporal),
+	static_cast<int32>(EMetalFXUpscalerType::Temporal),
 	TEXT("Upscaler mode to be used when upscaling with MetalFX"),
 	ECVF_RenderThreadSafe);
 
@@ -137,7 +137,7 @@ UMetalFXSettings::UMetalFXSettings(const FObjectInitializer& ObjectInitializer)
 	bEnabled = false;
 	bEnableInEditor = false;
 	bDebugDisplay = true;
-	UpscalerMode = EMetalFXUpscalerMode::Temporal;
+	UpscalerMode = EMetalFXUpscalerType::Temporal;
 	Sharpness = 0.0f;
 	QualityMode = EMetalFXQualityMode::NativeAA;
 	JitterMode = 1;

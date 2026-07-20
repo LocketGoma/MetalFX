@@ -10,11 +10,8 @@
 #import <MetalFX/MetalFX.h>
 
 //MetalFX Upscaler 외의 유틸함수
-EMetalFXSupportedType GetMetalFXSupportedType();
+EMetalFXUpscalerType GetMetalFXUpscalerType();
 EMetalFXSupportReason GetMetalFXSupportReason();
-bool IsMetalFXUpscalerModeSupported(
-	EMetalFXSupportedType SupportedTypes,
-	EMetalFXUpscalerMode UpscalerMode);
 
 //Temporal MetalFX System Utility Functions
 extern "C" id<MTLFXTemporalScaler> MetalFXCreateTemporalUpscaler(

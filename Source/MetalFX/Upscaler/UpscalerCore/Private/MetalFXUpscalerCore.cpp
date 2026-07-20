@@ -193,34 +193,19 @@ EMetalFXSupportReason FMetalFXUpscalerCore::GetIsSupportedDevice()
 
 bool FMetalFXUpscalerCore::IsMetalFXSupported()
 {
-	return GetMetalFXSupportedType() != EMetalFXSupportedType::None;
+	return GetMetalFXUpscalerType() != EMetalFXUpscalerType::None;
 }
 
-EMetalFXSupportedType FMetalFXUpscalerCore::GetMetalFXSupportedType()
+EMetalFXUpscalerType FMetalFXUpscalerCore::GetMetalFXUpscalerType()
 {
 #if METALFX_PLUGIN_ENABLED
-	return ::GetMetalFXSupportedType();
+	return ::GetMetalFXUpscalerType();
 #else
-	return EMetalFXSupportedType::None;
+	return EMetalFXUpscalerType::None;
 #endif
 }
 
 EMetalFXSupportReason FMetalFXUpscalerCore::GetMetalFXSupportReason()
 {
 	return GetIsSupportedDevice();
-}
-
-bool FMetalFXUpscalerCore::IsUpscalerModeSupported(
-	EMetalFXSupportedType SupportedTypes,
-	EMetalFXUpscalerMode UpscalerMode)
-{
-	switch (UpscalerMode)
-	{
-	case EMetalFXUpscalerMode::Spatial:
-		return EnumHasAnyFlags(SupportedTypes, EMetalFXSupportedType::Spatial);
-	case EMetalFXUpscalerMode::Temporal:
-		return EnumHasAnyFlags(SupportedTypes, EMetalFXSupportedType::Temporal);
-	default:
-		return false;
-	}
 }

@@ -77,9 +77,7 @@ static BOOL IsMetalFXTemporalSupported()
 	}
 #endif
 
-	return NSClassFromString(@"MTLFXTemporalScalerDescriptor") != Nil
-		&& [MTLFXTemporalScalerDescriptor supportsDevice:MetalDevice]
-		&& [MetalDevice supportsFamily:MTLGPUFamilyApple9];
+	return (NSClassFromString(@"MTLFXTemporalScalerDescriptor") != Nil) && [MTLFXTemporalScalerDescriptor supportsDevice:MetalDevice] && [MetalDevice supportsFamily:MTLGPUFamilyApple9];
 }
 
 //내부 함수 - MetalFX 기동 조건 체크
@@ -88,13 +86,16 @@ static BOOL IsMetalFXSupported()
 	return IsMetalFXSpatialSupported() || IsMetalFXTemporalSupported();
 }
 
-EMetalFXSupportedType GetMetalFXSupportedType()
+// 의도된 사항: 지원 타입을 OR로 누적하지 않고 이번 실행에 사용할 타입 하나만 반환한다.
+// Temporal을 지원하면 Temporal만 선택하며, Spatial은 Temporal을 지원하지 않을 때만 선택한다.
+EMetalFXUpscalerType GetMetalFXUpscalerType()
 {
 	if (!IsMetalFXSupported())
 	{
-		return EMetalFXSupportedType::None;
+		return EMetalFXUpscalerType::None;
 	}
-	return IsMetalFXTemporalSupported() ? EMetalFXSupportedType::Temporal : EMetalFXSupportedType::Spatial;
+	
+	return IsMetalFXTemporalSupported() ? EMetalFXUpscalerType::Temporal : EMetalFXUpscalerType::Spatial;
 }
 
 //------------Inner Utility Functions------------ (End)

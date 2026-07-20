@@ -28,28 +28,28 @@ public:
 	
 	EMetalSupportDevice QueryMetalSupport() const;
 	EMetalFXSupportReason QueryMetalFXSupport() const;
-	EMetalFXSupportedType QueryMetalFXSupportedType() const;
+	EMetalFXUpscalerType QueryMetalFXUpscalerType() const;
 
 	/** Returns the Core created during startup RHI initialization. */
 	FMetalFXUpscalerCore* GetMetalFXUpscaler() const;
 	FMetalFXTemporalUpscalerCore* GetMetalFXTemporalUpscaler();
 	FMetalFXSpatialUpscalerCore* GetMetalFXSpatialUpscaler();
-	EMetalFXUpscalerMode GetSelectedUpscalerMode() const { return SelectedUpscalerMode; }
+	EMetalFXUpscalerType GetSelectedUpscalerType() const { return SelectedUpscalerType; }
 
 	bool GetIsSupportedByRHI() const;
 	
 private:
-	FMetalFXUpscalerCore* CreateMetalFXUpscaler(EMetalFXUpscalerMode RequestedMode);
+	FMetalFXUpscalerCore* CreateMetalFXUpscaler(EMetalFXUpscalerType RequestedType);
 	void HandlePostRHIInitialized();
 	FDelegateHandle OnPostEngineInitSettings;
 	FDelegateHandle OnPostRHIInitialized;
 private:
 	// The module is the sole Core owner. Adapters keep non-owning typed pointers.
 	TUniquePtr<FMetalFXUpscalerCore> MetalFXUpscaler;
-	EMetalFXUpscalerMode SelectedUpscalerMode = EMetalFXUpscalerMode::None;
+	EMetalFXUpscalerType SelectedUpscalerType = EMetalFXUpscalerType::None;
 	TSharedPtr<FMetalFXViewExtension, ESPMode::ThreadSafe> MetalFXViewExtension;
 
 	EMetalSupportDevice MetalSupport = EMetalSupportDevice::NotSupported;
 	EMetalFXSupportReason MetalFXSupport = EMetalFXSupportReason::NotSupported;
-	EMetalFXSupportedType MetalFXSupportedType = EMetalFXSupportedType::None;
+	EMetalFXUpscalerType MetalFXUpscalerType = EMetalFXUpscalerType::None;
 };

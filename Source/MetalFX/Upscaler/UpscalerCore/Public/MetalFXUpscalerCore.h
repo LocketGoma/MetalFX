@@ -35,13 +35,12 @@ public:
 	void Initialize();
 	bool IsInitialized() const { return bIsInitialized; }
 
-	virtual EMetalFXUpscalerMode GetUpscalerMode() const = 0;
+	virtual EMetalFXUpscalerType GetUpscalerType() const = 0;
 
 	static EMetalFXSupportReason GetIsSupportedDevice();
 	static bool IsMetalFXSupported();
-	static EMetalFXSupportedType GetMetalFXSupportedType();
+	static EMetalFXUpscalerType GetMetalFXUpscalerType();
 	static EMetalFXSupportReason GetMetalFXSupportReason();
-	static bool IsUpscalerModeSupported(EMetalFXSupportedType SupportedTypes, EMetalFXUpscalerMode UpscalerMode);
 
 	static FRDGTextureRef CreateOutputTexture(
 		FRDGBuilder& GraphBuilder,

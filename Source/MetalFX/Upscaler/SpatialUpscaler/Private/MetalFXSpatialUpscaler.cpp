@@ -1,11 +1,8 @@
 #include "MetalFXSpatialUpscaler.h"
-
-#include "DataDrivenShaderPlatformInfo.h"
 #include "MetalFXSpatialUpscalerCore.h"
 #include "MetalFXSettings.h"
 #include "ScenePrivate.h"
 
-/*
 #if METALFX_PLUGIN_ENABLED
 void FMetalFXSpatialUpscaler::CheckValidate() const
 {
@@ -22,16 +19,11 @@ ISpatialUpscaler* FMetalFXSpatialUpscaler::Fork_GameThread(const FSceneViewFamil
 	return new FMetalFXSpatialUpscaler(m_FxUpscaler);
 }
 
-FScreenPassTexture FMetalFXSpatialUpscaler::AddPasses(
-	FRDGBuilder& GraphBuilder,
-	const FViewInfo& View,
-	const FInputs& PassInputs) const
+FScreenPassTexture FMetalFXSpatialUpscaler::AddPasses(FRDGBuilder& GraphBuilder, const FViewInfo& View, const FInputs& PassInputs) const
 {
 	CheckValidate();
 
-	if (!PassInputs.SceneColor.IsValid()
-		|| PassInputs.SceneColor.ViewRect.Min != FIntPoint::ZeroValue
-		|| View.UnscaledViewRect.Min != FIntPoint::ZeroValue)
+	if (!PassInputs.SceneColor.IsValid() || PassInputs.SceneColor.ViewRect.Min != FIntPoint::ZeroValue || View.UnscaledViewRect.Min != FIntPoint::ZeroValue)
 	{
 		UE_LOG(LogMetalFX, Warning, TEXT("MetalFX Spatial requires valid origin-aligned input and output rects; using bilinear fallback."));
 		return ISpatialUpscaler::AddDefaultUpscalePass(GraphBuilder, View, PassInputs, EUpscaleMethod::Bilinear);
@@ -110,4 +102,3 @@ FScreenPassTexture FMetalFXSpatialUpscaler::AddPasses(
 	return Output;
 }
 #endif
-*/

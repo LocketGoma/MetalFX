@@ -34,17 +34,6 @@ enum class EMetalFXSupportReason : uint8
 	NotSupportedMetalFXCreationFailed,
 };
 
-//= MetalFX 관련 최종 판단 (SpatialType / TemporalType 인 경우에만 MetalFX 정상 작동)
-enum class EMetalFXSupportedType : uint8
-{
-	None = 0,
-	Spatial = 1 << 0,
-	Temporal = 1 << 1
-};
-ENUM_CLASS_FLAGS(EMetalFXSupportedType);
-
-//MetalFX 가 현재 무슨 모드로 작동 가능한지
-
 inline float ConvertMetalFXQualityModeToScreenPercentage(EMetalFXQualityMode QualityMode)
 {
 	if (QualityMode == EMetalFXQualityMode::Min)

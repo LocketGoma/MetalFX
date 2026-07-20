@@ -30,9 +30,9 @@ public:
 	FMetalFXSpatialUpscalerCore();
 	virtual ~FMetalFXSpatialUpscalerCore() override;
 
-	virtual EMetalFXUpscalerMode GetUpscalerMode() const override
+	virtual EMetalFXUpscalerType GetUpscalerType() const override
 	{
-		return EMetalFXUpscalerMode::Spatial;
+		return EMetalFXUpscalerType::Spatial;
 	}
 
 #if METALFX_PLUGIN_ENABLED

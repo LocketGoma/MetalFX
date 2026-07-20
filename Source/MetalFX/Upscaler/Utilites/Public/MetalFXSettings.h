@@ -9,7 +9,7 @@
 #include "MetalFXSettings.generated.h"
 
 UENUM(BlueprintType)
-enum class EMetalFXUpscalerMode : uint8
+enum class EMetalFXUpscalerType : uint8
 {
 	None UMETA(DisplayName = "Off", ToolTip = "Disables MetalFX upscaling."),
 	Spatial UMETA(DisplayName = "Spatial", ToolTip = "Uses the MetalFX Spatial upscaler."),
@@ -73,7 +73,7 @@ public:
 	bool bDebugDisplay;
 	
 	UPROPERTY(Config, EditAnywhere, Category = "General Settings", meta = (ConsoleVariable = "r.MetalFX.UpscalerMode", DisplayName = "Upscaler Mode", ToolTip = "Selects the MetalFX upscaler mode."))
-	EMetalFXUpscalerMode UpscalerMode;
+	EMetalFXUpscalerType UpscalerMode;
 
 	UPROPERTY(Config, EditAnywhere, Category = "Quality Settings", meta = (ConsoleVariable = "r.MetalFX.Sharpness", DisplayName = "Sharpness", ClampMin = 0, ClampMax = 1, ToolTip = "(WIP) Applies the Robust Contrast Adaptive Sharpening Filter to sharpen the output image."))
 	float Sharpness;
