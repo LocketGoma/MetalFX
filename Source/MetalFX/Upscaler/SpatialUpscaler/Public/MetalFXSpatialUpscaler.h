@@ -16,7 +16,7 @@ public:
 	FScreenPassTexture AddPasses(FRDGBuilder& GraphBuilder, const FViewInfo& View, const FInputs& PassInputs) const override;
 
 private:
-	void CheckValidate() const;
+	bool CheckValidate() const;
 
 	// Non-owning. FMetalFXModule owns the Core for the module lifetime.
 	FMetalFXSpatialUpscalerCore* m_FxUpscaler = nullptr;

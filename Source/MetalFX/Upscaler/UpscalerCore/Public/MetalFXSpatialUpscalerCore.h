@@ -39,8 +39,9 @@ public:
 	// RDG texture conversion and frame encode entry points.
 	bool SetTexturesToGroup(
 		const FMetalFXSpatialPassParameters& Parameters,
-		FMetalFXSpatialTextureGroup& OutTextureGroup);
-	bool PrepareToEncode(const FMetalFXSpatialEncodeInputs& Inputs);
+		FMetalFXSpatialTextureGroup& OutTextureGroup,
+		FMetalFXSpatialTextureFormatGroup& OutFormats);
+	bool PrepareToEncode(const FMetalFXSpatialEncodeInputs& Inputs, const FMetalFXSpatialTextureFormatGroup& Formats);
 	void ExecuteMetalFX(FRHICommandList& CmdList, FMetalFXSpatialTextureGroup& TextureGroup);
 #endif
 
@@ -58,7 +59,6 @@ private:
 
 	// Module-lifetime scaler state and its currently configured descriptor.
 	std::unique_ptr<struct FMetalFXSpatialCoreResources> Resources;
-	FMetalFXSpatialTextureFormatGroup ConfiguredFormats;
 	uint32 InputTextureWidth = 0;
 	uint32 InputTextureHeight = 0;
 	uint32 InputContentWidth = 0;

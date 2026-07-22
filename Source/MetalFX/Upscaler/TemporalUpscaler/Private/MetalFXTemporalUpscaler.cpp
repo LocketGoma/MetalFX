@@ -1,4 +1,5 @@
 #include "MetalFXTemporalUpscaler.h"
+#include "MetalFXHelper.h"
 #include "MetalFXSettings.h"
 
 #if METALFX_PLUGIN_ENABLED
@@ -42,11 +43,11 @@ static void LogRDGTextureDescForMetalFX(const TCHAR* Label, FRDGTextureRef Textu
 {
 	if (!Texture)
 	{
-		UE_LOG(LogMetalFX, Warning, TEXT("[MetalFX] %s: null"), Label);
+		UE_LOG(LogMetalFX, VeryVerbose, TEXT("[MetalFX] %s: null"), Label);
 		return;
 	}
 
-	UE_LOG(LogMetalFX, Warning,
+	UE_LOG(LogMetalFX, VeryVerbose,
 		TEXT("[MetalFX] %s: Name=%s Extent=%dx%d Format=%d"),
 		Label,
 		Texture->Name,
@@ -59,7 +60,7 @@ static void LogTemporalUpscalerInputsForMetalFX(
 	const ITemporalUpscaler::FInputs& Inputs,
 	FRDGTextureRef OutputTexture = nullptr)
 {
-	UE_LOG(LogMetalFX, Warning, TEXT("================ MetalFX Temporal Inputs ================"));
+	UE_LOG(LogMetalFX, VeryVerbose, TEXT("================ MetalFX Temporal Inputs ================"));
 
 	LogRDGTextureDescForMetalFX(TEXT("SceneColor"), Inputs.SceneColor.Texture);
 	LogRDGTextureDescForMetalFX(TEXT("SceneDepth"), Inputs.SceneDepth.Texture);
@@ -71,10 +72,10 @@ static void LogTemporalUpscalerInputsForMetalFX(
 	}
 	else
 	{
-		UE_LOG(LogMetalFX, Warning, TEXT("[MetalFX] OutputTexture: null / not provided"));
+		UE_LOG(LogMetalFX, VeryVerbose, TEXT("[MetalFX] OutputTexture: null / not provided"));
 	}
 
-	UE_LOG(LogMetalFX, Warning,
+	UE_LOG(LogMetalFX, VeryVerbose,
 		TEXT("[MetalFX] OutputViewRect: Min=(%d,%d) Max=(%d,%d) Size=%dx%d"),
 		Inputs.OutputViewRect.Min.X,
 		Inputs.OutputViewRect.Min.Y,
@@ -87,7 +88,7 @@ static void LogTemporalUpscalerInputsForMetalFX(
 	{
 		const FIntPoint SceneColorExtent = Inputs.SceneColor.Texture->Desc.Extent;
 
-		UE_LOG(LogMetalFX, Warning,
+		UE_LOG(LogMetalFX, VeryVerbose,
 			TEXT("[MetalFX] SceneColorExtent vs OutputViewRectSize: SceneColor=%dx%d OutputViewRect=%dx%d Delta=%dx%d"),
 			SceneColorExtent.X,
 			SceneColorExtent.Y,
@@ -101,7 +102,7 @@ static void LogTemporalUpscalerInputsForMetalFX(
 	{
 		const FIntPoint OutputTextureExtent = OutputTexture->Desc.Extent;
 
-		UE_LOG(LogMetalFX, Warning,
+		UE_LOG(LogMetalFX, VeryVerbose,
 			TEXT("[MetalFX] OutputTextureExtent vs OutputViewRectSize: OutputTexture=%dx%d OutputViewRect=%dx%d Delta=%dx%d"),
 			OutputTextureExtent.X,
 			OutputTextureExtent.Y,
@@ -111,15 +112,9 @@ static void LogTemporalUpscalerInputsForMetalFX(
 			OutputTextureExtent.Y - Inputs.OutputViewRect.Height());
 	}
 
-	UE_LOG(LogMetalFX, Warning, TEXT("========================================================="));
+	UE_LOG(LogMetalFX, VeryVerbose, TEXT("========================================================="));
 }
 #endif
-
-static float GetMetalFXScreenPercentageValue()
-{
-	IConsoleVariable* CVarScreenPercentage = IConsoleManager::Get().FindConsoleVariable(TEXT("r.ScreenPercentage"));
-	return CVarScreenPercentage ? CVarScreenPercentage->GetFloat() : 0.0f;
-}
 
 static FVector2D GetMetalFXJitterOffset(FVector2f TemporalJitterPixels)
 {
@@ -173,7 +168,7 @@ ITemporalUpscaler::FOutputs FMetalFXTemporalUpscaler::AddPasses(FRDGBuilder& Gra
 		DescriptorInputExtent = InputContentExtent;
 	}
 	FIntRect InputContentRect = Inputs.SceneColor.ViewRect;
-	const float ScreenPercentage = GetMetalFXScreenPercentageValue();
+	const float ScreenPercentage = CalculateMetalFXScreenPercentage(InputContentRect, Inputs.OutputViewRect);
 	const FVector2D JitterOffset = GetMetalFXJitterOffset(Inputs.TemporalJitterPixels);
 	const FVector2f MotionVectorScale = GetMetalFXMotionVectorScale();
 

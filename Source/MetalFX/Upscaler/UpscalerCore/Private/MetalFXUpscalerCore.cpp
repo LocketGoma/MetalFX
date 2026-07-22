@@ -75,6 +75,12 @@ void FMetalFXUpscalerCore::UpdateActiveDebugInfo(FIntRect InputRect, FIntRect Ou
 	ActiveDebugInfo.bIsValid = true;
 }
 
+void FMetalFXUpscalerCore::UpdateResolutionDebugInfo(const FMetalFXResolutionDebugInfo& ResolutionDebugInfo)
+{
+	FScopeLock Lock(&ActiveDebugInfoCS);
+	ActiveDebugInfo.Resolution = ResolutionDebugInfo;
+}
+
 FMetalFXActiveDebugInfo FMetalFXUpscalerCore::GetActiveDebugInfo() const
 {
 	FScopeLock Lock(&ActiveDebugInfoCS);

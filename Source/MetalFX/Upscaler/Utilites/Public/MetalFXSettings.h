@@ -8,6 +8,8 @@
 
 #include "MetalFXSettings.generated.h"
 
+class FSceneViewFamily;
+
 UENUM(BlueprintType)
 enum class EMetalFXUpscalerType : uint8
 {
@@ -20,16 +22,56 @@ enum class EMetalFXUpscalerType : uint8
 UENUM(BlueprintType)
 enum class EMetalFXQualityMode : uint8
 {
-	NativeAA UMETA(DisplayName = "Native AA (100%)"),
+	// NativeAA (Actual 100%)
+	// Forces both the MetalFX Primary input and Secondary output to 100% of the actual display resolution.
+	// This mode bypasses the engine-selected base fraction and Dynamic Resolution,
+	// so it is the only preset that guarantees a native-display-sized MetalFX output.
+	NativeAA UMETA(DisplayName = "NativeAA (Always 100%)"),
+
+	// UltraQuality (Primary Input 100%)
+	// Uses 100% of the engine-selected MetalFX output target as its Primary input.
+	// The target may be smaller than the native display because it includes the engine Screen Percentage,
+	// Dynamic Resolution, DPI scale, or an external monitor's resolution.
+	// Therefore UltraQuality can differ from NativeAA even though both modes use a 100% Primary ratio.
+	UltraQuality UMETA(DisplayName = "UltraQuality (100%)"),
+
+	// Quality (Primary Input 66.7%)
+	// Renders the MetalFX input at 66.7% of the engine-selected output target.
+	// Upscales it by approximately 1.5x per dimension.
 	Quality UMETA(DisplayName = "Quality (66.7%)"),
+
+	// Balanced (Primary Input 50%)
+	// Renders the MetalFX input at 50% of the engine-selected output target.
+	// Upscales it by 2.0x per dimension.
 	Balanced UMETA(DisplayName = "Balanced (50%)"),
-	Performance UMETA(DisplayName = "Performance (35%)"),
-	// MetalFX TemporalScaler does not support upscaling greater than 3x per dimension, so Ultra Performance (25%) is disabled for now.
-	// UltraPerformance UMETA(DisplayName = "Ultra Performance (25%)"),
-	// This value must be placed last. It resolves to 1% in non-shipping builds and to the value immediately before Min in shipping builds.
-	Min UMETA(DisplayName = "Min"),
-	// Enum value used to return the number of quality modes.
+
+	// Performance (Primary Input 42%)
+	// Renders the MetalFX input at 42% of the engine-selected output target.
+	// Upscales it by approximately 2.4x per dimension.
+	Performance UMETA(DisplayName = "Performance (42%)"),
+
+	// UltraPerformance (Primary Input 34%)
+	// Renders the MetalFX input at 34% of the engine-selected output target. MetalFX Upscales it by approximately 2.94x per dimension.
+	// The safety margin below 3.0x avoids exceeding MetalFX TemporalScaler's maximum supported scale after integer resolution rounding.
+	UltraPerformance UMETA(DisplayName = "UltraPerformance (34%)"),
+
+	// This value must follow all selectable modes. It resolves to 1% in non-shipping builds and to the preceding mode in shipping builds.
+	Min UMETA(Hidden),
+
+	// Enum sentinel used to represent an invalid mode and to return the number of quality-mode entries.
 	MAX
+};
+
+struct FMetalFXResolutionDebugInfo
+{
+	EMetalFXQualityMode QualityMode = EMetalFXQualityMode::MAX;
+	float EngineBaseResolutionFraction = 1.0f;
+	float PrimaryResolutionFraction = 1.0f;
+	float OutputResolutionFraction = 1.0f;
+	float FinalInputResolutionFraction = 1.0f;
+	bool bAutoScalingFromEngine = true;
+	bool bDynamicResolutionActive = false;
+	bool bIsValid = false;
 };
 
 extern TAutoConsoleVariable<bool> CVarEnableMetalFX;
@@ -42,8 +84,18 @@ extern TAutoConsoleVariable<float> CVarMetalFXMotionVectorScaleY;
 extern TAutoConsoleVariable<float> CVarMetalFXSharpness;
 extern TAutoConsoleVariable<int32> CVarMetalFXUpscalerMode;
 extern TAutoConsoleVariable<int32> CVarMetalFXQualityMode;
+extern TAutoConsoleVariable<bool> CVarMetalFXAutoScalingFromEngine;
 
+// Refreshes active quality handling after a setting change. The production
+// path owns r.ScreenPercentage; METALFX_DEBUG preserves external changes.
 METALFX_API void ApplyMetalFXQualityModeToScreenPercentage(EMetalFXQualityMode QualityMode);
+METALFX_API bool ApplyMetalFXScreenPercentageToViewFamily(
+	FSceneViewFamily& ViewFamily,
+	EMetalFXQualityMode QualityMode,
+	FMetalFXResolutionDebugInfo* OutDebugInfo = nullptr);
+// Ends the activation state. Production restores the activation-time value;
+// METALFX_DEBUG leaves the current r.ScreenPercentage unchanged.
+METALFX_API void RestoreMetalFXScreenPercentage();
 
 UCLASS(Config = Engine, DefaultConfig, DisplayName = "Apple MetalFX")
 class METALFX_API UMetalFXSettings : public UDeveloperSettings
@@ -80,6 +132,9 @@ public:
 	
 	UPROPERTY(Config, EditAnywhere, Category = "Quality Settings", meta = (ConsoleVariable = "r.MetalFX.QualityMode", DisplayName = "Quality Mode", ToolTip = "Selects the default quality mode to be used when upscaling with MetalFX."))
 	EMetalFXQualityMode QualityMode;
+
+	UPROPERTY(Config, EditAnywhere, Category = "Quality Settings", meta = (ConsoleVariable = "r.MetalFX.AutoScalingFromEngine", DisplayName = "Scale From Engine Resolution", ToolTip = "Uses the engine-selected resolution as the MetalFX output target and applies the quality scale to its input. Disable to retain the legacy output target and absolute primary screen percentage."))
+	bool bAutoScalingFromEngine;
 
 	UPROPERTY(Config, EditAnywhere, Category = "Temporal Settings", meta = (ConsoleVariable = "r.MetalFX.JitterMode", DisplayName = "Jitter Mode", ToolTip = "Controls temporal jitter forwarding. 1: normal, 0: disabled, -1: inverted."))
 	int32 JitterMode;

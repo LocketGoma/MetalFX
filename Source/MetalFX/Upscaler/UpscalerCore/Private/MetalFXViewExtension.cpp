@@ -1,38 +1,23 @@
 #include "MetalFXViewExtension.h"
 #include "MetalFXUpscalerCore.h"
 #include "MetalFX.h"
+#include "MetalFXHelper.h"
 #include "MetalFXSettings.h"
 #include "MetalFXTemporalUpscaler.h"
 #include "MetalFXSpatialUpscaler.h"
+#include "MetalFXSpatialUpscalerCore.h"
+#include "DynamicResolutionState.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
-#include "RenderGraphUtils.h"
+#include "RenderingThread.h"
 
 #if !UE_BUILD_SHIPPING
-static FString FormatMetalFXFullRect(const FIntRect& Rect)
-{
-	return FString::Printf(
-		TEXT("Min=(%d,%d) Max=(%d,%d) Size=%dx%d"),
-		Rect.Min.X,
-		Rect.Min.Y,
-		Rect.Max.X,
-		Rect.Max.Y,
-		Rect.Width(),
-		Rect.Height());
-}
-
 static FString FormatMetalFXRect(const FIntRect& Rect)
 {
 	return FString::Printf(
 		TEXT("Size=%dx%d"),
 		Rect.Width(),
 		Rect.Height());
-}
-
-static float GetMetalFXDebugScreenPercentageValue()
-{
-	IConsoleVariable* CVarScreenPercentage = IConsoleManager::Get().FindConsoleVariable(TEXT("r.ScreenPercentage"));
-	return CVarScreenPercentage ? CVarScreenPercentage->GetFloat() : 0.0f;
 }
 
 static FIntPoint GetMetalFXExpectedInputSize(const FIntRect& OutputRect, float ScreenPercentage)
@@ -66,6 +51,62 @@ static const TCHAR* GetMetalFXUpscalerTypeName(EMetalFXUpscalerType UpscalerType
 	default:
 		return TEXT("Off");
 	}
+}
+
+static FMetalFXResolutionDebugInfo GetConfiguredMetalFXResolutionDebugInfo(const FSceneViewFamily& ViewFamily)
+{
+	FMetalFXResolutionDebugInfo DebugInfo;
+	DebugInfo.QualityMode = static_cast<EMetalFXQualityMode>(CVarMetalFXQualityMode.GetValueOnGameThread());
+	DebugInfo.bAutoScalingFromEngine = CVarMetalFXAutoScalingFromEngine.GetValueOnGameThread();
+
+	float EngineBaseResolutionFraction = 1.0f;
+	if (GEngine)
+	{
+		FDynamicResolutionStateInfos DynamicResolutionInfos;
+		GEngine->GetDynamicResolutionCurrentStateInfos(DynamicResolutionInfos);
+		DebugInfo.bDynamicResolutionActive = DynamicResolutionInfos.Status == EDynamicResolutionStatus::Enabled
+			|| DynamicResolutionInfos.Status == EDynamicResolutionStatus::DebugForceEnabled;
+		if (DebugInfo.bDynamicResolutionActive)
+		{
+			const float DynamicResolutionFraction = DynamicResolutionInfos.ResolutionFractionApproximations[GDynamicPrimaryResolutionFraction];
+			if (FMath::IsFinite(DynamicResolutionFraction) && DynamicResolutionFraction > 0.0f)
+			{
+				EngineBaseResolutionFraction = DynamicResolutionFraction;
+			}
+		}
+	}
+
+	if (!DebugInfo.bDynamicResolutionActive)
+	{
+		if (const ISceneViewFamilyScreenPercentage* ScreenPercentageInterface = ViewFamily.GetScreenPercentageInterface())
+		{
+			const DynamicRenderScaling::TMap<float> UpperBounds = ScreenPercentageInterface->GetResolutionFractionsUpperBound();
+			const float InterfaceResolutionFraction = UpperBounds[GDynamicPrimaryResolutionFraction];
+			if (FMath::IsFinite(InterfaceResolutionFraction) && InterfaceResolutionFraction > 0.0f)
+			{
+				EngineBaseResolutionFraction = InterfaceResolutionFraction;
+			}
+		}
+	}
+
+	const FMetalFXQualitySettings Quality = GetMetalFXQualitySettings(DebugInfo.QualityMode);
+	DebugInfo.EngineBaseResolutionFraction = FMath::Clamp(
+		EngineBaseResolutionFraction,
+		ISceneViewFamilyScreenPercentage::kMinResolutionFraction,
+		GetMetalFXMaxUpscaleResolutionFraction());
+	DebugInfo.PrimaryResolutionFraction = Quality.GetPrimaryResolutionFraction(DebugInfo.bAutoScalingFromEngine);
+	DebugInfo.OutputResolutionFraction = Quality.bForceNativeResolution
+		? 1.0f
+		: DebugInfo.bAutoScalingFromEngine
+			? ViewFamily.SecondaryViewFraction * DebugInfo.EngineBaseResolutionFraction
+			: ViewFamily.SecondaryViewFraction;
+	DebugInfo.OutputResolutionFraction = FMath::Clamp(
+		DebugInfo.OutputResolutionFraction,
+		ISceneViewFamilyScreenPercentage::kMinResolutionFraction,
+		GetMetalFXMaxUpscaleResolutionFraction());
+	DebugInfo.FinalInputResolutionFraction = DebugInfo.PrimaryResolutionFraction * DebugInfo.OutputResolutionFraction;
+	DebugInfo.bIsValid = true;
+	return DebugInfo;
 }
 
 static void AddMetalFXStatusDebugMessages(bool bCanActivate, bool bEnableInEditor, bool bIsActive, EMetalFXUpscalerType UpscalerType, const FMetalFXActiveDebugInfo* ActiveDebugInfo = nullptr)
@@ -116,30 +157,63 @@ static void AddMetalFXStatusDebugMessages(bool bCanActivate, bool bEnableInEdito
 			FString::Printf(TEXT("Apple MetalFX Mode : %s"), bIsActive ? GetMetalFXUpscalerTypeName(UpscalerType) : TEXT("Off")),
 			true);
 
-		if (ActiveDebugInfo && ActiveDebugInfo->bIsValid)
+		if (ActiveDebugInfo && ActiveDebugInfo->Resolution.bIsValid)
 		{
-			const FIntPoint ExpectedInputSize = GetMetalFXExpectedInputSize(ActiveDebugInfo->OutputRect, ActiveDebugInfo->ScreenPercentage);
-			const FVector2D ActualScreenPercentage = GetMetalFXActualScreenPercentage(ActiveDebugInfo->InputRect, ActiveDebugInfo->OutputRect);
+			const FMetalFXResolutionDebugInfo& Resolution = ActiveDebugInfo->Resolution;
+			const FMetalFXQualitySettings Quality = GetMetalFXQualitySettings(Resolution.QualityMode);
+			FString Details;
 
-			GEngine->AddOnScreenDebugMessage(
-				ActiveDetailsMessageKey,
-				MessageDuration,
-				bIsActive ? FColor::Emerald : FColor::Red,
-				FString::Printf(
-					TEXT("Apple MetalFX %s : InputRect[%s] OutputRect[%s] ExpectedInput[Size=%dx%d] ScreenPercentage=%.2f ActualSP=%.2f/%.2f"),
-					bIsActive ? TEXT("Active") : TEXT("Deactive"),
+			if (bIsActive && ActiveDebugInfo->bIsValid)
+			{
+				const float RequestedPrimaryScreenPercentage = Resolution.PrimaryResolutionFraction * 100.0f;
+				const FIntPoint ExpectedInputSize = GetMetalFXExpectedInputSize(ActiveDebugInfo->OutputRect, RequestedPrimaryScreenPercentage);
+				const FVector2D ActualScreenPercentage = GetMetalFXActualScreenPercentage(ActiveDebugInfo->InputRect, ActiveDebugInfo->OutputRect);
+				Details = FString::Printf(
+					TEXT("Apple MetalFX Active Rects : Input[%s] Output[%s] ExpectedInput[Size=%dx%d]\n")
+					TEXT("MetalFX Scale : Mode=%s Requested=%.2f%% Actual=%.2f%%/%.2f%%"),
 					*FormatMetalFXRect(ActiveDebugInfo->InputRect),
 					*FormatMetalFXRect(ActiveDebugInfo->OutputRect),
 					ExpectedInputSize.X,
 					ExpectedInputSize.Y,
-					ActiveDebugInfo->ScreenPercentage,
+					Quality.Name,
+					RequestedPrimaryScreenPercentage,
 					ActualScreenPercentage.X,
-					ActualScreenPercentage.Y),
+					ActualScreenPercentage.Y);
+			}
+			else
+			{
+				Details = FString::Printf(
+					TEXT("Apple MetalFX Config : Mode=%s (Deactivated)"),
+					Quality.Name);
+			}
+
+			Details += FString::Printf(
+				TEXT("\nEngine Resolution : DynamicRes=%s Base=%.2f%% Output=%.2f%%")
+				TEXT("\n%s Resolution : Primary=%.2f%% FinalInput=%.2f%% AutoScaling=%s"),
+				Resolution.bDynamicResolutionActive ? TEXT("On") : TEXT("Off"),
+				Resolution.EngineBaseResolutionFraction * 100.0f,
+				Resolution.OutputResolutionFraction * 100.0f,
+				bIsActive ? TEXT("Applied") : TEXT("Configured"),
+				Resolution.PrimaryResolutionFraction * 100.0f,
+				Resolution.FinalInputResolutionFraction * 100.0f,
+				Resolution.bAutoScalingFromEngine ? TEXT("On") : TEXT("Off"));
+
+			GEngine->AddOnScreenDebugMessage(
+				ActiveDetailsMessageKey,
+				MessageDuration,
+				bIsActive ? FColor::Emerald : FColor::Yellow,
+				Details,
 				true);
 		}
 	}
 }
 #endif
+
+static bool LogMetalFXActivationFailure(const TCHAR* Reason)
+{
+	UE_LOG(LogMetalFX, Verbose, TEXT("MetalFX skipped view family activation: %s"), Reason);
+	return false;
+}
 
 FMetalFXViewExtension::FMetalFXViewExtension(const FAutoRegister& AutoRegister)
 : FSceneViewExtensionBase(AutoRegister)
@@ -168,175 +242,294 @@ void FMetalFXViewExtension::SetupViewFamily(FSceneViewFamily& InViewFamily)
 
 }
 
-void FMetalFXViewExtension::BeginRenderViewFamily(FSceneViewFamily& InViewFamily)
+void FMetalFXViewExtension::SetupView(FSceneViewFamily& InViewFamily, FSceneView& InView)
 {
-	bool bIsCheckPassed = true;
-
-	if (GIsEditor)
-	{
-		if (!(bMetalFXEnabled && bMetalFXSupported))
-		{
-			bIsCheckPassed = false;
-		}
-	}	
-	
-	if (InViewFamily.Scene == nullptr)
+#if METALFX_PLUGIN_ENABLED
+	if (!bMetalFXEnabled || !bMetalFXSupported || InView.bIsSceneCapture || !InViewFamily.Scene || InViewFamily.ViewMode != EViewModeIndex::VMI_Lit || !InViewFamily.bRealtimeUpdate)
 	{
 		return;
 	}
 
-	// MetalFX can be selected from deferred desktop rendering and mobile/iOS rendering paths.
 	const EShadingPath ShadingPath = InViewFamily.Scene->GetShadingPath();
-	const bool bSupportedShadingPath = (ShadingPath == EShadingPath::Deferred || ShadingPath == EShadingPath::Mobile);
-
-	if (InViewFamily.ViewMode != EViewModeIndex::VMI_Lit || !bSupportedShadingPath || !InViewFamily.bRealtimeUpdate)
-	{
-		bIsCheckPassed = false;
-	}
-
-	const EMetalFXUpscalerType UpscalerType = static_cast<EMetalFXUpscalerType>(CVarMetalFXUpscalerMode.GetValueOnGameThread());
-
-	// MetalFX requires a valid view state and a matching primary upscale request.
-	if (bIsCheckPassed)
-	{
-		for (const FSceneView* View : InViewFamily.Views)
-		{
-			if (View->State == nullptr)
-			{
-				bIsCheckPassed = false;	
-				break;
-			}
-			
-			if (View->bIsSceneCapture)
-			{
-				bIsCheckPassed = false;
-				break;
-			}
-			
-			switch (UpscalerType)
-			{
-			case EMetalFXUpscalerType::None:
-				bIsCheckPassed = false;
-				break;
-			case EMetalFXUpscalerType::Spatial:
-				//bIsCheckPassed = (View->PrimaryScreenPercentageMethod == EPrimaryScreenPercentageMethod::SpatialUpscale);
-				// The Spatial adapter is intentionally disabled while its integration is still being implemented.
-				bIsCheckPassed = false;
-				break;
-			case EMetalFXUpscalerType::Temporal:
-				bIsCheckPassed = (View->PrimaryScreenPercentageMethod == EPrimaryScreenPercentageMethod::TemporalUpscale);
-				break;
-			case EMetalFXUpscalerType::MAX:
-				bIsCheckPassed = false;
-				break;
-			}
-		}
-	}
-	
-	if (bIsCheckPassed)
-	{
-		if (bMetalFXSupported && bMetalFXEnabled && bIsCheckPassed)
-		{
-//Metal RHI 인 경우에 View Extension이 만들어지긴 하나, Plugin은 Disabled 일 수 있음.			
-#if METALFX_PLUGIN_ENABLED
-			FMetalFXModule& MetalFXModule = FModuleManager::GetModuleChecked<FMetalFXModule>(TEXT("MetalFX"));
-			if (!MetalFXModule.GetMetalFXUpscaler())
-			{
-				// Enabled only controls activation. Without the startup-created
-				// Core, no upscaler logic is allowed to run.
-				bIsCheckPassed = false;
-			}
-
-			if (bIsCheckPassed)
-			{
-				if (UpscalerType == EMetalFXUpscalerType::Spatial && !InViewFamily.GetPrimarySpatialUpscalerInterface())
-				{
-					if (FMetalFXSpatialUpscalerCore* SpatialCore = MetalFXModule.GetMetalFXSpatialUpscaler())
-					{
-						InViewFamily.SetPrimarySpatialUpscalerInterface(new FMetalFXSpatialUpscaler(SpatialCore));
-					}
-					else
-					{
-						bIsCheckPassed = false;
-					}
-				}
-				
-				if (UpscalerType == EMetalFXUpscalerType::Temporal && !InViewFamily.GetTemporalUpscalerInterface())
-				{
-					if (FMetalFXTemporalUpscalerCore* TemporalCore = MetalFXModule.GetMetalFXTemporalUpscaler())
-					{
-						InViewFamily.SetTemporalUpscalerInterface(new FMetalFXTemporalUpscaler(TemporalCore));
-					}
-					else
-					{
-						bIsCheckPassed = false;
-					}
-				}
-			}
-#endif //METALFX_PLUGIN_ENABLED
-		}
-	}
-	
-	//For Debug messages.
-#if !UE_BUILD_SHIPPING
-	// Show availability and active runtime state as separate debug lines.
-	const bool bIsEnabledThisFrame = bIsCheckPassed && bMetalFXEnabled;
-	const bool bEnableInEditor = CvarEnableMetalFXInEditor.GetValueOnGameThread();
-	FMetalFXActiveDebugInfo ActiveDebugInfo;
-#if METALFX_PLUGIN_ENABLED
-	if (bMetalFXSupported)
-	{
-		FMetalFXModule& MetalFXModule = FModuleManager::GetModuleChecked<FMetalFXModule>(TEXT("MetalFX"));
-		FMetalFXUpscalerCore* Upscaler = MetalFXModule.GetMetalFXUpscaler();
-		if (Upscaler)
-		{
-			ActiveDebugInfo = Upscaler->GetActiveDebugInfo();
-		}
-	}
-#endif //METALFX_PLUGIN_ENABLED
-	AddMetalFXStatusDebugMessages(bMetalFXSupported, bEnableInEditor, bIsEnabledThisFrame, UpscalerType, &ActiveDebugInfo);
-#endif
-}
-
-void FMetalFXViewExtension::PreRenderViewFamily_RenderThread(FRenderGraphType& GraphBuilder, FSceneViewFamily& InViewFamily)
-{
-	// Explicitly call the base implementation for completeness. In the current 5.7.4 baseline this is a no-op.
-	FSceneViewExtensionBase::PreRenderViewFamily_RenderThread(GraphBuilder, InViewFamily);
-
-	//Debug Settings
-#if !UE_BUILD_SHIPPING && METALFX_PLUGIN_ENABLED
-	if (!CVarMetalFXDebugDisplay.GetValueOnRenderThread() || InViewFamily.Views.Num() == 0)
-	{
-		return;
-	}
-
-	const FSceneView* View = InViewFamily.Views[0];
-	if (!View || View->UnscaledViewRect.IsEmpty())
+	if (ShadingPath != EShadingPath::Deferred && ShadingPath != EShadingPath::Mobile)
 	{
 		return;
 	}
 
 	FMetalFXModule& MetalFXModule = FModuleManager::GetModuleChecked<FMetalFXModule>(TEXT("MetalFX"));
-	FMetalFXUpscalerCore* Upscaler = MetalFXModule.GetMetalFXUpscaler();
-	
-	if (!Upscaler)
+	const EMetalFXUpscalerType RequestedUpscalerType = static_cast<EMetalFXUpscalerType>(CVarMetalFXUpscalerMode.GetValueOnGameThread());
+	if (RequestedUpscalerType != MetalFXModule.GetSelectedUpscalerType())
 	{
 		return;
 	}
 
-	const FIntRect OutputRect(FIntPoint::ZeroValue, View->UnscaledViewRect.Size());
-	if (OutputRect.IsEmpty())
+	FMetalFXUpscalerCore* Core = MetalFXModule.GetMetalFXUpscaler();
+	if (!Core || !Core->IsInitialized() || Core->GetUpscalerType() != RequestedUpscalerType)
 	{
 		return;
 	}
 
-	//For debug status update.
-	const float ScreenPercentage = GetMetalFXDebugScreenPercentageValue();
-	const FIntRect ExpectedInputRect(FIntPoint::ZeroValue, GetMetalFXExpectedInputSize(OutputRect, ScreenPercentage));
-	Upscaler->UpdateActiveDebugInfo(ExpectedInputRect, OutputRect, ScreenPercentage);
+	if (RequestedUpscalerType == EMetalFXUpscalerType::Temporal)
+	{
+		if (!InView.State || InView.PrimaryScreenPercentageMethod != EPrimaryScreenPercentageMethod::TemporalUpscale)
+		{
+			return;
+		}
+	}
+	else if (RequestedUpscalerType == EMetalFXUpscalerType::Spatial)
+	{
+		if (InView.PrimaryScreenPercentageMethod == EPrimaryScreenPercentageMethod::TemporalUpscale)
+		{
+			// This is an intentional fallback: if MetalFX Temporal is unavailable but
+			// the startup-selected Core is Spatial, route a Temporal primary request
+			// through the engine's Spatial primary-upscale stage.
+			InView.PrimaryScreenPercentageMethod = EPrimaryScreenPercentageMethod::SpatialUpscale;
+		}
+
+		if (InView.PrimaryScreenPercentageMethod != EPrimaryScreenPercentageMethod::SpatialUpscale)
+		{
+			return;
+		}
+	}
+	else
+	{
+		return;
+	}
+
+	const EMetalFXQualityMode QualityMode = static_cast<EMetalFXQualityMode>(CVarMetalFXQualityMode.GetValueOnGameThread());
+	const bool bAutoScalingFromEngine = CVarMetalFXAutoScalingFromEngine.GetValueOnGameThread();
+	// SetupView provides the mutable FSceneView intended for per-view overrides.
+	// BeginRenderViewFamily exposes const view pointers and only adjusts the
+	// family-wide Secondary output fraction.
+	InView.SceneViewInitOptions.OverridePrimaryResolutionFraction = GetMetalFXQualitySettings(QualityMode)
+		.GetPrimaryResolutionFraction(bAutoScalingFromEngine);
 #endif
 }
 
+bool FMetalFXViewExtension::CanActivateForViewFamily(const FSceneViewFamily& ViewFamily, EMetalFXUpscalerType UpscalerType) const
+{
+	if (!bMetalFXEnabled)
+	{
+		return LogMetalFXActivationFailure(TEXT("r.MetalFX.Enabled is false"));
+	}
+	if (!bMetalFXSupported)
+	{
+		return LogMetalFXActivationFailure(TEXT("MetalFX is unsupported for this RHI or editor context"));
+	}
+	if (!ViewFamily.Scene)
+	{
+		return LogMetalFXActivationFailure(TEXT("the view family has no scene"));
+	}
+	if (ViewFamily.ViewMode != EViewModeIndex::VMI_Lit)
+	{
+		return LogMetalFXActivationFailure(TEXT("the view mode is not Lit"));
+	}
+	const EShadingPath ShadingPath = ViewFamily.Scene->GetShadingPath();
+	if (ShadingPath != EShadingPath::Deferred && ShadingPath != EShadingPath::Mobile)
+	{
+		return LogMetalFXActivationFailure(TEXT("the shading path is neither Deferred nor Mobile"));
+	}
+	if (!ViewFamily.bRealtimeUpdate)
+	{
+		return LogMetalFXActivationFailure(TEXT("the view family is not realtime"));
+	}
+	if (ViewFamily.Views.Num() == 0)
+	{
+		return LogMetalFXActivationFailure(TEXT("the view family contains no views"));
+	}
+	if (UpscalerType != EMetalFXUpscalerType::Spatial && UpscalerType != EMetalFXUpscalerType::Temporal)
+	{
+		return LogMetalFXActivationFailure(TEXT("the selected upscaler mode is Off or invalid"));
+	}
+	const EMetalFXUpscalerType RequestedUpscalerType = static_cast<EMetalFXUpscalerType>(CVarMetalFXUpscalerMode.GetValueOnGameThread());
+	if (RequestedUpscalerType != UpscalerType)
+	{
+		return LogMetalFXActivationFailure(TEXT("the current UpscalerMode does not match the startup-created Core type"));
+	}
+	for (const FSceneView* View : ViewFamily.Views)
+	{
+		if (!View)
+		{
+			return LogMetalFXActivationFailure(TEXT("the view family contains a null view"));
+		}
+		if (View->bIsSceneCapture)
+		{
+			return LogMetalFXActivationFailure(TEXT("scene captures are unsupported"));
+		}
+	}
+	return true;
+}
+
+bool FMetalFXViewExtension::CanActivateTemporal(const FSceneViewFamily& ViewFamily, const FMetalFXModule& MetalFXModule) const
+{
+#if METALFX_PLUGIN_ENABLED
+	const FMetalFXUpscalerCore* Core = MetalFXModule.GetMetalFXUpscaler();
+	if (!Core || !Core->IsInitialized() || Core->GetUpscalerType() != EMetalFXUpscalerType::Temporal)
+	{
+		return LogMetalFXActivationFailure(TEXT("the initialized Core is not Temporal"));
+	}
+	if (ViewFamily.GetTemporalUpscalerInterface())
+	{
+		return LogMetalFXActivationFailure(TEXT("another temporal upscaler is already installed"));
+	}
+	for (const FSceneView* View : ViewFamily.Views)
+	{
+		if (!View->State)
+		{
+			return LogMetalFXActivationFailure(TEXT("Temporal mode requires a persistent ViewState"));
+		}
+		if (View->PrimaryScreenPercentageMethod != EPrimaryScreenPercentageMethod::TemporalUpscale)
+		{
+			return LogMetalFXActivationFailure(TEXT("Temporal mode requires TemporalUpscale as the primary screen-percentage method"));
+		}
+	}
+	return true;
+#else
+	return LogMetalFXActivationFailure(TEXT("MetalFX was not compiled for this platform"));
+#endif
+}
+
+bool FMetalFXViewExtension::CanActivateSpatial(const FSceneViewFamily& ViewFamily, const FMetalFXModule& MetalFXModule) const
+{
+#if METALFX_PLUGIN_ENABLED
+	const FMetalFXUpscalerCore* Core = MetalFXModule.GetMetalFXUpscaler();
+	if (!Core || !Core->IsInitialized() || Core->GetUpscalerType() != EMetalFXUpscalerType::Spatial)
+	{
+		return LogMetalFXActivationFailure(TEXT("the initialized Core is not Spatial"));
+	}
+	if (ViewFamily.GetPrimarySpatialUpscalerInterface())
+	{
+		return LogMetalFXActivationFailure(TEXT("another primary spatial upscaler is already installed"));
+	}
+	for (const FSceneView* View : ViewFamily.Views)
+	{
+		if (View->PrimaryScreenPercentageMethod != EPrimaryScreenPercentageMethod::SpatialUpscale)
+		{
+			return LogMetalFXActivationFailure(TEXT("Spatial mode requires SpatialUpscale as the primary screen-percentage method"));
+		}
+	}
+	return true;
+#else
+	return LogMetalFXActivationFailure(TEXT("MetalFX was not compiled for this platform"));
+#endif
+}
+
+void FMetalFXViewExtension::InstallTemporalUpscaler(FSceneViewFamily& ViewFamily, FMetalFXModule& MetalFXModule) const
+{
+#if METALFX_PLUGIN_ENABLED
+	if (FMetalFXTemporalUpscalerCore* TemporalCore = MetalFXModule.GetMetalFXTemporalUpscaler())
+	{
+		ViewFamily.SetTemporalUpscalerInterface(new FMetalFXTemporalUpscaler(TemporalCore));
+	}
+#endif
+}
+
+void FMetalFXViewExtension::InstallSpatialUpscaler(FSceneViewFamily& ViewFamily, FMetalFXModule& MetalFXModule) const
+{
+#if METALFX_PLUGIN_ENABLED
+	if (FMetalFXSpatialUpscalerCore* SpatialCore = MetalFXModule.GetMetalFXSpatialUpscaler())
+	{
+		ViewFamily.SetPrimarySpatialUpscalerInterface(new FMetalFXSpatialUpscaler(SpatialCore));
+	}
+#endif
+}
+
+void FMetalFXViewExtension::BeginRenderViewFamily(FSceneViewFamily& InViewFamily)
+{
+	FMetalFXModule& MetalFXModule = FModuleManager::GetModuleChecked<FMetalFXModule>(TEXT("MetalFX"));
+	const EMetalFXUpscalerType UpscalerType = MetalFXModule.GetSelectedUpscalerType();
+#if !UE_BUILD_SHIPPING
+	const FMetalFXResolutionDebugInfo ConfiguredResolutionDebugInfo = GetConfiguredMetalFXResolutionDebugInfo(InViewFamily);
+#endif
+
+	auto UpdateDebugStatus = [&](bool bIsActive)
+	{
+#if !UE_BUILD_SHIPPING
+		FMetalFXActiveDebugInfo ActiveDebugInfo;
+#if METALFX_PLUGIN_ENABLED
+		if (FMetalFXUpscalerCore* Upscaler = MetalFXModule.GetMetalFXUpscaler())
+		{
+			ActiveDebugInfo = Upscaler->GetActiveDebugInfo();
+		}
+#endif
+		if (!bIsActive || !ActiveDebugInfo.Resolution.bIsValid)
+		{
+			// When MetalFX is off there is no current scaler rect. Show a fresh,
+			// read-only preview of the selected quality and engine resolution instead
+			// of reusing stale rects from the last active frame.
+			ActiveDebugInfo.Resolution = ConfiguredResolutionDebugInfo;
+		}
+		AddMetalFXStatusDebugMessages(
+			bMetalFXSupported,
+			CvarEnableMetalFXInEditor.GetValueOnGameThread(),
+			bIsActive,
+			UpscalerType,
+			&ActiveDebugInfo);
+#endif
+	};
+
+	auto CommitResolutionDebugInfo = [&](bool bIsActive, const FMetalFXResolutionDebugInfo& ResolutionDebugInfo)
+	{
+#if !UE_BUILD_SHIPPING && METALFX_PLUGIN_ENABLED
+		if (bIsActive && ResolutionDebugInfo.bIsValid)
+		{
+			if (FMetalFXUpscalerCore* Upscaler = MetalFXModule.GetMetalFXUpscaler())
+			{
+				// Queue the plan on the render thread so it is committed in the same
+				// command stream as this frame's actual rect update. Writing it directly
+				// on the game thread could pair a new plan with an older render-thread rect.
+				ENQUEUE_RENDER_COMMAND(FMetalFXCommitResolutionDebugInfo)(
+					[Upscaler, ResolutionDebugInfo](FRHICommandListImmediate&)
+					{
+						Upscaler->UpdateResolutionDebugInfo(ResolutionDebugInfo);
+					});
+			}
+		}
+#endif
+	};
+
+	if (!CanActivateForViewFamily(InViewFamily, UpscalerType))
+	{
+		UpdateDebugStatus(false);
+		return;
+	}
+
+	if (UpscalerType == EMetalFXUpscalerType::Temporal)
+	{
+		if (!CanActivateTemporal(InViewFamily, MetalFXModule))
+		{
+			UpdateDebugStatus(false);
+			return;
+		}
+
+		FMetalFXResolutionDebugInfo ResolutionDebugInfo;
+		ApplyMetalFXScreenPercentageToViewFamily(
+			InViewFamily,
+			static_cast<EMetalFXQualityMode>(CVarMetalFXQualityMode.GetValueOnGameThread()),
+			&ResolutionDebugInfo);
+		InstallTemporalUpscaler(InViewFamily, MetalFXModule);
+		const bool bIsActive = InViewFamily.GetTemporalUpscalerInterface() != nullptr;
+		UpdateDebugStatus(bIsActive);
+		CommitResolutionDebugInfo(bIsActive, ResolutionDebugInfo);
+		return;
+	}
+
+	if (!CanActivateSpatial(InViewFamily, MetalFXModule))
+	{
+		UpdateDebugStatus(false);
+		return;
+	}
+
+	FMetalFXResolutionDebugInfo ResolutionDebugInfo;
+	ApplyMetalFXScreenPercentageToViewFamily(
+		InViewFamily,
+		static_cast<EMetalFXQualityMode>(CVarMetalFXQualityMode.GetValueOnGameThread()),
+		&ResolutionDebugInfo);
+	InstallSpatialUpscaler(InViewFamily, MetalFXModule);
+	const bool bIsActive = InViewFamily.GetPrimarySpatialUpscalerInterface() != nullptr;
+	UpdateDebugStatus(bIsActive);
+	CommitResolutionDebugInfo(bIsActive, ResolutionDebugInfo);
+}
 
 bool FMetalFXViewExtension::IsActiveThisFrame_Internal(const FSceneViewExtensionContext& Context) const
 {

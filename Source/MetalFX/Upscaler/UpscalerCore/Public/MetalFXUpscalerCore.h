@@ -12,6 +12,7 @@ struct FMetalFXActiveDebugInfo
 	FIntRect InputRect = FIntRect();
 	FIntRect OutputRect = FIntRect();
 	float ScreenPercentage = 100.0f;
+	FMetalFXResolutionDebugInfo Resolution;
 	bool bIsValid = false;
 };
 
@@ -48,6 +49,7 @@ public:
 		FIntRect OutputViewRect);
 
 	void UpdateActiveDebugInfo(FIntRect InputRect, FIntRect OutputRect, float ScreenPercentage);
+	void UpdateResolutionDebugInfo(const FMetalFXResolutionDebugInfo& ResolutionDebugInfo);
 	FMetalFXActiveDebugInfo GetActiveDebugInfo() const;
 
 protected:

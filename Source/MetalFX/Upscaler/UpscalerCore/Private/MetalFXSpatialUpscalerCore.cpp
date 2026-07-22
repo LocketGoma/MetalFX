@@ -70,7 +70,8 @@ FMetalFXSpatialUpscalerCore::~FMetalFXSpatialUpscalerCore()
 
 bool FMetalFXSpatialUpscalerCore::SetTexturesToGroup(
 	const FMetalFXSpatialPassParameters& Parameters,
-	FMetalFXSpatialTextureGroup& OutTextureGroup)
+	FMetalFXSpatialTextureGroup& OutTextureGroup,
+	FMetalFXSpatialTextureFormatGroup& OutFormats)
 {
 	if (!Parameters.ColorTexture || !Parameters.OutputTexture)
 	{
@@ -87,15 +88,18 @@ bool FMetalFXSpatialUpscalerCore::SetTexturesToGroup(
 		return false;
 	}
 
-	FMetalFXSpatialTextureFormatGroup Formats;
 #if METALFX_METALCPP
-	Formats.Color = OutTextureGroup.ColorTexture.GetTexture()->pixelFormat();
-	Formats.Output = OutTextureGroup.OutputTexture.GetTexture()->pixelFormat();
+	OutFormats.Color = OutTextureGroup.ColorTexture.GetTexture()->pixelFormat();
+	OutFormats.Output = OutTextureGroup.OutputTexture.GetTexture()->pixelFormat();
 #elif METALFX_NATIVE
-	Formats.Color = static_cast<FMetalFXPixelFormat>([OutTextureGroup.ColorTexture.GetTexture() pixelFormat]);
-	Formats.Output = static_cast<FMetalFXPixelFormat>([OutTextureGroup.OutputTexture.GetTexture() pixelFormat]);
+	OutFormats.Color = static_cast<FMetalFXPixelFormat>([OutTextureGroup.ColorTexture.GetTexture() pixelFormat]);
+	OutFormats.Output = static_cast<FMetalFXPixelFormat>([OutTextureGroup.OutputTexture.GetTexture() pixelFormat]);
 #endif
-	Resources->Formats = Formats;
+	if (!OutFormats.IsReady())
+	{
+		UE_LOG(LogMetalFX, Error, TEXT("MetalFX spatial texture formats are invalid."));
+		return false;
+	}
 	return true;
 }
 
@@ -107,6 +111,7 @@ bool FMetalFXSpatialUpscalerCore::GenerateUpscaler()
 {
 	if (!Resources || !Resources->Formats.IsReady())
 	{
+		UE_LOG(LogMetalFX, Error, TEXT("MetalFX SpatialScaler creation failed because descriptor resources or texture formats are invalid."));
 		return false;
 	}
 
@@ -115,12 +120,20 @@ bool FMetalFXSpatialUpscalerCore::GenerateUpscaler()
 	MTL::Device* Device = static_cast<MTL::Device*>(GetMetalDevice());
 	if (!Device)
 	{
+		UE_LOG(LogMetalFX, Error, TEXT("MetalFX SpatialScaler creation failed because the Metal device is unavailable."));
 		return false;
 	}
 
 	auto Descriptor = RetainPtr(MTLFX::SpatialScalerDescriptor::alloc()->init());
+	if (!Descriptor.get())
+	{
+		UE_LOG(LogMetalFX, Error, TEXT("MetalFX SpatialScaler descriptor creation failed."));
+		return false;
+	}
+
 	if (!Descriptor->supportsDevice(Device))
 	{
+		UE_LOG(LogMetalFX, Error, TEXT("MetalFX SpatialScaler is not supported by the current Metal device."));
 		return false;
 	}
 
@@ -130,6 +143,7 @@ bool FMetalFXSpatialUpscalerCore::GenerateUpscaler()
 	Descriptor->setOutputHeight(OutputHeight);
 	Descriptor->setColorTextureFormat(static_cast<MTL::PixelFormat>(Resources->Formats.Color));
 	Descriptor->setOutputTextureFormat(static_cast<MTL::PixelFormat>(Resources->Formats.Output));
+	// TODO: Automatically select Perceptual, Linear, or HDR from Unreal's output color-space configuration. Until then, keep MetalFX's default Perceptual mode.
 	Resources->CppScaler = NS::RetainPtr(Descriptor->newSpatialScaler(Device));
 #elif METALFX_NATIVE
 	[Resources->Scaler release];
@@ -138,6 +152,7 @@ bool FMetalFXSpatialUpscalerCore::GenerateUpscaler()
 	id<MTLDevice> Device = (__bridge id<MTLDevice>)GetMetalDevice();
 	if (Device == nil || ![MTLFXSpatialScalerDescriptor supportsDevice:Device])
 	{
+		UE_LOG(LogMetalFX, Error, TEXT("MetalFX SpatialScaler is not supported by the current Metal device."));
 		return false;
 	}
 
@@ -148,6 +163,7 @@ bool FMetalFXSpatialUpscalerCore::GenerateUpscaler()
 	Descriptor.outputHeight = OutputHeight;
 	Descriptor.colorTextureFormat = static_cast<MTLPixelFormat>(Resources->Formats.Color);
 	Descriptor.outputTextureFormat = static_cast<MTLPixelFormat>(Resources->Formats.Output);
+	// TODO: Automatically select Perceptual, Linear, or HDR from Unreal's output color-space configuration. Until then, keep MetalFX's default Perceptual mode.
 	Resources->Scaler = [Descriptor newSpatialScalerWithDevice:Device];
 	[Descriptor release];
 #endif
@@ -158,7 +174,6 @@ bool FMetalFXSpatialUpscalerCore::GenerateUpscaler()
 		return false;
 	}
 
-	ConfiguredFormats = Resources->Formats;
 	UpdateInputContentSize(FIntPoint(InputContentWidth, InputContentHeight));
 	return true;
 }
@@ -169,6 +184,11 @@ bool FMetalFXSpatialUpscalerCore::GenerateUpscaler()
 
 void FMetalFXSpatialUpscalerCore::UpdateInputContentSize(FIntPoint InputContentExtent)
 {
+	if (!Resources || !Resources->HasScaler())
+	{
+		return;
+	}
+
 	InputContentWidth = InputContentExtent.X;
 	InputContentHeight = InputContentExtent.Y;
 #if METALFX_METALCPP
@@ -188,10 +208,32 @@ bool FMetalFXSpatialUpscalerCore::EnsureUpscalerForConfiguration(
 	const FMetalFXSpatialEncodeInputs& Inputs,
 	const FMetalFXSpatialTextureFormatGroup& Formats)
 {
-	if (!Resources
-		|| !ValidateCommonExtents(Inputs.InputTextureExtent, Inputs.InputContentExtent, Inputs.OutputExtent)
-		|| !Formats.IsReady())
+	if (!Resources)
 	{
+		UE_LOG(LogMetalFX, Error, TEXT("MetalFX Spatial Core resources are not available."));
+		return false;
+	}
+
+	if (!ValidateCommonExtents(Inputs.InputTextureExtent, Inputs.InputContentExtent, Inputs.OutputExtent))
+	{
+		return false;
+	}
+
+	if (!Formats.IsReady())
+	{
+		UE_LOG(LogMetalFX, Warning, TEXT("MetalFX spatial texture formats are not ready."));
+		return false;
+	}
+
+	if (Inputs.InputContentExtent.X > Inputs.InputTextureExtent.X || Inputs.InputContentExtent.Y > Inputs.InputTextureExtent.Y)
+	{
+		UE_LOG(LogMetalFX, Warning, TEXT("MetalFX Spatial input content exceeds the input texture extent."));
+		return false;
+	}
+
+	if (Inputs.OutputExtent.X < Inputs.InputContentExtent.X || Inputs.OutputExtent.Y < Inputs.InputContentExtent.Y)
+	{
+		UE_LOG(LogMetalFX, Warning, TEXT("MetalFX Spatial does not support downscaling."));
 		return false;
 	}
 
@@ -202,15 +244,13 @@ bool FMetalFXSpatialUpscalerCore::EnsureUpscalerForConfiguration(
 	const bool bInputTextureResolutionChanged = ConfiguredInputTextureExtent != Inputs.InputTextureExtent;
 	const bool bInputContentResolutionChanged = ConfiguredInputContentExtent != Inputs.InputContentExtent;
 	const bool bOutputResolutionChanged = ConfiguredOutputExtent != Inputs.OutputExtent;
-	const bool bFormatChanged = ConfiguredFormats != Formats;
-	const bool bNeedsScalerRecreation =
-		!Resources->HasScaler()
-		|| bInputTextureResolutionChanged
-		|| bOutputResolutionChanged
-		|| bFormatChanged;
+	const bool bFormatChanged = Resources->Formats != Formats;
+	const bool bNeedsScalerRecreation = !Resources->HasScaler() || bInputTextureResolutionChanged || bOutputResolutionChanged || bFormatChanged;
 
 	if (bNeedsScalerRecreation)
 	{
+		UE_LOG(LogMetalFX, Log, TEXT("MetalFX SpatialScaler %s. InputTexture=%dx%d, InputContent=%dx%d, Output=%dx%d"), Resources->HasScaler() ? TEXT("recreate requested") : TEXT("creation requested"), Inputs.InputTextureExtent.X, Inputs.InputTextureExtent.Y, Inputs.InputContentExtent.X, Inputs.InputContentExtent.Y, Inputs.OutputExtent.X, Inputs.OutputExtent.Y);
+
 		InputTextureWidth = Inputs.InputTextureExtent.X;
 		InputTextureHeight = Inputs.InputTextureExtent.Y;
 		InputContentWidth = Inputs.InputContentExtent.X;
@@ -232,11 +272,12 @@ bool FMetalFXSpatialUpscalerCore::EnsureUpscalerForConfiguration(
 // Per-frame encode preparation
 //////////////////////////////////////////////////////////////////////////
 
-bool FMetalFXSpatialUpscalerCore::PrepareToEncode(const FMetalFXSpatialEncodeInputs& Inputs)
+bool FMetalFXSpatialUpscalerCore::PrepareToEncode(const FMetalFXSpatialEncodeInputs& Inputs, const FMetalFXSpatialTextureFormatGroup& Formats)
 {
 	if (!ValidateCommonRects(Inputs.InputRect, Inputs.OutputRect)
-		|| !EnsureUpscalerForConfiguration(Inputs, Resources->Formats))
+		|| !EnsureUpscalerForConfiguration(Inputs, Formats))
 	{
+		UE_LOG(LogMetalFX, Verbose, TEXT("MetalFX Spatial Upscaler is not ready. Skip upscaling this frame."));
 		return false;
 	}
 
@@ -267,6 +308,7 @@ void FMetalFXSpatialUpscalerCore::Encode(
 	FMetalCommandBuffer* CurrentCommandBuffer = GetCurrentMetalCommandBuffer(CmdList);
 	if (!CurrentCommandBuffer)
 	{
+		UE_LOG(LogMetalFX, Warning, TEXT("MetalFX Spatial could not find the active Metal command buffer. Skip upscaling this frame."));
 		TextureGroup.ReleaseAllTexture();
 		return;
 	}
@@ -285,14 +327,23 @@ void FMetalFXSpatialUpscalerCore::Encode(
 	}
 	else
 	{
+		UE_LOG(LogMetalFX, Warning, TEXT("MetalFX Spatial could not find the native Metal command buffer. Skip upscaling this frame."));
 		TextureGroup.ReleaseAllTexture();
 	}
 #elif METALFX_NATIVE
-	id<MTLCommandBuffer> CommandBuffer = (__bridge id<MTLCommandBuffer>)CurrentCommandBuffer;
-	Resources->Scaler.colorTexture = TextureGroup.ColorTexture.GetTexture();
-	Resources->Scaler.outputTexture = TextureGroup.OutputTexture.GetTexture();
-	[Resources->Scaler encodeToCommandBuffer:CommandBuffer];
-	TextureGroup.ReleaseAllTextureDeferred(CommandBuffer);
+	id<MTLCommandBuffer> CommandBuffer = (__bridge id<MTLCommandBuffer>)CurrentCommandBuffer->GetMTLCmdBuffer();
+	if (CommandBuffer)
+	{
+		Resources->Scaler.colorTexture = TextureGroup.ColorTexture.GetTexture();
+		Resources->Scaler.outputTexture = TextureGroup.OutputTexture.GetTexture();
+		[Resources->Scaler encodeToCommandBuffer:CommandBuffer];
+		TextureGroup.ReleaseAllTextureDeferred(CommandBuffer);
+	}
+	else
+	{
+		UE_LOG(LogMetalFX, Warning, TEXT("MetalFX Spatial could not find the native Metal command buffer. Skip upscaling this frame."));
+		TextureGroup.ReleaseAllTexture();
+	}
 #endif
 }
 
@@ -305,7 +356,7 @@ bool FMetalFXSpatialUpscalerCore::CheckValidate() const
 	const bool bValid = IsInitialized() && Resources && Resources->HasScaler();
 	if (!bValid)
 	{
-		UE_LOG(LogMetalFX, Error, TEXT("MetalFX Spatial Core is not ready."));
+		UE_LOG(LogMetalFX, Warning, TEXT("MetalFX Spatial Core is not ready. Skip upscaling this frame."));
 	}
 	return bValid;
 }

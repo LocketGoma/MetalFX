@@ -3,6 +3,7 @@
 #include "MetalFXSettings.h"
 #include "RenderGraphBuilder.h"
 #include "RenderGraphResources.h"
+#include "SceneView.h"
 
 #if METALFX_PLUGIN_ENABLED
 #include "MetalRHI.h"
@@ -12,7 +13,7 @@
 #include "MetalRHIUtility.h"
 #endif
 
-DECLARE_LOG_CATEGORY_EXTERN(LogMetalFX, Verbose, All);
+DECLARE_LOG_CATEGORY_EXTERN(LogMetalFX, Log, All);
 
 class FRDGTexture;
 
@@ -34,31 +35,64 @@ enum class EMetalFXSupportReason : uint8
 	NotSupportedMetalFXCreationFailed,
 };
 
-inline float ConvertMetalFXQualityModeToScreenPercentage(EMetalFXQualityMode QualityMode)
+struct FMetalFXQualitySettings
+{
+	// Human-readable preset name used by logs and the on-screen debug display.
+	const TCHAR* Name = TEXT("Balanced");
+
+	// Primary input fraction relative to the MetalFX Secondary output target.
+	float RelativeScale = 0.5f;
+
+	// Legacy absolute Primary Screen Percentage used when engine-based scaling is disabled.
+	float AbsoluteScreenPercentage = 50.0f;
+
+	// Forces native-display input/output instead of composing with the engine base fraction.
+	bool bForceNativeResolution = false;
+
+	// Returns the Primary fraction consumed by Unreal's screen-percentage pipeline.
+	// A returned value of 1.0 means 100% of the Secondary output target; it only
+	// means 100% of the physical display when bForceNativeResolution also forces
+	// that Secondary target to native resolution.
+	float GetPrimaryResolutionFraction(bool bAutoScalingFromEngine) const
+	{
+		return (bForceNativeResolution || bAutoScalingFromEngine) ? RelativeScale : AbsoluteScreenPercentage / 100.0f;
+	}
+};
+
+inline FMetalFXQualitySettings GetMetalFXQualitySettings(EMetalFXQualityMode QualityMode)
 {
 	if (QualityMode == EMetalFXQualityMode::Min)
 	{
 #if !UE_BUILD_SHIPPING
-		return 1.0f;
+		return { TEXT("Min"), 0.01f, 1.0f, false };
 #else
-		return ConvertMetalFXQualityModeToScreenPercentage(static_cast<EMetalFXQualityMode>(static_cast<int32>(EMetalFXQualityMode::Min) - 1));
+		return GetMetalFXQualitySettings(static_cast<EMetalFXQualityMode>(static_cast<int32>(EMetalFXQualityMode::Min) - 1));
 #endif
 	}
 
 	switch (QualityMode)
 	{
 	case EMetalFXQualityMode::NativeAA:
-		return 100.0f;
+		return { TEXT("NativeAA"), 1.0f, 100.0f, true };
+	case EMetalFXQualityMode::UltraQuality:
+		return { TEXT("UltraQuality"), 1.0f, 100.0f, false };
 	case EMetalFXQualityMode::Quality:
-		return 66.7f;
+		return { TEXT("Quality"), 0.667f, 66.7f, false };
 	case EMetalFXQualityMode::Balanced:
-		return 50.0f;
+		return { TEXT("Balanced"), 0.5f, 50.0f, false };
 	case EMetalFXQualityMode::Performance:
+		return { TEXT("Performance"), 0.42f, 42.0f, false };
+	case EMetalFXQualityMode::UltraPerformance:
 		// MetalFX TemporalScaler does not support upscaling greater than 3x per dimension.
-		return 35.0f;
+		return { TEXT("UltraPerformance"), 0.34f, 34.0f, false };
 	default:
-		return 50.0f;
+		return { TEXT("Balanced"), 0.5f, 50.0f, false };
 	}
+}
+
+inline float ConvertMetalFXQualityModeToScreenPercentage(EMetalFXQualityMode QualityMode)
+{
+	return GetMetalFXQualitySettings(QualityMode).AbsoluteScreenPercentage;
 }
 
 inline float ConvertMetalFXQualityModeToScreenPercentage(int32 QualityMode)
@@ -68,12 +102,12 @@ inline float ConvertMetalFXQualityModeToScreenPercentage(int32 QualityMode)
 
 inline float ConvertMetalFXQualityModeToResolutionFraction(EMetalFXQualityMode QualityMode)
 {
-	return ConvertMetalFXQualityModeToScreenPercentage(QualityMode) / 100.0f;
+	return GetMetalFXQualitySettings(QualityMode).RelativeScale;
 }
 
 inline float ConvertMetalFXQualityModeToResolutionFraction(int32 QualityMode)
 {
-	return ConvertMetalFXQualityModeToScreenPercentage(QualityMode) / 100.0f;
+	return ConvertMetalFXQualityModeToResolutionFraction(static_cast<EMetalFXQualityMode>(QualityMode));
 }
 
 inline float GetMetalFXMinUpscaleResolutionFraction()
@@ -83,7 +117,26 @@ inline float GetMetalFXMinUpscaleResolutionFraction()
 
 inline float GetMetalFXMaxUpscaleResolutionFraction()
 {
+#if METALFX_DEBUG
+	// Temporarily expose Unreal's full Primary resolution range so values above
+	// 100% can be exercised while validating MetalFX supersampling behavior.
+	return ISceneViewFamilyScreenPercentage::kMaxResolutionFraction;
+#else
 	return ConvertMetalFXQualityModeToResolutionFraction(EMetalFXQualityMode::NativeAA);
+#endif
+}
+
+// Returns the primary input-to-output scale as a percentage.
+inline float CalculateMetalFXScreenPercentage(const FIntRect& InputRect, const FIntRect& OutputRect)
+{
+	if (OutputRect.Width() <= 0 || OutputRect.Height() <= 0)
+	{
+		return 100.0f;
+	}
+
+	const float WidthFraction = static_cast<float>(InputRect.Width()) / static_cast<float>(OutputRect.Width());
+	const float HeightFraction = static_cast<float>(InputRect.Height()) / static_cast<float>(OutputRect.Height());
+	return FMath::Min(WidthFraction, HeightFraction) * 100.0f;
 }
 
 //텍스쳐 포멧 그룹

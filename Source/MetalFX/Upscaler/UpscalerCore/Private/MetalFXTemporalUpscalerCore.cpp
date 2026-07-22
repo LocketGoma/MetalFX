@@ -354,7 +354,7 @@ bool FMetalFXTemporalUpscalerCore::CheckForExecuteMetalFX(
 
 	if (!EnsureUpscalerForConfiguration(InputTextureExtent, InputContentExtent, OutputExtent, Resources->Formats))
 	{
-		UE_LOG(LogMetalFX, Warning, TEXT("MetalFX Temporal Upscaler is not ready. Skip upscaling this frame."));
+		UE_LOG(LogMetalFX, Verbose, TEXT("MetalFX Temporal Upscaler is not ready. Skip upscaling this frame."));
 		return false;
 	}
 
@@ -385,7 +385,7 @@ void FMetalFXTemporalUpscalerCore::ExecuteMetalFX(
 {
 	if (!CheckValidate())
 	{
-		UE_LOG(LogMetalFX, Warning, TEXT("MetalFX Temporal Upscaler is invalid. Skip upscaling this frame."));
+		UE_LOG(LogMetalFX, Verbose, TEXT("MetalFX Temporal Upscaler is invalid. Skip upscaling this frame."));
 		TextureGroup.ReleaseAllTexture();
 		return;
 	}

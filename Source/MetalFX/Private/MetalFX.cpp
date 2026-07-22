@@ -110,6 +110,11 @@ void FMetalFXModule::StartupModule()
 				ApplyMetalFXQualityModeToScreenPercentage(Settings->QualityMode);
 			}
 
+			if (IConsoleVariable* CvarMetalFXAutoScaling = IConsoleManager::Get().FindConsoleVariable(TEXT("r.MetalFX.AutoScalingFromEngine")))
+			{
+				SetBoolCVarWithCurrentPriorityIfChanged(CvarMetalFXAutoScaling, Settings->bAutoScalingFromEngine);
+			}
+
 			if (IConsoleVariable* CvarMetalFXJitterMode = IConsoleManager::Get().FindConsoleVariable(TEXT("r.MetalFX.JitterMode")))
 			{
 				SetIntCVarWithCurrentPriorityIfChanged(CvarMetalFXJitterMode, Settings->JitterMode);
@@ -140,6 +145,10 @@ void FMetalFXModule::StartupModule()
 
 void FMetalFXModule::ShutdownModule()
 {
+	// Finalize Screen Percentage ownership. Production restores the activation
+	// snapshot, while METALFX_DEBUG preserves the current test value.
+	RestoreMetalFXScreenPercentage();
+
 	FCoreDelegates::OnPostEngineInit.Remove(OnPostEngineInitSettings);
 	FCoreDelegates::OnPostEngineInit.Remove(OnPostRHIInitialized);
 	FCoreDelegates::OnPostEngineInit.RemoveAll(this);
@@ -317,6 +326,7 @@ void FMetalFXModule::HandlePostRHIInitialized()
 #if METALFX_PLUGIN_ENABLED
 		MetalFXSupport = FMetalFXUpscalerCore::GetMetalFXSupportReason();
 		MetalFXUpscalerType = FMetalFXUpscalerCore::GetMetalFXUpscalerType();
+		//MetalFXUpscalerType = EMetalFXUpscalerType::Spatial;
 		if (MetalFXSupport == EMetalFXSupportReason::Supported && MetalFXUpscalerType != EMetalFXUpscalerType::None)
 		{
 			CreateMetalFXUpscaler(MetalFXUpscalerType);
