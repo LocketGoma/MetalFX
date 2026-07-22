@@ -1,7 +1,6 @@
 #include "MetalFXSpatialUpscaler.h"
 #include "MetalFXSpatialUpscalerCore.h"
 #include "MetalFXHelper.h"
-#include "MetalFXSettings.h"
 #include "ScenePrivate.h"
 
 #if METALFX_PLUGIN_ENABLED
@@ -9,7 +8,7 @@ DECLARE_GPU_STAT(MetalFXSpatialUpscaler);
 
 bool FMetalFXSpatialUpscaler::CheckValidate() const
 {
-	if (!m_FxUpscaler)
+	if (!UpscalerCore)
 	{
 		UE_LOG(LogMetalFX, Error, TEXT("MetalFX Spatial Core is not ready."));
 		return false;
@@ -18,13 +17,13 @@ bool FMetalFXSpatialUpscaler::CheckValidate() const
 }
 
 FMetalFXSpatialUpscaler::FMetalFXSpatialUpscaler(FMetalFXSpatialUpscalerCore* InUpscaler)
-	: m_FxUpscaler(InUpscaler)
+	: UpscalerCore(InUpscaler)
 {
 }
 
 ISpatialUpscaler* FMetalFXSpatialUpscaler::Fork_GameThread(const FSceneViewFamily& ViewFamily) const
 {
-	return new FMetalFXSpatialUpscaler(m_FxUpscaler);
+	return new FMetalFXSpatialUpscaler(UpscalerCore);
 }
 
 FScreenPassTexture FMetalFXSpatialUpscaler::AddPasses(FRDGBuilder& GraphBuilder, const FViewInfo& View, const FInputs& PassInputs) const
@@ -43,7 +42,9 @@ FScreenPassTexture FMetalFXSpatialUpscaler::AddPasses(FRDGBuilder& GraphBuilder,
 		return ISpatialUpscaler::AddDefaultUpscalePass(GraphBuilder, View, PassInputs, EUpscaleMethod::Bilinear);
 	}
 
-	if (PassInputs.Stage != EUpscaleStage::PrimaryToSecondary && PassInputs.Stage != EUpscaleStage::PrimaryToOutput)
+	const bool bPrimaryToSecondary = PassInputs.Stage == EUpscaleStage::PrimaryToSecondary;
+	const bool bPrimaryToOutput = PassInputs.Stage == EUpscaleStage::PrimaryToOutput;
+	if (!bPrimaryToSecondary && !bPrimaryToOutput)
 	{
 		UE_LOG(LogMetalFX, Warning, TEXT("MetalFX Spatial received an unsupported upscale stage; using bilinear fallback."));
 		return ISpatialUpscaler::AddDefaultUpscalePass(GraphBuilder, View, PassInputs, EUpscaleMethod::Bilinear);
@@ -63,7 +64,9 @@ FScreenPassTexture FMetalFXSpatialUpscaler::AddPasses(FRDGBuilder& GraphBuilder,
 		OutputRect = View.UnscaledViewRect;
 	}
 
-	if (PassInputs.SceneColor.ViewRect.Min != FIntPoint::ZeroValue || OutputRect.Min != FIntPoint::ZeroValue)
+	const bool bInputRectOriginAligned = PassInputs.SceneColor.ViewRect.Min == FIntPoint::ZeroValue;
+	const bool bOutputRectOriginAligned = OutputRect.Min == FIntPoint::ZeroValue;
+	if (!bInputRectOriginAligned || !bOutputRectOriginAligned)
 	{
 		UE_LOG(LogMetalFX, Warning, TEXT("MetalFX Spatial requires valid origin-aligned input and output rects; using bilinear fallback."));
 		return ISpatialUpscaler::AddDefaultUpscalePass(GraphBuilder, View, PassInputs, EUpscaleMethod::Bilinear);
@@ -96,38 +99,34 @@ FScreenPassTexture FMetalFXSpatialUpscaler::AddPasses(FRDGBuilder& GraphBuilder,
 	PassParameters->OutputTexture = Output.Texture;
 
 	FMetalFXSpatialEncodeInputs EncodeInputs;
-	EncodeInputs.InputTextureExtent = PassInputs.SceneColor.Texture->Desc.Extent;
+	EncodeInputs.DescriptorInputExtent = PassInputs.SceneColor.Texture->Desc.Extent;
 	EncodeInputs.InputContentExtent = PassInputs.SceneColor.ViewRect.Size();
 	EncodeInputs.OutputExtent = Output.ViewRect.Size();
 	EncodeInputs.InputRect = PassInputs.SceneColor.ViewRect;
 	EncodeInputs.OutputRect = Output.ViewRect;
-	EncodeInputs.ScreenPercentage = CalculateMetalFXScreenPercentage(EncodeInputs.InputRect, EncodeInputs.OutputRect);
 
-	FMetalFXSpatialUpscalerCore* UpscalerCore = m_FxUpscaler;
+	FMetalFXSpatialUpscalerCore* const PassUpscalerCore = UpscalerCore;
 	const ERDGPassFlags Flags = ERDGPassFlags::Compute | ERDGPassFlags::Raster | ERDGPassFlags::SkipRenderPass | ERDGPassFlags::NeverCull;
 
-	GraphBuilder.AddPass(
-		RDG_EVENT_NAME("MetalFXSpatialUpscaler %dx%d -> %dx%d",
-			EncodeInputs.InputContentExtent.X,
-			EncodeInputs.InputContentExtent.Y,
-			EncodeInputs.OutputRect.Width(),
-			EncodeInputs.OutputRect.Height()),
-		PassParameters,
-		Flags,
-		[UpscalerCore, PassParameters, EncodeInputs](FRHICommandListImmediate& RHICmdList)
+	GraphBuilder.AddPass(RDG_EVENT_NAME("MetalFXSpatialUpscaler %dx%d -> %dx%d", EncodeInputs.InputContentExtent.X, EncodeInputs.InputContentExtent.Y, EncodeInputs.OutputRect.Width(), EncodeInputs.OutputRect.Height()), PassParameters, Flags, [PassUpscalerCore, PassParameters, EncodeInputs](FRHICommandListImmediate& RHICmdList)
 		{
-			FMetalFXSpatialTextureGroup TextureGroup;
-			FMetalFXSpatialTextureFormatGroup Formats;
-			if (!UpscalerCore->SetTexturesToGroup(*PassParameters, TextureGroup, Formats))
+			if (!PassUpscalerCore)
 			{
 				return;
 			}
 
-			RHICmdList.EnqueueLambda([UpscalerCore, EncodeInputs, Formats, TextureGroup = MoveTemp(TextureGroup)](FRHICommandListImmediate& Cmd) mutable
+			FMetalFXSpatialTextureGroup TextureGroup;
+			FMetalFXSpatialTextureFormatGroup Formats;
+			if (!PassUpscalerCore->SetTexturesToGroup(*PassParameters, TextureGroup, Formats))
 			{
-				if (UpscalerCore->PrepareToEncode(EncodeInputs, Formats))
+				return;
+			}
+
+			RHICmdList.EnqueueLambda([PassUpscalerCore, EncodeInputs, Formats, TextureGroup = MoveTemp(TextureGroup)](FRHICommandListImmediate& Cmd) mutable
+			{
+				if (PassUpscalerCore->PrepareToEncode(EncodeInputs, Formats))
 				{
-					UpscalerCore->ExecuteMetalFX(Cmd, TextureGroup);
+					PassUpscalerCore->ExecuteMetalFX(Cmd, TextureGroup);
 				}
 			});
 		});

@@ -7,11 +7,19 @@
 
 class FMetalCommandBuffer;
 
+struct FMetalFXEncodeGeometry
+{
+	FIntPoint DescriptorInputExtent = FIntPoint::ZeroValue;
+	FIntPoint InputContentExtent = FIntPoint::ZeroValue;
+	FIntPoint OutputExtent = FIntPoint::ZeroValue;
+	FIntRect InputRect = FIntRect();
+	FIntRect OutputRect = FIntRect();
+};
+
 struct FMetalFXActiveDebugInfo
 {
 	FIntRect InputRect = FIntRect();
 	FIntRect OutputRect = FIntRect();
-	float ScreenPercentage = 100.0f;
 	FMetalFXResolutionDebugInfo Resolution;
 	bool bIsValid = false;
 };
@@ -38,17 +46,12 @@ public:
 
 	virtual EMetalFXUpscalerType GetUpscalerType() const = 0;
 
-	static EMetalFXSupportReason GetIsSupportedDevice();
-	static bool IsMetalFXSupported();
-	static EMetalFXUpscalerType GetMetalFXUpscalerType();
-	static EMetalFXSupportReason GetMetalFXSupportReason();
+	static EMetalFXUpscalerType QuerySupportedUpscalerType();
+	static EMetalFXSupportReason QuerySupportReason(EMetalFXUpscalerType SupportedUpscalerType);
 
-	static FRDGTextureRef CreateOutputTexture(
-		FRDGBuilder& GraphBuilder,
-		FRDGTextureRef InSceneColorTexture,
-		FIntRect OutputViewRect);
+	static FRDGTextureRef CreateOutputTexture(FRDGBuilder& GraphBuilder, FRDGTextureRef InSceneColorTexture, FIntRect OutputViewRect);
 
-	void UpdateActiveDebugInfo(FIntRect InputRect, FIntRect OutputRect, float ScreenPercentage);
+	void UpdateActiveDebugInfo(FIntRect InputRect, FIntRect OutputRect);
 	void UpdateResolutionDebugInfo(const FMetalFXResolutionDebugInfo& ResolutionDebugInfo);
 	FMetalFXActiveDebugInfo GetActiveDebugInfo() const;
 
@@ -59,10 +62,7 @@ protected:
 	static void* GetMetalDevice();
 #endif
 
-	bool ValidateCommonExtents(
-		FIntPoint InputTextureExtent,
-		FIntPoint InputContentExtent,
-		FIntPoint OutputExtent) const;
+	bool ValidateCommonExtents(FIntPoint InputTextureExtent, FIntPoint InputContentExtent, FIntPoint OutputExtent) const;
 	bool ValidateCommonRects(FIntRect InputRect, FIntRect OutputRect) const;
 
 private:

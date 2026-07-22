@@ -13,11 +13,10 @@ public class MetalFX : ModuleRules
 			new string[]
 			{
 				"Core",
-				"DeveloperSettings", 
+				"DeveloperSettings",
 				"RenderCore"
 			});
-			
-		
+
 		PrivateDependencyModuleNames.AddRange(
 			new string[]
 			{
@@ -31,70 +30,57 @@ public class MetalFX : ModuleRules
 				"Projects"
 			});
 
-		//------------------MetalFX Handling Branch------------------
-
 		string UpscalerPrivatePath = Path.Combine(ModuleDirectory, "Upscaler");
-        PrivateIncludePaths.Add(UpscalerPrivatePath);
-        PrivateIncludePaths.Add(Path.Combine(GetModuleDirectory("Renderer"), "Private"));
-        PrivateIncludePaths.AddRange(
-		Directory.GetDirectories(UpscalerPrivatePath, "*", SearchOption.AllDirectories)
-		);
+		PrivateIncludePaths.Add(UpscalerPrivatePath);
+		PrivateIncludePaths.Add(Path.Combine(GetModuleDirectory("Renderer"), "Private"));
+		PrivateIncludePaths.AddRange(Directory.GetDirectories(UpscalerPrivatePath, "*", SearchOption.AllDirectories));
 
+		//------------------MetalFX Handling Branch------------------
 		//해당 플러그인에서 지원하는 Apple Platfrom에서만 True 되도록 처리
 		//TV OS / Vision OS 는 제외 (애초에 테스트 가능하지도 않고)
-		bool bApplePlatfrom = false;
-		bool bNativeSetting = false;
 		
+		bool bIsMacTarget = Target.Platform == UnrealTargetPlatform.Mac;
+		bool bIsIOSTarget = Target.Platform == UnrealTargetPlatform.IOS;
+		bool bIsSupportedAppleTarget = bIsMacTarget || bIsIOSTarget;
+
+		// PublicDefinitions entries must use the exact NAME=VALUE form. Whitespace
+		// becomes part of the compiler argument on some toolchains.
 		PublicDefinitions.Add("METALFX_DEBUG=0");
-
-		if (Target.Platform == UnrealTargetPlatform.Mac)
-		{
-			bApplePlatfrom = true;
-    		PublicDefinitions.Add("WITH_METALFX_TARGET_MAC=1");
-    		PublicDefinitions.Add("WITH_METALFX_TARGET_IOS=0");
-		}
-		
-		if (Target.Platform == UnrealTargetPlatform.IOS)
-		{
-			bApplePlatfrom = true;
-    		PublicDefinitions.Add("WITH_METALFX_TARGET_MAC=0");
-    		PublicDefinitions.Add("WITH_METALFX_TARGET_IOS=1");
-		}
-
-		if(bApplePlatfrom)
+		PublicDefinitions.Add($"WITH_METALFX_TARGET_MAC={(bIsMacTarget ? 1 : 0)}");
+		PublicDefinitions.Add($"WITH_METALFX_TARGET_IOS={(bIsIOSTarget ? 1 : 0)}");
+		const bool bUseNativeMetalFX=false;
+		if (bIsSupportedAppleTarget)
 		{
 			PrivateDependencyModuleNames.Add("MetalCPP");
 			PrivateDependencyModuleNames.Add("MetalRHI");
-            PublicFrameworks.AddRange(new string[] {
-                "Metal",
-	            "Foundation",
-                "MetalFX"   
-            });
-            
+			PublicFrameworks.AddRange(new string[]
+			{
+				"Metal",
+				"Foundation",
+				"MetalFX"
+			});
+
 			//Must Select ONE, Not TOGETHER.
 			//Obj-C Native Type = iOS Version이 급격히 바뀐 경우 등에 사용
 			//MetalCPP Wrapper Type = 안정된 디버그가 필요한 경우 등의 상황에서 사용 (릴리즈시 권장)
-			PublicDefinitions.Add($"METALFX_NATIVE={(bNativeSetting ? 1 : 0)}");
-			PublicDefinitions.Add($"METALFX_METALCPP={(bNativeSetting ? 0 : 1)}");
-			
-            PrivateIncludePaths.AddRange(new string[]
-            {
-                Path.Combine(EngineDirectory, "Source/Runtime/Apple/MetalRHI/Public"),
-                Path.Combine(EngineDirectory, "Source/Runtime/Apple/MetalRHI/Private"),
-                Path.Combine(EngineDirectory, "Source/ThirdParty/Apple/MetalShaderConverter/Include/common")
-            });
+			PublicDefinitions.Add($"METALFX_NATIVE={(bUseNativeMetalFX ? 1 : 0)}");
+			PublicDefinitions.Add($"METALFX_METALCPP={(bUseNativeMetalFX ? 0 : 1)}");
 
-			PublicDefinitions.Add("METALFX_PLUGIN_ENABLED = 1");
+			PrivateIncludePaths.AddRange(new string[]
+			{
+				Path.Combine(EngineDirectory, "Source/Runtime/Apple/MetalRHI/Public"),
+				Path.Combine(EngineDirectory, "Source/Runtime/Apple/MetalRHI/Private"),
+				Path.Combine(EngineDirectory, "Source/ThirdParty/Apple/MetalShaderConverter/Include/common")
+			});
+
+			PublicDefinitions.Add("METALFX_PLUGIN_ENABLED=1");
 		}
 		else
 		{
 			PublicDefinitions.Add("METALFX_PLUGIN_ENABLED=0");
-  			PublicDefinitions.Add("WITH_METALFX_TARGET_MAC=0");
-    		PublicDefinitions.Add("WITH_METALFX_TARGET_IOS=0");
 			PublicDefinitions.Add("METALFX_NATIVE=0");
 			PublicDefinitions.Add("METALFX_METALCPP=0");
 		}
-		
 		//------------------MetalFX Handling Branch------------------ (End)
 	}
 }

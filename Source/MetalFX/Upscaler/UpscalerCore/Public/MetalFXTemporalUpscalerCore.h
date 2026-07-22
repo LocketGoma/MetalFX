@@ -4,16 +4,10 @@
 
 #include <memory>
 
-struct FMetalFXTemporalEncodeInputs
+struct FMetalFXTemporalEncodeInputs : FMetalFXEncodeGeometry
 {
-	FIntPoint InputTextureExtent = FIntPoint::ZeroValue;
-	FIntPoint InputContentExtent = FIntPoint::ZeroValue;
-	FIntPoint OutputExtent = FIntPoint::ZeroValue;
-	FIntRect InputRect = FIntRect();
-	FIntRect OutputRect = FIntRect();
 	FVector2D JitterOffset = FVector2D::ZeroVector;
 	FVector2f MotionVectorScale = FVector2f::ZeroVector;
-	float ScreenPercentage = 100.0f;
 };
 
 /**
@@ -35,56 +29,27 @@ public:
 		return EMetalFXUpscalerType::Temporal;
 	}
 
-	float GetMinUpsampleResolutionFraction() const;
-	float GetMaxUpsampleResolutionFraction() const;
+	static FRDGTextureRef PrepareVelocityTexture(FRDGBuilder& GraphBuilder, const FSceneView& View, FRDGTextureRef InSceneColorTexture, FRDGTextureRef InSceneDepthTexture, FRDGTextureRef InVelocityTexture, FIntRect InputViewRect, FIntRect OutputViewRect, FVector2D TemporalJitterPixels);
 
-	static FRDGTextureRef PrepareVelocityTexture(
-		FRDGBuilder& GraphBuilder,
-		const FSceneView& View,
-		FRDGTextureRef InSceneColorTexture,
-		FRDGTextureRef InSceneDepthTexture,
-		FRDGTextureRef InVelocityTexture,
-		FIntRect InputViewRect,
-		FIntRect OutputViewRect,
-		FVector2D TemporalJitterPixels);
-
-	static FRDGTextureRef GenerateVelocityTexturePass(
-		FRDGBuilder& GraphBuilder,
-		const FSceneView& View,
-		FRDGTextureRef InSceneDepthTexture,
-		FRDGTextureRef InVelocityTexture,
-		FIntRect InputViewRect,
-		FIntRect OutputViewRect,
-		FVector2D TemporalJitterPixels);
+	static FRDGTextureRef GenerateVelocityTexturePass(FRDGBuilder& GraphBuilder, const FSceneView& View, FRDGTextureRef InSceneDepthTexture, FRDGTextureRef InVelocityTexture, FIntRect InputViewRect, FIntRect OutputViewRect, FVector2D TemporalJitterPixels);
 
 #if METALFX_PLUGIN_ENABLED
-	bool SetTexturesToGroup(
-		const FMetalFXTemporalPassParameters& Parameters,
-		FMetalFXTemporalTextureGroup& OutTextureGroup);
+	bool SetTexturesToGroup(const FMetalFXTemporalPassParameters& Parameters, FMetalFXTemporalTextureGroup& OutTextureGroup, FMetalFXTemporalTextureFormatGroup& OutFormats);
 
-	bool PrepareToEncode(const FMetalFXTemporalEncodeInputs& Inputs);
+	bool PrepareToEncode(const FMetalFXTemporalEncodeInputs& Inputs, const FMetalFXTemporalTextureFormatGroup& Formats);
 	void ExecuteMetalFX(FRHICommandList& CmdList, FMetalFXTemporalTextureGroup& TextureGroup);
 #endif
 
 private:
-	static FRDGTextureRef AddBlackVelocityTexturePass(
-		FRDGBuilder& GraphBuilder,
-		FIntPoint OutputExtent);
+	static FRDGTextureRef AddBlackVelocityTexturePass(FRDGBuilder& GraphBuilder, FIntPoint OutputExtent);
 
 #if METALFX_PLUGIN_ENABLED
 	bool CheckValidate() const;
-	bool CheckForExecuteMetalFX(
-		FIntPoint InputTextureExtent,
-		FIntPoint InputContentExtent,
-		FIntPoint OutputExtent);
-	bool EnsureUpscalerForConfiguration(
-		FIntPoint InputTextureExtent,
-		FIntPoint InputContentExtent,
-		FIntPoint OutputExtent,
-		const FMetalFXTemporalTextureFormatGroup& Formats);
+	bool EnsureUpscalerForConfiguration(FIntPoint InputTextureExtent, FIntPoint InputContentExtent, FIntPoint OutputExtent, const FMetalFXTemporalTextureFormatGroup& Formats);
 	bool GenerateUpscaler();
+	void ResetUpscaler();
 
-	void UpdateInputContentSize(FIntPoint InputContentExtent);
+	bool UpdateInputContentSize(FIntPoint InputContentExtent);
 	void SetJitterOffset(FVector2D Offset);
 	void SetMotionVectorScale(FVector2f Scale);
 	void Encode(FRHICommandList& CmdList, FMetalFXTemporalTextureGroup& TextureGroup);
@@ -92,11 +57,7 @@ private:
 
 private:
 	std::unique_ptr<struct FMetalFXTemporalCoreResources> Resources;
-
-	uint32 m_InputTextureW = 2560;
-	uint32 m_InputTextureH = 1440;
-	uint32 m_InputContentW = 2560;
-	uint32 m_InputContentH = 1440;
-	uint32 m_OutputW = 2560;
-	uint32 m_OutputH = 1440;
+	FIntPoint ConfiguredDescriptorInputExtent = FIntPoint::ZeroValue;
+	FIntPoint ConfiguredInputContentExtent = FIntPoint::ZeroValue;
+	FIntPoint ConfiguredOutputExtent = FIntPoint::ZeroValue;
 };

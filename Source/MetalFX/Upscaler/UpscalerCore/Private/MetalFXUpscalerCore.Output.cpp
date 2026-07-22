@@ -1,14 +1,11 @@
 #include "MetalFXUpscalerCore.h"
 #include "RenderGraphBuilder.h"
-#include "RenderGraphUtils.h"
 
-//Do something : Make OutputTex
-
-FRDGTextureRef FMetalFXUpscalerCore::CreateOutputTexture(FRDGBuilder& GraphBuilder, const FRDGTextureRef InColorTexture, FIntRect OutputViewRect)
+FRDGTextureRef FMetalFXUpscalerCore::CreateOutputTexture(FRDGBuilder& GraphBuilder, FRDGTextureRef InColorTexture, FIntRect OutputViewRect)
 {
-	if (!InColorTexture)
+	if (!InColorTexture || OutputViewRect.IsEmpty())
 	{
-		UE_LOG(LogMetalFX, Warning, TEXT("[MetalFX] Cannot create output texture: SceneColor is null."));
+		UE_LOG(LogMetalFX, Warning, TEXT("MetalFX cannot create an output texture. SceneColorValid=%s OutputSize=%dx%d"), InColorTexture ? TEXT("true") : TEXT("false"), OutputViewRect.Width(), OutputViewRect.Height());
 		return nullptr;
 	}
 
@@ -20,7 +17,5 @@ FRDGTextureRef FMetalFXUpscalerCore::CreateOutputTexture(FRDGBuilder& GraphBuild
 		FClearValueBinding::None,
 		TexCreate_ShaderResource | TexCreate_UAV);
 
-	FRDGTextureRef OutputTexture = GraphBuilder.CreateTexture(OutputDesc, TEXT("MetalFXOutput"));
-
-	return OutputTexture;
+	return GraphBuilder.CreateTexture(OutputDesc, TEXT("MetalFXOutput"));
 }

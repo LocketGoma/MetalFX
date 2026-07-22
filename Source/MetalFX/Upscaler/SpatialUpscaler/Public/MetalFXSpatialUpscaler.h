@@ -1,10 +1,10 @@
 #pragma once
 
+#if METALFX_PLUGIN_ENABLED
 #include "PostProcess/PostProcessUpscale.h"
 
 class FMetalFXSpatialUpscalerCore;
 
-#if METALFX_PLUGIN_ENABLED
 class FMetalFXSpatialUpscaler final : public ISpatialUpscaler
 {
 public:
@@ -19,6 +19,6 @@ private:
 	bool CheckValidate() const;
 
 	// Non-owning. FMetalFXModule owns the Core for the module lifetime.
-	FMetalFXSpatialUpscalerCore* m_FxUpscaler = nullptr;
+	FMetalFXSpatialUpscalerCore* UpscalerCore = nullptr;
 };
 #endif

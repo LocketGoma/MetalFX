@@ -5,10 +5,25 @@
 #include "Engine/DeveloperSettings.h"
 #include "HAL/IConsoleManager.h"
 
-
 #include "MetalFXSettings.generated.h"
 
-class FSceneViewFamily;
+//= Metal이 지원되는 Apple 기기인지 아닌지
+enum class EMetalSupportDevice : uint8
+{
+	Supported,
+	NotSupported
+};
+
+//= MetalFX 가능한 환경인지 여부
+enum class EMetalFXSupportReason : uint8
+{
+	Supported,
+	NotSupported,
+	NotSupportedOldDeviceType,
+	NotSupportedOSVersionOutOfDate,
+	NotSupportedMetalFXFrameworkMissing,
+	NotSupportedMetalFXCreationFailed,
+};
 
 UENUM(BlueprintType)
 enum class EMetalFXUpscalerType : uint8
@@ -16,7 +31,7 @@ enum class EMetalFXUpscalerType : uint8
 	None UMETA(DisplayName = "Off", ToolTip = "Disables MetalFX upscaling."),
 	Spatial UMETA(DisplayName = "Spatial", ToolTip = "Uses the MetalFX Spatial upscaler."),
 	Temporal UMETA(DisplayName = "Temporal", ToolTip = "Uses the MetalFX Temporal upscaler."),
-	MAX
+	MAX UMETA(Hidden)
 };
 
 UENUM(BlueprintType)
@@ -59,7 +74,33 @@ enum class EMetalFXQualityMode : uint8
 	Min UMETA(Hidden),
 
 	// Enum sentinel used to represent an invalid mode and to return the number of quality-mode entries.
-	MAX
+	MAX UMETA(Hidden)
+};
+
+struct FMetalFXQualitySettings
+{
+	// Human-readable preset name used by logs and the on-screen debug display.
+	const TCHAR* Name = TEXT("Balanced");
+
+	// Primary input fraction relative to the MetalFX Secondary output target.
+	// In absolute mode the same number is used directly as Primary Screen Percentage.
+	float InputResolutionFraction = 0.5f;
+
+	// Forces native-display input/output instead of composing with the engine base fraction.
+	bool bForceNativeResolution = false;
+
+	// A returned value of 1.0 means 100% of the Secondary output target. It means
+	// 100% of the physical display only when NativeAA also forces that target to
+	// native resolution.
+	float GetPrimaryResolutionFraction() const
+	{
+		return InputResolutionFraction;
+	}
+
+	float GetScreenPercentage() const
+	{
+		return InputResolutionFraction * 100.0f;
+	}
 };
 
 struct FMetalFXResolutionDebugInfo
@@ -75,7 +116,7 @@ struct FMetalFXResolutionDebugInfo
 };
 
 extern TAutoConsoleVariable<bool> CVarEnableMetalFX;
-extern TAutoConsoleVariable<bool> CvarEnableMetalFXInEditor;
+extern TAutoConsoleVariable<bool> CVarEnableMetalFXInEditor;
 extern TAutoConsoleVariable<bool> CVarMetalFXDebugDisplay;
 extern TAutoConsoleVariable<int32> CVarMetalFXJitterMode;
 extern TAutoConsoleVariable<int32> CVarMetalFXExperimentalInputExtentMode;
@@ -86,25 +127,14 @@ extern TAutoConsoleVariable<int32> CVarMetalFXUpscalerMode;
 extern TAutoConsoleVariable<int32> CVarMetalFXQualityMode;
 extern TAutoConsoleVariable<bool> CVarMetalFXAutoScalingFromEngine;
 
-// Refreshes active quality handling after a setting change. The production
-// path owns r.ScreenPercentage; METALFX_DEBUG preserves external changes.
-METALFX_API void ApplyMetalFXQualityModeToScreenPercentage(EMetalFXQualityMode QualityMode);
-METALFX_API bool ApplyMetalFXScreenPercentageToViewFamily(
-	FSceneViewFamily& ViewFamily,
-	EMetalFXQualityMode QualityMode,
-	FMetalFXResolutionDebugInfo* OutDebugInfo = nullptr);
-// Ends the activation state. Production restores the activation-time value;
-// METALFX_DEBUG leaves the current r.ScreenPercentage unchanged.
-METALFX_API void RestoreMetalFXScreenPercentage();
-
 UCLASS(Config = Engine, DefaultConfig, DisplayName = "Apple MetalFX")
 class METALFX_API UMetalFXSettings : public UDeveloperSettings
 {
 	GENERATED_BODY()
 
-	UMetalFXSettings(const FObjectInitializer& ObjectInitializer);
-	
 public:
+	UMetalFXSettings(const FObjectInitializer& ObjectInitializer);
+
 	virtual FName GetContainerName() const override;
 	virtual FName GetCategoryName() const override;
 	virtual FName GetSectionName() const override;
@@ -123,13 +153,13 @@ public:
 
 	UPROPERTY(Config, EditAnywhere, Category = "Debug Settings", meta = (ConsoleVariable = "r.MetalFX.DebugDisplay", DisplayName = "Debug Display", ToolTip = "Shows MetalFX runtime status and resolution information on screen."))
 	bool bDebugDisplay;
-	
+
 	UPROPERTY(Config, EditAnywhere, Category = "General Settings", meta = (ConsoleVariable = "r.MetalFX.UpscalerMode", DisplayName = "Upscaler Mode", ToolTip = "Selects the MetalFX upscaler mode."))
 	EMetalFXUpscalerType UpscalerMode;
 
 	UPROPERTY(Config, EditAnywhere, Category = "Quality Settings", meta = (ConsoleVariable = "r.MetalFX.Sharpness", DisplayName = "Sharpness", ClampMin = 0, ClampMax = 1, ToolTip = "(WIP) Applies the Robust Contrast Adaptive Sharpening Filter to sharpen the output image."))
 	float Sharpness;
-	
+
 	UPROPERTY(Config, EditAnywhere, Category = "Quality Settings", meta = (ConsoleVariable = "r.MetalFX.QualityMode", DisplayName = "Quality Mode", ToolTip = "Selects the default quality mode to be used when upscaling with MetalFX."))
 	EMetalFXQualityMode QualityMode;
 
@@ -144,5 +174,5 @@ public:
 
 	UPROPERTY(Config, EditAnywhere, Category = "Temporal Settings", meta = (ConsoleVariable = "r.MetalFX.MotionVectorScaleY", DisplayName = "Motion Vector Scale Y", ToolTip = "(WIP) Vertical motion vector scale passed to MetalFX."))
 	float MotionVectorScaleY;
-	
+
 };

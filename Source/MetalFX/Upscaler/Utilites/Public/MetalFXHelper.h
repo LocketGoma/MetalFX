@@ -1,70 +1,29 @@
 #pragma once
 #include "CoreMinimal.h"
+#include "Logging/LogMacros.h"
 #include "MetalFXSettings.h"
 #include "RenderGraphBuilder.h"
 #include "RenderGraphResources.h"
-#include "SceneView.h"
 
-#if METALFX_PLUGIN_ENABLED
-#include "MetalRHI.h"
-#include "MetalRHIPrivate.h"
-#include "MetalRHIContext.h"
-#include "MetalCommandBuffer.h"
-#include "MetalRHIUtility.h"
+#if METALFX_PLUGIN_ENABLED && METALFX_METALCPP
+#include <Metal/Metal.hpp>
+#elif METALFX_PLUGIN_ENABLED && METALFX_NATIVE
+#import <Metal/Metal.h>
 #endif
+
+class FRDGTexture;
+class FSceneViewFamily;
 
 DECLARE_LOG_CATEGORY_EXTERN(LogMetalFX, Log, All);
 
-class FRDGTexture;
-
-//= Metal이 지원되는 Apple 기기인지 아닌지
-enum class EMetalSupportDevice : uint8
-{
-	Supported,
-	NotSupported
-};
-
-//= MetalFX 가능한 환경인지 여부
-enum class EMetalFXSupportReason : uint8
-{
-	Supported,
-	NotSupported,
-	NotSupportedOldDeviceType,
-	NotSupportedOSVersionOutOfDate,
-	NotSupportedMetalFXFrameworkMissing,
-	NotSupportedMetalFXCreationFailed,
-};
-
-struct FMetalFXQualitySettings
-{
-	// Human-readable preset name used by logs and the on-screen debug display.
-	const TCHAR* Name = TEXT("Balanced");
-
-	// Primary input fraction relative to the MetalFX Secondary output target.
-	float RelativeScale = 0.5f;
-
-	// Legacy absolute Primary Screen Percentage used when engine-based scaling is disabled.
-	float AbsoluteScreenPercentage = 50.0f;
-
-	// Forces native-display input/output instead of composing with the engine base fraction.
-	bool bForceNativeResolution = false;
-
-	// Returns the Primary fraction consumed by Unreal's screen-percentage pipeline.
-	// A returned value of 1.0 means 100% of the Secondary output target; it only
-	// means 100% of the physical display when bForceNativeResolution also forces
-	// that Secondary target to native resolution.
-	float GetPrimaryResolutionFraction(bool bAutoScalingFromEngine) const
-	{
-		return (bForceNativeResolution || bAutoScalingFromEngine) ? RelativeScale : AbsoluteScreenPercentage / 100.0f;
-	}
-};
-
+// QualityMode에 대응하는 이름, Primary 입력 비율, Native 해상도 강제 여부를 반환한다.
+// Min은 빌드 설정에 따라 테스트용 1% 또는 가장 낮은 정식 프리셋으로 변환한다. 범위 초과 시 입력 기준 100%인 "UltraQuality" 로 진행한다.
 inline FMetalFXQualitySettings GetMetalFXQualitySettings(EMetalFXQualityMode QualityMode)
 {
 	if (QualityMode == EMetalFXQualityMode::Min)
 	{
-#if !UE_BUILD_SHIPPING
-		return { TEXT("Min"), 0.01f, 1.0f, false };
+#if !UE_BUILD_SHIPPING && METALFX_DEBUG
+		return { TEXT("Min"), 0.01f, false };
 #else
 		return GetMetalFXQualitySettings(static_cast<EMetalFXQualityMode>(static_cast<int32>(EMetalFXQualityMode::Min) - 1));
 #endif
@@ -73,74 +32,78 @@ inline FMetalFXQualitySettings GetMetalFXQualitySettings(EMetalFXQualityMode Qua
 	switch (QualityMode)
 	{
 	case EMetalFXQualityMode::NativeAA:
-		return { TEXT("NativeAA"), 1.0f, 100.0f, true };
+		return { TEXT("NativeAA"), 1.0f, true };
 	case EMetalFXQualityMode::UltraQuality:
-		return { TEXT("UltraQuality"), 1.0f, 100.0f, false };
+		return { TEXT("UltraQuality"), 1.0f, false };
 	case EMetalFXQualityMode::Quality:
-		return { TEXT("Quality"), 0.667f, 66.7f, false };
+		return { TEXT("Quality"), 0.667f, false };
 	case EMetalFXQualityMode::Balanced:
-		return { TEXT("Balanced"), 0.5f, 50.0f, false };
+		return { TEXT("Balanced"), 0.5f, false };
 	case EMetalFXQualityMode::Performance:
-		return { TEXT("Performance"), 0.42f, 42.0f, false };
+		return { TEXT("Performance"), 0.42f, false };
 	case EMetalFXQualityMode::UltraPerformance:
-		// MetalFX TemporalScaler does not support upscaling greater than 3x per dimension.
-		return { TEXT("UltraPerformance"), 0.34f, 34.0f, false };
+		// MetalFX TemporalScaler는 각 축 (X,Y축)당 3배를 초과하는 업스케일링을 지원하지 않음.
+		return { TEXT("UltraPerformance"), 0.34f, false };
 	default:
-		return { TEXT("Balanced"), 0.5f, 50.0f, false };
+		return { TEXT("UltraQuality"), 1.0f, false };
 	}
 }
 
+// QualityMode의 Primary 입력 비율을 r.ScreenPercentage 형식인 0~100 단위 값으로 변환한다.
+// 예: Quality의 0.667 비율은 66.7을 반환한다.
 inline float ConvertMetalFXQualityModeToScreenPercentage(EMetalFXQualityMode QualityMode)
 {
-	return GetMetalFXQualitySettings(QualityMode).AbsoluteScreenPercentage;
+	return GetMetalFXQualitySettings(QualityMode).GetScreenPercentage();
 }
 
+// 콘솔 변수에서 읽은 정수형 QualityMode를 Screen Percentage 값으로 변환한다.
 inline float ConvertMetalFXQualityModeToScreenPercentage(int32 QualityMode)
 {
 	return ConvertMetalFXQualityModeToScreenPercentage(static_cast<EMetalFXQualityMode>(QualityMode));
 }
 
+// QualityMode의 Primary 입력 비율을 Unreal 해상도 비율 형식인 0~1 단위 값으로 반환한다.
+// 이 값은 MetalFX 출력 목표를 기준으로 한 입력 비율이며, 항상 실제 디스플레이 해상도를 기준으로 하지는 않는다.
 inline float ConvertMetalFXQualityModeToResolutionFraction(EMetalFXQualityMode QualityMode)
 {
-	return GetMetalFXQualitySettings(QualityMode).RelativeScale;
+	return GetMetalFXQualitySettings(QualityMode).GetPrimaryResolutionFraction();
 }
 
+// QualityMode를 해상도 비율 수치로 변환.
 inline float ConvertMetalFXQualityModeToResolutionFraction(int32 QualityMode)
 {
 	return ConvertMetalFXQualityModeToResolutionFraction(static_cast<EMetalFXQualityMode>(QualityMode));
 }
 
+// Temporal Upscaler 인터페이스에 알릴 수 있는 최소 입력 해상도 비율을 반환한다.
+// 비 Shipping 빌드에서는 극단값 테스트를 위해 Min 프리셋이 1% 등 극단적인 수치로 설정될 수 있다.
+// - 단, MetalFX 기본 업스케일링 제한인 x3을 초과할 수 있는 수치가 되는 경우, 런타임 에러가 발생할 수 있음.
 inline float GetMetalFXMinUpscaleResolutionFraction()
 {
 	return ConvertMetalFXQualityModeToResolutionFraction(EMetalFXQualityMode::Min);
 }
 
-inline float GetMetalFXMaxUpscaleResolutionFraction()
-{
-#if METALFX_DEBUG
-	// Temporarily expose Unreal's full Primary resolution range so values above
-	// 100% can be exercised while validating MetalFX supersampling behavior.
-	return ISceneViewFamilyScreenPercentage::kMaxResolutionFraction;
-#else
-	return ConvertMetalFXQualityModeToResolutionFraction(EMetalFXQualityMode::NativeAA);
-#endif
-}
+// Temporal Upscaler 인터페이스에 알릴 수 있는 최대 입력 해상도 비율을 반환.
+METALFX_API float GetMetalFXMaxUpscaleResolutionFraction();
 
-// Returns the primary input-to-output scale as a percentage.
-inline float CalculateMetalFXScreenPercentage(const FIntRect& InputRect, const FIntRect& OutputRect)
-{
-	if (OutputRect.Width() <= 0 || OutputRect.Height() <= 0)
-	{
-		return 100.0f;
-	}
+// 실행 중 QualityMode 또는 AutoScaling 설정이 바뀌었을 때 현재 Screen Percentage 상태를 갱신한다.
+// 일반 빌드는 MetalFX가 소유한 r.ScreenPercentage에 반영하고, METALFX_DEBUG 빌드는 외부 입력값을 보존한다.
+METALFX_API void ApplyMetalFXQualityModeToScreenPercentage(EMetalFXQualityMode QualityMode);
 
-	const float WidthFraction = static_cast<float>(InputRect.Width()) / static_cast<float>(OutputRect.Width());
-	const float HeightFraction = static_cast<float>(InputRect.Height()) / static_cast<float>(OutputRect.Height());
-	return FMath::Min(WidthFraction, HeightFraction) * 100.0f;
-}
+// 현재 ViewFamily의 Dynamic Resolution 및 Screen Percentage 기준값을 읽어 MetalFX 입력/출력 비율을 적용한다.
+// 성공하면 ViewFamily.SecondaryViewFraction을 갱신하며, OutDebugInfo가 있으면 실제 계산 결과도 함께 기록한다.
+METALFX_API bool ApplyMetalFXScreenPercentageToViewFamily(FSceneViewFamily& ViewFamily, EMetalFXQualityMode QualityMode, FMetalFXResolutionDebugInfo* OutDebugInfo = nullptr);
 
-//텍스쳐 포멧 그룹
-using FMetalFXPixelFormat = uint64_t;
+// MetalFX가 비활성화된 상태에서도 디버그 화면에 표시할 현재 설정 기준의 예상 해상도 정보를 계산한다. (읽기전용, 디버그)
+METALFX_API FMetalFXResolutionDebugInfo GetConfiguredMetalFXResolutionDebugInfo(const FSceneViewFamily& ViewFamily, EMetalFXQualityMode QualityMode);
+
+// MetalFX Screen Percentage 제어 상태를 종료하고 내부에 저장한 활성화 상태를 초기화한다.
+// METALFX_DEBUG가 비활성화 상태라면, MetalFX 활성화 직전의 r.ScreenPercentage 값과 우선순위를 복구한다.
+METALFX_API void RestoreMetalFXScreenPercentage();
+
+// 텍스쳐 포멧 그룹
+// Texture formats that require scaler recreation when they change.
+using FMetalFXPixelFormat = uint64;
 struct FMetalFXTemporalTextureFormatGroup
 {
 	FMetalFXPixelFormat Color = 0;
@@ -148,61 +111,24 @@ struct FMetalFXTemporalTextureFormatGroup
 	FMetalFXPixelFormat Motion = 0;
 	FMetalFXPixelFormat Output = 0;
 
-	FMetalFXTemporalTextureFormatGroup() = default;
-	
-	FMetalFXTemporalTextureFormatGroup& operator =(const FMetalFXTemporalTextureFormatGroup& InFormats)
-	{
-		if (this != &InFormats)
-		{
-			bIsChanged = (Color != InFormats.Color || Depth != InFormats.Depth || Motion != InFormats.Motion || Output != InFormats.Output);
-			
-			Color = InFormats.Color;
-			Depth = InFormats.Depth;
-			Motion = InFormats.Motion;
-			Output = InFormats.Output;
-		}
-		
-		return *this;
-	}
-	
-	FMetalFXTemporalTextureFormatGroup(const FMetalFXTemporalTextureFormatGroup& InFormats)
-	{
-		bIsChanged = (Color != InFormats.Color || Depth != InFormats.Depth || Motion != InFormats.Motion || Output != InFormats.Output);
-		
-		Color = InFormats.Color;
-		Depth = InFormats.Depth;
-		Motion = InFormats.Motion;
-		Output = InFormats.Output;
-	}
-	
-	bool UpdateChangeState(const FMetalFXTemporalTextureFormatGroup& InFormats)
-	{
-		bIsChanged = IsChanged(InFormats);
-		return bIsChanged;
-	}
-	
-	bool GetIsChanged() const
-	{
-		return bIsChanged;
-	}
-
-	bool IsChanged(const FMetalFXTemporalTextureFormatGroup& InFormats) const
-	{
-		return Color != InFormats.Color || Depth != InFormats.Depth || Motion != InFormats.Motion || Output != InFormats.Output;
-	}
-
 	bool IsReady() const
 	{
 		return Color != 0 && Depth != 0 && Motion != 0 && Output != 0;
 	}
-	
-	void ResetChangeState()
+
+	bool operator==(const FMetalFXTemporalTextureFormatGroup& Other) const
 	{
-		bIsChanged = false;
+		const bool bColorMatches = Color == Other.Color;
+		const bool bDepthMatches = Depth == Other.Depth;
+		const bool bMotionMatches = Motion == Other.Motion;
+		const bool bOutputMatches = Output == Other.Output;
+		return bColorMatches && bDepthMatches && bMotionMatches && bOutputMatches;
 	}
-	
-private:
-	bool bIsChanged = false;
+
+	bool operator!=(const FMetalFXTemporalTextureFormatGroup& Other) const
+	{
+		return !(*this == Other);
+	}
 };
 
 struct FMetalFXSpatialTextureFormatGroup
@@ -238,30 +164,15 @@ BEGIN_SHADER_PARAMETER_STRUCT(FMetalFXSpatialPassParameters, )
 	RDG_TEXTURE_ACCESS(OutputTexture, ERHIAccess::UAVMask)
 END_SHADER_PARAMETER_STRUCT()
 
-//MetalFX 활성화때만 사용
+// Native Metal resources exist only where the plugin is compiled.
 #if METALFX_PLUGIN_ENABLED
-namespace MTL
-{
-	class Texture;
-	class CommandQueue;
-	class CommandBuffer;
-	class Device;
-}
 
-namespace MTLFX
-{
-	class SpatialScaler;
-	class SpatialScalerDescriptor;
-	class TemporalScaler;
-	class TemporalScalerDescriptor;
-}
-
-
-//텍스쳐 그룹
 #if METALFX_METALCPP
+//텍스쳐 그룹
 //2차 변환 처리를 위한 중간 구조체
-struct FMetalFXCppTextureView
-{	
+// Move-only Metal-cpp texture view with optional ownership.
+typedef struct FMetalFXCppTextureView
+{
 	FMetalFXCppTextureView() = default;
 	FMetalFXCppTextureView(const FMetalFXCppTextureView&) = delete;
 	FMetalFXCppTextureView& operator=(const FMetalFXCppTextureView&) = delete;
@@ -290,17 +201,16 @@ public:
 	void SetTexture(MTL::Texture* inTexture, bool isNeedRelease = false)
 	{
 		ReleaseTexture();
-		
+
 		Texture = inTexture;
 		bNeedsRelease = isNeedRelease;
-		bIsValid = inTexture != nullptr;
 	}
-	
-	MTL::Texture* GetTexture()
+
+	MTL::Texture* GetTexture() const
 	{
 		return Texture;
 	}
-	
+
 	//릴리즈 + 텍스쳐뷰 변수 초기화 (아래와는 다른 스텝임)
 	void ReleaseTexture()
 	{
@@ -308,67 +218,66 @@ public:
 		{
 			Texture->release();
 		}
-		
+
 		Texture = nullptr;
 		bNeedsRelease = false;
-		bIsValid = false;
 	}
-	
+
 	void ReleaseTextureDeferred(MTL::CommandBuffer* CommandBuffer)
 	{
 		if (bNeedsRelease && Texture != nullptr)
 		{
 			MTL::Texture* TextureToRelease = Texture;
-			
+
 			Texture = nullptr;
 			bNeedsRelease = false;
-			bIsValid = false;
-			
+
 			if (CommandBuffer != nullptr)
 			{
-				//커맨드 버퍼가 유효하면, 커맨드 버퍼 완료 시 릴리즈 처리
+					//커맨드 버퍼가 유효하면, 커맨드 버퍼 완료 시 릴리즈 처리
 				MTL::HandlerFunction Handler = [TextureToRelease](MTL::CommandBuffer* InBuffer)
 				{
 					TextureToRelease->release();
 				};
-				
+
 				CommandBuffer->addCompletedHandler(Handler);
 			}
 			else
 			{
 				TextureToRelease->release();
 			}
+			return;
 		}
+
+		Texture = nullptr;
+		bNeedsRelease = false;
 	}
-	
+
 	bool IsValid() const
 	{
-		return bIsValid && Texture != nullptr;
+		return Texture != nullptr;
 	}
-	
+
 private:
 	void MoveFrom(FMetalFXCppTextureView& Other)
 	{
 		Texture = Other.Texture;
 		bNeedsRelease = Other.bNeedsRelease;
-		bIsValid = Other.bIsValid;
 
 		Other.Texture = nullptr;
 		Other.bNeedsRelease = false;
-		Other.bIsValid = false;
 	}
 
 	MTL::Texture* Texture = nullptr;
 	bool bNeedsRelease = false;
-	bool bIsValid = false;
-};
-
+} FMetalFXTextureView;
 #endif
 
 #if METALFX_NATIVE
 //2차 변환 처리를 위한 중간 구조체
-struct FMetalFXObjCTextureView
-{	
+// Move-only Objective-C texture view with optional ownership.
+typedef struct FMetalFXObjCTextureView
+{
 	FMetalFXObjCTextureView() = default;
 	FMetalFXObjCTextureView(const FMetalFXObjCTextureView&) = delete;
 	FMetalFXObjCTextureView& operator=(const FMetalFXObjCTextureView&) = delete;
@@ -392,43 +301,40 @@ struct FMetalFXObjCTextureView
 	{
 		ReleaseTexture();
 	}
-	
+
 	void SetTexture(id<MTLTexture> inTexture, bool isNeedRelease = false)
 	{
 		ReleaseTexture();
-		
+
 		Texture = inTexture;
 		bNeedsRelease = isNeedRelease;
-		bIsValid = inTexture != nil;
 	}
-	
-	id<MTLTexture> GetTexture()
+
+	id<MTLTexture> GetTexture() const
 	{
 		return Texture;
 	}
-	
+
 	void ReleaseTexture()
 	{
 		if (bNeedsRelease && Texture != nil)
 		{
 			[Texture release];
 		}
-		
+
 		Texture = nil;
 		bNeedsRelease = false;
-		bIsValid = false;
 	}
-	
+
 	void ReleaseTextureDeferred(id<MTLCommandBuffer> CommandBuffer)
 	{
 		if (bNeedsRelease && Texture != nil)
 		{
 			id<MTLTexture> TextureToRelease = Texture;
-			
+
 			Texture = nil;
 			bNeedsRelease = false;
-			bIsValid = false;
-			
+
 			if (CommandBuffer != nil)
 			{
 				[CommandBuffer addCompletedHandler:^(id<MTLCommandBuffer>)
@@ -440,178 +346,112 @@ struct FMetalFXObjCTextureView
 			{
 				[TextureToRelease release];
 			}
+			return;
 		}
+
+		Texture = nil;
+		bNeedsRelease = false;
 	}
-	
+
 	bool IsValid() const
 	{
-		return bIsValid && Texture != nil;
+		return Texture != nil;
 	}
-	
+
 private:
 	void MoveFrom(FMetalFXObjCTextureView& Other)
 	{
 		Texture = Other.Texture;
 		bNeedsRelease = Other.bNeedsRelease;
-		bIsValid = Other.bIsValid;
 
 		Other.Texture = nil;
 		Other.bNeedsRelease = false;
-		Other.bIsValid = false;
 	}
 
 	id<MTLTexture> Texture = nil;
 	bool bNeedsRelease = false;
-	bool bIsValid = false;
-};
+} FMetalFXTextureView;
 #endif
 
-#if METALFX_METALCPP
-using FMetalFXTextureView = FMetalFXCppTextureView;
-#elif METALFX_NATIVE
-using FMetalFXTextureView = FMetalFXObjCTextureView;
-#endif
-
-// Temporal 전용 텍스처 그룹. Spatial Core에서 재사용하지 않는다.
+// Temporal-only texture group; Spatial intentionally uses a smaller group.
 struct FMetalFXTemporalTextureGroup
 {
 	FMetalFXTemporalTextureGroup() = default;
-	
-	FMetalFXTemporalTextureGroup(FMetalFXTemporalTextureGroup&& Other) noexcept
-	{
-		ColorTexture 	= MoveTemp(Other.ColorTexture);
-		DepthTexture 	= MoveTemp(Other.DepthTexture);
-		VelocityTexture = MoveTemp(Other.VelocityTexture);
-		OutputTexture 	= MoveTemp(Other.OutputTexture);
+	FMetalFXTemporalTextureGroup(FMetalFXTemporalTextureGroup&&) noexcept = default;
+	FMetalFXTemporalTextureGroup& operator=(FMetalFXTemporalTextureGroup&&) noexcept = default;
+	~FMetalFXTemporalTextureGroup() = default;
 
-		bReleased = Other.bReleased;
-		Other.bReleased = true; // 포인터가 옮겨진것 뿐이라, 원본 그룹에서 소멸 처리하면 꼬임
-	}
-	
-	~FMetalFXTemporalTextureGroup()
+	void ReleaseAllTextures()
 	{
-		if (!bReleased)
-		{
-			ReleaseAllTexture();
-		}
+		ColorTexture.ReleaseTexture();
+		DepthTexture.ReleaseTexture();
+		VelocityTexture.ReleaseTexture();
+		OutputTexture.ReleaseTexture();
 	}
-	
-public:
-	void ReleaseAllTexture()
-	{
-		TextureRelease(ColorTexture);
-		TextureRelease(DepthTexture);
-		TextureRelease(VelocityTexture);
-		TextureRelease(OutputTexture);
-		
-		bReleased = true;
-	}
-	
+
 #if METALFX_METALCPP
-	void TextureRelease(FMetalFXCppTextureView& TargetTexture)
+	void ReleaseAllTexturesDeferred(MTL::CommandBuffer* CommandBuffer)
 	{
-		TargetTexture.ReleaseTexture();
+		ColorTexture.ReleaseTextureDeferred(CommandBuffer);
+		DepthTexture.ReleaseTextureDeferred(CommandBuffer);
+		VelocityTexture.ReleaseTextureDeferred(CommandBuffer);
+		OutputTexture.ReleaseTextureDeferred(CommandBuffer);
 	}
-	
-	void ReleaseTextureDeferred(FMetalFXCppTextureView& TargetTexture, MTL::CommandBuffer* CommandBuffer)
-	{
-		TargetTexture.ReleaseTextureDeferred(CommandBuffer);
-	}
-	
-	void ReleaseAllTextureDeferred(MTL::CommandBuffer* CommandBuffer)
-	{
-		ReleaseTextureDeferred(ColorTexture, CommandBuffer);
-		ReleaseTextureDeferred(DepthTexture, CommandBuffer);
-		ReleaseTextureDeferred(VelocityTexture, CommandBuffer);
-		ReleaseTextureDeferred(OutputTexture, CommandBuffer);
-		
-		bReleased = true;
-	}
-	
+
 	FMetalFXCppTextureView ColorTexture;
 	FMetalFXCppTextureView DepthTexture;
 	FMetalFXCppTextureView VelocityTexture;
 	FMetalFXCppTextureView OutputTexture;
 #endif
-	
+
 #if METALFX_NATIVE
-	void TextureRelease(FMetalFXObjCTextureView& TargetTexture)
+	void ReleaseAllTexturesDeferred(id<MTLCommandBuffer> CommandBuffer)
 	{
-		TargetTexture.ReleaseTexture();
+		ColorTexture.ReleaseTextureDeferred(CommandBuffer);
+		DepthTexture.ReleaseTextureDeferred(CommandBuffer);
+		VelocityTexture.ReleaseTextureDeferred(CommandBuffer);
+		OutputTexture.ReleaseTextureDeferred(CommandBuffer);
 	}
-	
-	void ReleaseTextureDeferred(FMetalFXObjCTextureView& TargetTexture, id<MTLCommandBuffer> CommandBuffer)
-	{
-		TargetTexture.ReleaseTextureDeferred(CommandBuffer);
-	}
-	
-	void ReleaseAllTextureDeferred(id<MTLCommandBuffer> CommandBuffer)
-	{
-		ReleaseTextureDeferred(ColorTexture, CommandBuffer);
-		ReleaseTextureDeferred(DepthTexture, CommandBuffer);
-		ReleaseTextureDeferred(VelocityTexture, CommandBuffer);
-		ReleaseTextureDeferred(OutputTexture, CommandBuffer);
-		
-		bReleased = true;
-	}
-	
+
 	FMetalFXObjCTextureView ColorTexture;
 	FMetalFXObjCTextureView DepthTexture;
 	FMetalFXObjCTextureView VelocityTexture;
 	FMetalFXObjCTextureView OutputTexture;
 #endif
-	
-	bool bReleased = false;
 };
 
-// Spatial 전용 텍스처 그룹. Temporal history 입력을 의도적으로 포함하지 않는다.
+// Spatial-only texture group with no temporal history resources.
 struct FMetalFXSpatialTextureGroup
 {
 	FMetalFXSpatialTextureGroup() = default;
+	FMetalFXSpatialTextureGroup(FMetalFXSpatialTextureGroup&&) noexcept = default;
+	FMetalFXSpatialTextureGroup& operator=(FMetalFXSpatialTextureGroup&&) noexcept = default;
+	~FMetalFXSpatialTextureGroup() = default;
 
-	FMetalFXSpatialTextureGroup(FMetalFXSpatialTextureGroup&& Other) noexcept
-	{
-		ColorTexture = MoveTemp(Other.ColorTexture);
-		OutputTexture = MoveTemp(Other.OutputTexture);
-
-		bReleased = Other.bReleased;
-		Other.bReleased = true;
-	}
-
-	~FMetalFXSpatialTextureGroup()
-	{
-		if (!bReleased)
-		{
-			ReleaseAllTexture();
-		}
-	}
-
-	void ReleaseAllTexture()
+	void ReleaseAllTextures()
 	{
 		ColorTexture.ReleaseTexture();
 		OutputTexture.ReleaseTexture();
-		bReleased = true;
 	}
 
 #if METALFX_METALCPP
-	void ReleaseAllTextureDeferred(MTL::CommandBuffer* CommandBuffer)
+	void ReleaseAllTexturesDeferred(MTL::CommandBuffer* CommandBuffer)
 	{
 		ColorTexture.ReleaseTextureDeferred(CommandBuffer);
 		OutputTexture.ReleaseTextureDeferred(CommandBuffer);
-		bReleased = true;
 	}
-#elif METALFX_NATIVE
-	void ReleaseAllTextureDeferred(id<MTLCommandBuffer> CommandBuffer)
+#endif
+
+#if METALFX_NATIVE
+	void ReleaseAllTexturesDeferred(id<MTLCommandBuffer> CommandBuffer)
 	{
 		ColorTexture.ReleaseTextureDeferred(CommandBuffer);
 		OutputTexture.ReleaseTextureDeferred(CommandBuffer);
-		bReleased = true;
 	}
 #endif
 
 	FMetalFXTextureView ColorTexture;
 	FMetalFXTextureView OutputTexture;
-	bool bReleased = false;
 };
 
 #endif

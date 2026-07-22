@@ -3,13 +3,12 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "MetalFXHelper.h"
+#include "MetalFXSettings.h"
 #include "Modules/ModuleManager.h"
 
 class FMetalFXViewExtension;
 class FMetalFXUpscalerCore;
 class FMetalFXSpatialUpscalerCore;
-class FMetalFXTemporalUpscaler;
 class FMetalFXTemporalUpscalerCore;
 
 class METALFX_API FMetalFXModule : public IModuleInterface
@@ -19,16 +18,20 @@ public:
 
 	static FMetalFXModule& Get()
 	{
-		return FModuleManager::LoadModuleChecked<FMetalFXModule>("MetalFX");
+		return FModuleManager::LoadModuleChecked<FMetalFXModule>(TEXT("MetalFX"));
 	}
-	
+
 	/** IModuleInterface implementation */
 	virtual void StartupModule() override;
-	virtual void ShutdownModule() override;	
-	
-	EMetalSupportDevice QueryMetalSupport() const;
-	EMetalFXSupportReason QueryMetalFXSupport() const;
-	EMetalFXUpscalerType QueryMetalFXUpscalerType() const;
+	virtual void ShutdownModule() override;
+
+	EMetalSupportDevice GetMetalSupport() const;
+	EMetalFXSupportReason GetMetalFXSupportReason() const;
+	EMetalFXUpscalerType GetSupportedUpscalerType() const;
+	// Compatibility wrappers for integrations using the pre-refactor API.
+	EMetalSupportDevice QueryMetalSupport() const { return GetMetalSupport(); }
+	EMetalFXSupportReason QueryMetalFXSupport() const { return GetMetalFXSupportReason(); }
+	EMetalFXUpscalerType QueryMetalFXUpscalerType() const { return GetSupportedUpscalerType(); }
 
 	/** Returns the Core created during startup RHI initialization. */
 	FMetalFXUpscalerCore* GetMetalFXUpscaler() const;
@@ -36,14 +39,14 @@ public:
 	FMetalFXSpatialUpscalerCore* GetMetalFXSpatialUpscaler();
 	EMetalFXUpscalerType GetSelectedUpscalerType() const { return SelectedUpscalerType; }
 
-	bool GetIsSupportedByRHI() const;
-	
+	bool IsMetalFXSupported() const;
+	bool GetIsSupportedByRHI() const { return IsMetalFXSupported(); }
+
 private:
 	FMetalFXUpscalerCore* CreateMetalFXUpscaler(EMetalFXUpscalerType RequestedType);
 	void HandlePostRHIInitialized();
-	FDelegateHandle OnPostEngineInitSettings;
 	FDelegateHandle OnPostRHIInitialized;
-private:
+
 	// The module is the sole Core owner. Adapters keep non-owning typed pointers.
 	TUniquePtr<FMetalFXUpscalerCore> MetalFXUpscaler;
 	EMetalFXUpscalerType SelectedUpscalerType = EMetalFXUpscalerType::None;
@@ -51,5 +54,5 @@ private:
 
 	EMetalSupportDevice MetalSupport = EMetalSupportDevice::NotSupported;
 	EMetalFXSupportReason MetalFXSupport = EMetalFXSupportReason::NotSupported;
-	EMetalFXUpscalerType MetalFXUpscalerType = EMetalFXUpscalerType::None;
+	EMetalFXUpscalerType SupportedUpscalerType = EMetalFXUpscalerType::None;
 };

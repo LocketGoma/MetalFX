@@ -3,7 +3,7 @@
 	"Version": 2,
 	"VersionName": "0.2",
 	"FriendlyName": "MetalFX",
-	"Description": "MetalFx For Unreal From MetalCPP",
+	"Description": "MetalFX for Unreal Engine using Metal-cpp",
 	"Category": "Rendering",
 	"CreatedBy": "@Locketgoma",
 	"CreatedByURL": "",

@@ -3,38 +3,34 @@
 #include "MetalFXSettings.h"
 
 #if METALFX_PLUGIN_ENABLED
-const void FMetalFXTemporalUpscaler::CheckValidate() const
+bool FMetalFXTemporalUpscaler::CheckValidate() const
 {
-	checkf(m_FxUpscaler, TEXT("MetalFX Upscaler is not ready. Check MetalFXTemporalUpscaler for more information."));
+	if (!UpscalerCore)
+	{
+		UE_LOG(LogMetalFX, Error, TEXT("MetalFX Temporal Core is not ready."));
+		return false;
+	}
+	return true;
 }
 
 float FMetalFXTemporalUpscaler::GetMinUpsampleResolutionFraction() const
 {
-	return m_FxUpscaler->GetMinUpsampleResolutionFraction();
+	return GetMetalFXMinUpscaleResolutionFraction();
 }
 
 float FMetalFXTemporalUpscaler::GetMaxUpsampleResolutionFraction() const
 {
-	return m_FxUpscaler->GetMaxUpsampleResolutionFraction();
+	return GetMetalFXMaxUpscaleResolutionFraction();
 }
 
 FMetalFXTemporalUpscaler::FMetalFXTemporalUpscaler(FMetalFXTemporalUpscalerCore* InUpscaler)
+	: UpscalerCore(InUpscaler)
 {
-	m_FxUpscaler = InUpscaler;
 }
 
-const bool FMetalFXTemporalUpscaler::GetIsSupportedDevice()
+ITemporalUpscaler* FMetalFXTemporalUpscaler::Fork_GameThread(const FSceneViewFamily& ViewFamily) const
 {
-	if (m_FxUpscaler)
-	{
-		return (m_FxUpscaler->GetIsSupportedDevice() == EMetalFXSupportReason::Supported);
-	}
-	return false;
-}
-
-ITemporalUpscaler* FMetalFXTemporalUpscaler::Fork_GameThread(const class FSceneViewFamily& ViewFamily) const
-{
-	return new FMetalFXTemporalUpscaler(m_FxUpscaler);
+	return new FMetalFXTemporalUpscaler(UpscalerCore);
 }
 
 //-------
@@ -47,18 +43,10 @@ static void LogRDGTextureDescForMetalFX(const TCHAR* Label, FRDGTextureRef Textu
 		return;
 	}
 
-	UE_LOG(LogMetalFX, VeryVerbose,
-		TEXT("[MetalFX] %s: Name=%s Extent=%dx%d Format=%d"),
-		Label,
-		Texture->Name,
-		Texture->Desc.Extent.X,
-		Texture->Desc.Extent.Y,
-		static_cast<int32>(Texture->Desc.Format));
+	UE_LOG(LogMetalFX, VeryVerbose, TEXT("[MetalFX] %s: Name=%s Extent=%dx%d Format=%d"), Label, Texture->Name, Texture->Desc.Extent.X, Texture->Desc.Extent.Y, static_cast<int32>(Texture->Desc.Format));
 }
 
-static void LogTemporalUpscalerInputsForMetalFX(
-	const ITemporalUpscaler::FInputs& Inputs,
-	FRDGTextureRef OutputTexture = nullptr)
+static void LogTemporalUpscalerInputsForMetalFX(const ITemporalUpscaler::FInputs& Inputs, FRDGTextureRef OutputTexture = nullptr)
 {
 	UE_LOG(LogMetalFX, VeryVerbose, TEXT("================ MetalFX Temporal Inputs ================"));
 
@@ -75,41 +63,20 @@ static void LogTemporalUpscalerInputsForMetalFX(
 		UE_LOG(LogMetalFX, VeryVerbose, TEXT("[MetalFX] OutputTexture: null / not provided"));
 	}
 
-	UE_LOG(LogMetalFX, VeryVerbose,
-		TEXT("[MetalFX] OutputViewRect: Min=(%d,%d) Max=(%d,%d) Size=%dx%d"),
-		Inputs.OutputViewRect.Min.X,
-		Inputs.OutputViewRect.Min.Y,
-		Inputs.OutputViewRect.Max.X,
-		Inputs.OutputViewRect.Max.Y,
-		Inputs.OutputViewRect.Width(),
-		Inputs.OutputViewRect.Height());
+	UE_LOG(LogMetalFX, VeryVerbose, TEXT("[MetalFX] OutputViewRect: Min=(%d,%d) Max=(%d,%d) Size=%dx%d"), Inputs.OutputViewRect.Min.X, Inputs.OutputViewRect.Min.Y, Inputs.OutputViewRect.Max.X, Inputs.OutputViewRect.Max.Y, Inputs.OutputViewRect.Width(), Inputs.OutputViewRect.Height());
 
 	if (Inputs.SceneColor.Texture)
 	{
 		const FIntPoint SceneColorExtent = Inputs.SceneColor.Texture->Desc.Extent;
 
-		UE_LOG(LogMetalFX, VeryVerbose,
-			TEXT("[MetalFX] SceneColorExtent vs OutputViewRectSize: SceneColor=%dx%d OutputViewRect=%dx%d Delta=%dx%d"),
-			SceneColorExtent.X,
-			SceneColorExtent.Y,
-			Inputs.OutputViewRect.Width(),
-			Inputs.OutputViewRect.Height(),
-			SceneColorExtent.X - Inputs.OutputViewRect.Width(),
-			SceneColorExtent.Y - Inputs.OutputViewRect.Height());
+		UE_LOG(LogMetalFX, VeryVerbose, TEXT("[MetalFX] SceneColorExtent vs OutputViewRectSize: SceneColor=%dx%d OutputViewRect=%dx%d Delta=%dx%d"), SceneColorExtent.X, SceneColorExtent.Y, Inputs.OutputViewRect.Width(), Inputs.OutputViewRect.Height(), SceneColorExtent.X - Inputs.OutputViewRect.Width(), SceneColorExtent.Y - Inputs.OutputViewRect.Height());
 	}
 
 	if (OutputTexture)
 	{
 		const FIntPoint OutputTextureExtent = OutputTexture->Desc.Extent;
 
-		UE_LOG(LogMetalFX, VeryVerbose,
-			TEXT("[MetalFX] OutputTextureExtent vs OutputViewRectSize: OutputTexture=%dx%d OutputViewRect=%dx%d Delta=%dx%d"),
-			OutputTextureExtent.X,
-			OutputTextureExtent.Y,
-			Inputs.OutputViewRect.Width(),
-			Inputs.OutputViewRect.Height(),
-			OutputTextureExtent.X - Inputs.OutputViewRect.Width(),
-			OutputTextureExtent.Y - Inputs.OutputViewRect.Height());
+		UE_LOG(LogMetalFX, VeryVerbose, TEXT("[MetalFX] OutputTextureExtent vs OutputViewRectSize: OutputTexture=%dx%d OutputViewRect=%dx%d Delta=%dx%d"), OutputTextureExtent.X, OutputTextureExtent.Y, Inputs.OutputViewRect.Width(), Inputs.OutputViewRect.Height(), OutputTextureExtent.X - Inputs.OutputViewRect.Width(), OutputTextureExtent.Y - Inputs.OutputViewRect.Height());
 	}
 
 	UE_LOG(LogMetalFX, VeryVerbose, TEXT("========================================================="));
@@ -131,12 +98,10 @@ static FVector2D GetMetalFXJitterOffset(FVector2f TemporalJitterPixels)
 
 static FVector2f GetMetalFXMotionVectorScale()
 {
-	return FVector2f(
-		CVarMetalFXMotionVectorScaleX.GetValueOnRenderThread(),
-		CVarMetalFXMotionVectorScaleY.GetValueOnRenderThread());
+	return FVector2f(CVarMetalFXMotionVectorScaleX.GetValueOnRenderThread(), CVarMetalFXMotionVectorScaleY.GetValueOnRenderThread());
 }
 
-static FIntPoint GetMetalFXExperimentalInputExtent(FIntPoint InputTextureExtent, FIntPoint InputContentExtent, FIntPoint OutputExtent)
+static FIntPoint ResolveMetalFXDescriptorInputExtent(FIntPoint InputTextureExtent, FIntPoint InputContentExtent, FIntPoint OutputExtent)
 {
 	switch (CVarMetalFXExperimentalInputExtentMode.GetValueOnRenderThread())
 	{
@@ -151,106 +116,121 @@ static FIntPoint GetMetalFXExperimentalInputExtent(FIntPoint InputTextureExtent,
 
 ITemporalUpscaler::FOutputs FMetalFXTemporalUpscaler::AddPasses(FRDGBuilder& GraphBuilder, const FSceneView& View, const ITemporalUpscaler::FInputs& Inputs) const
 {
-	CheckValidate();
-	
-	//1. Output 생성
 	ITemporalUpscaler::FOutputs Outputs;
+	//1. Output 생성
+	if (!CheckValidate())
+	{
+		return Outputs;
+	}
 
-	//2. Rect 변수 할당	
-	FIntPoint InputTextureExtent = Inputs.SceneColor.Texture->Desc.Extent;
-	FIntPoint InputContentExtent = Inputs.SceneColor.ViewRect.Size();
-	FIntPoint OutputExtents = Inputs.OutputViewRect.Size();
-	FIntPoint DescriptorInputExtent = GetMetalFXExperimentalInputExtent(InputTextureExtent, InputContentExtent, OutputExtents);
-	if (DescriptorInputExtent.X > InputContentExtent.X || DescriptorInputExtent.Y > InputContentExtent.Y)
+	const bool bSceneColorValid = Inputs.SceneColor.Texture != nullptr;
+	const bool bSceneDepthValid = Inputs.SceneDepth.Texture != nullptr;
+	const bool bInputRectValid = !Inputs.SceneColor.ViewRect.IsEmpty();
+	const bool bOutputRectValid = !Inputs.OutputViewRect.IsEmpty();
+	const bool bSceneTexturesValid = bSceneColorValid && bSceneDepthValid;
+	const bool bSceneRectsValid = bInputRectValid && bOutputRectValid;
+	if (!bSceneTexturesValid || !bSceneRectsValid)
+	{
+		UE_LOG(LogMetalFX, Error, TEXT("MetalFX Temporal received invalid color, depth, or output geometry."));
+		return Outputs;
+	}
+
+	//2. Rect 변수 할당
+	const FIntPoint InputTextureExtent = Inputs.SceneColor.Texture->Desc.Extent;
+	const FIntPoint InputContentExtent = Inputs.SceneColor.ViewRect.Size();
+	const FIntPoint OutputExtent = Inputs.OutputViewRect.Size();
+	FIntPoint DescriptorInputExtent = ResolveMetalFXDescriptorInputExtent(InputTextureExtent, InputContentExtent, OutputExtent);
+	const bool bDescriptorWidthFitsContent = DescriptorInputExtent.X <= InputContentExtent.X;
+	const bool bDescriptorHeightFitsContent = DescriptorInputExtent.Y <= InputContentExtent.Y;
+	if (!bDescriptorWidthFitsContent || !bDescriptorHeightFitsContent)
 	{
 		// MetalFX validates the actual content scale against the descriptor scale.
 		// Constrained ViewRects can be slightly smaller than the texture allocation, so keep both sizes aligned in that case.
 		DescriptorInputExtent = InputContentExtent;
 	}
-	FIntRect InputContentRect = Inputs.SceneColor.ViewRect;
-	const float ScreenPercentage = CalculateMetalFXScreenPercentage(InputContentRect, Inputs.OutputViewRect);
+	const FIntRect InputContentRect = Inputs.SceneColor.ViewRect;
 	const FVector2D JitterOffset = GetMetalFXJitterOffset(Inputs.TemporalJitterPixels);
 	const FVector2f MotionVectorScale = GetMetalFXMotionVectorScale();
 
 	//3. History 생성
-	const TRefCountPtr<ITemporalUpscaler::IHistory> InputCustomHistory = Inputs.PrevHistory != nullptr ? Inputs.PrevHistory : new FMetalFXHistory();
-	TRefCountPtr<ITemporalUpscaler::IHistory>* OutputCustomHistory = &Outputs.NewHistory;
-		
+	// Preserve the current placeholder history contract until MetalFX temporal
+	// history is represented explicitly.
+	const bool bHasPreviousHistory = Inputs.PrevHistory != nullptr;
+	const TRefCountPtr<ITemporalUpscaler::IHistory> InputCustomHistory = bHasPreviousHistory ? Inputs.PrevHistory : new FMetalFXHistory();
+
 	//4. Velocity Texture 보정 & 생성
-	FRDGTextureRef GeneratedVelocityTexture = FMetalFXTemporalUpscalerCore::PrepareVelocityTexture
-	(GraphBuilder, View, Inputs.SceneColor.Texture, 
-	Inputs.SceneDepth.Texture, Inputs.SceneVelocity.Texture, 
-	InputContentRect, Inputs.OutputViewRect, View.ViewMatrices.GetTemporalAAJitter());
-	
+	// Prepare velocity and output resources.
+	FRDGTextureRef GeneratedVelocityTexture = FMetalFXTemporalUpscalerCore::PrepareVelocityTexture(GraphBuilder, View, Inputs.SceneColor.Texture, Inputs.SceneDepth.Texture, Inputs.SceneVelocity.Texture, InputContentRect, Inputs.OutputViewRect, View.ViewMatrices.GetTemporalAAJitter());
+	if (!GeneratedVelocityTexture)
+	{
+		UE_LOG(LogMetalFX, Error, TEXT("MetalFX Temporal could not prepare a velocity texture."));
+		return Outputs;
+	}
+
 	//5. Output Texture 생성
-	FRDGTextureRef OutputTexture = FMetalFXUpscalerCore::CreateOutputTexture
-	(GraphBuilder, Inputs.SceneColor.Texture, Inputs.OutputViewRect);
-		
+	FRDGTextureRef OutputTexture = FMetalFXUpscalerCore::CreateOutputTexture(GraphBuilder, Inputs.SceneColor.Texture, Inputs.OutputViewRect);
+	if (!OutputTexture)
+	{
+		return Outputs;
+	}
+
 #if METALFX_DEBUG
 	LogTemporalUpscalerInputsForMetalFX(Inputs, OutputTexture);
 #endif
-	
+
 	auto* PassParams = GraphBuilder.AllocParameters<FMetalFXTemporalPassParameters>();
 	PassParams->ColorTexture = Inputs.SceneColor.Texture;
 	PassParams->DepthTexture = Inputs.SceneDepth.Texture;
 	PassParams->VelocityTexture = GeneratedVelocityTexture;
 	PassParams->OutputTexture = OutputTexture;
 
-	FMetalFXTemporalUpscalerCore* UpscalerCore = m_FxUpscaler;
+	FMetalFXTemporalUpscalerCore* const PassUpscalerCore = UpscalerCore;
 
 	FMetalFXTemporalEncodeInputs EncodeInputs;
-	EncodeInputs.InputTextureExtent = DescriptorInputExtent;
+	EncodeInputs.DescriptorInputExtent = DescriptorInputExtent;
 	EncodeInputs.InputContentExtent = InputContentExtent;
-	EncodeInputs.OutputExtent = OutputExtents;
+	EncodeInputs.OutputExtent = OutputExtent;
 	EncodeInputs.InputRect = InputContentRect;
 	EncodeInputs.OutputRect = Inputs.OutputViewRect;
 	EncodeInputs.JitterOffset = JitterOffset;
 	EncodeInputs.MotionVectorScale = MotionVectorScale;
-	EncodeInputs.ScreenPercentage = ScreenPercentage;
-	
+
 	/* Note : MetalFX encodes directly into the active Metal command buffer rather than using an RDG shader dispatch.
 	 * Keep this on the graphics/raster path, but skip RDG render-pass begin/end so MetalFX can encode outside an active
-	 *  render pass. Removing Raster/SkipRenderPass has caused MetalRHI command buffer failures.
+	 * render pass. Removing Raster/SkipRenderPass has caused MetalRHI command buffer failures.
 	 */
-	ERDGPassFlags Flags = ERDGPassFlags::Compute | ERDGPassFlags::Raster | ERDGPassFlags::SkipRenderPass | ERDGPassFlags::NeverCull;
-	
-	GraphBuilder.AddPass(RDG_EVENT_NAME("MetalFXTemporalUpscaler"), PassParams, Flags, 
-	[UpscalerCore, PassParams, EncodeInputs](FRHICommandListImmediate& RHICmdList)
-	{
-		if (!UpscalerCore)
-		{
-			return;
-		}
+	const ERDGPassFlags Flags = ERDGPassFlags::Compute | ERDGPassFlags::Raster | ERDGPassFlags::SkipRenderPass | ERDGPassFlags::NeverCull;
 
-		FMetalFXTemporalTextureGroup LocalTextureGroup;
-		if (!UpscalerCore->SetTexturesToGroup(*PassParams, LocalTextureGroup))
+	GraphBuilder.AddPass(RDG_EVENT_NAME("MetalFXTemporalUpscaler"), PassParams, Flags, [PassUpscalerCore, PassParams, EncodeInputs](FRHICommandListImmediate& RHICmdList)
 		{
-			UE_LOG(LogMetalFX, Error, TEXT("MetalFX upscaler texture setup failed."));
-			return;
-		}
-		
-		//실행 가능할때만 Enqueue로 보냄.
-		if (UpscalerCore->PrepareToEncode(EncodeInputs))
-		{
-			RHICmdList.EnqueueLambda([UpscalerCore, TextureGroup = MoveTemp(LocalTextureGroup)](FRHICommandListImmediate& Cmd) mutable
-			{	
-				UpscalerCore->ExecuteMetalFX(Cmd, TextureGroup);
-			});
-		}
-		else
-		{
-			LocalTextureGroup.ReleaseAllTexture();
-		}
-	});
-	
-	//To do : 정상적인 Custom History 사용 필요
-	*OutputCustomHistory = InputCustomHistory;
+			if (!PassUpscalerCore)
+			{
+				return;
+			}
 
-	GraphBuilder.QueueTextureExtraction(OutputTexture, &ReactiveExtractedTexture);
+			FMetalFXTemporalTextureGroup LocalTextureGroup;
+			FMetalFXTemporalTextureFormatGroup Formats;
+			if (!PassUpscalerCore->SetTexturesToGroup(*PassParams, LocalTextureGroup, Formats))
+			{
+				UE_LOG(LogMetalFX, Error, TEXT("MetalFX upscaler texture setup failed."));
+				return;
+			}
+
+			//실행 가능할때만 Enqueue로 보냄.
+			// Serialize mutable scaler configuration with the encode that consumes it.
+			RHICmdList.EnqueueLambda([PassUpscalerCore, EncodeInputs, Formats, TextureGroup = MoveTemp(LocalTextureGroup)](FRHICommandListImmediate& Cmd) mutable
+				{
+					if (PassUpscalerCore->PrepareToEncode(EncodeInputs, Formats))
+					{
+						PassUpscalerCore->ExecuteMetalFX(Cmd, TextureGroup);
+					}
+				});
+		});
 
 	Outputs.FullRes.Texture = OutputTexture;
 	Outputs.FullRes.ViewRect = Inputs.OutputViewRect;
-	Outputs.NewHistory = *OutputCustomHistory;
+	//To do : 정상적인 Custom History 사용 필요
+	Outputs.NewHistory = InputCustomHistory;
 	return Outputs;
 }
 #endif

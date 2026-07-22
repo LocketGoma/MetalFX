@@ -11,8 +11,6 @@
 #include <Foundation/Foundation.hpp>
 #include <Metal/Metal.hpp>
 #include <MetalFX/MetalFX.hpp>
-
-extern "C" int32 MetalFXQuerySupportReason();
 #endif
 
 FMetalFXUpscalerCore::FMetalFXUpscalerCore() = default;
@@ -27,10 +25,7 @@ void FMetalFXUpscalerCore::Initialize()
 	}
 }
 
-bool FMetalFXUpscalerCore::ValidateCommonExtents(
-	FIntPoint InputTextureExtent,
-	FIntPoint InputContentExtent,
-	FIntPoint OutputExtent) const
+bool FMetalFXUpscalerCore::ValidateCommonExtents(FIntPoint InputTextureExtent, FIntPoint InputContentExtent, FIntPoint OutputExtent) const
 {
 	if (!bIsInitialized)
 	{
@@ -38,17 +33,20 @@ bool FMetalFXUpscalerCore::ValidateCommonExtents(
 		return false;
 	}
 
-	const bool bHasValidExtents =
-		InputTextureExtent.X > 0
-		&& InputTextureExtent.Y > 0
-		&& InputContentExtent.X > 0
-		&& InputContentExtent.Y > 0
-		&& OutputExtent.X > 0
-		&& OutputExtent.Y > 0;
+	const bool bInputTextureWidthValid = InputTextureExtent.X > 0;
+	const bool bInputTextureHeightValid = InputTextureExtent.Y > 0;
+	const bool bInputContentWidthValid = InputContentExtent.X > 0;
+	const bool bInputContentHeightValid = InputContentExtent.Y > 0;
+	const bool bOutputWidthValid = OutputExtent.X > 0;
+	const bool bOutputHeightValid = OutputExtent.Y > 0;
+	const bool bHasValidInputTextureExtent = bInputTextureWidthValid && bInputTextureHeightValid;
+	const bool bHasValidInputContentExtent = bInputContentWidthValid && bInputContentHeightValid;
+	const bool bHasValidOutputExtent = bOutputWidthValid && bOutputHeightValid;
+	const bool bHasValidExtents = bHasValidInputTextureExtent && bHasValidInputContentExtent && bHasValidOutputExtent;
 
 	if (!bHasValidExtents)
 	{
-		UE_LOG(LogMetalFX, Warning, TEXT("MetalFX received invalid texture extents. InputTexture=%dx%d, InputContent=%dx%d, Output=%dx%d"), InputTextureExtent.X, InputTextureExtent.Y, InputContentExtent.X, InputContentExtent.Y, OutputExtent.X, OutputExtent.Y);
+		UE_LOG(LogMetalFX, Warning, TEXT("MetalFX received invalid texture extents. DescriptorInput=%dx%d, InputContent=%dx%d, Output=%dx%d"), InputTextureExtent.X, InputTextureExtent.Y, InputContentExtent.X, InputContentExtent.Y, OutputExtent.X, OutputExtent.Y);
 	}
 
 	return bHasValidExtents;
@@ -65,13 +63,12 @@ bool FMetalFXUpscalerCore::ValidateCommonRects(FIntRect InputRect, FIntRect Outp
 	return bHasValidRects;
 }
 
-void FMetalFXUpscalerCore::UpdateActiveDebugInfo(FIntRect InputRect, FIntRect OutputRect, float ScreenPercentage)
+void FMetalFXUpscalerCore::UpdateActiveDebugInfo(FIntRect InputRect, FIntRect OutputRect)
 {
 	FScopeLock Lock(&ActiveDebugInfoCS);
 
 	ActiveDebugInfo.InputRect = InputRect;
 	ActiveDebugInfo.OutputRect = OutputRect;
-	ActiveDebugInfo.ScreenPercentage = ScreenPercentage;
 	ActiveDebugInfo.bIsValid = true;
 }
 
@@ -156,62 +153,53 @@ void* FMetalFXUpscalerCore::GetMetalDevice()
 }
 #endif
 
-static EMetalFXSupportReason QueryMetalFXSupportReasonWithoutLogging()
+static EMetalFXSupportReason QueryMetalFXSupportReasonWithoutLogging(EMetalFXUpscalerType SupportedUpscalerType)
 {
 #if METALFX_PLUGIN_ENABLED
-	return static_cast<EMetalFXSupportReason>(MetalFXQuerySupportReason());
+	return static_cast<EMetalFXSupportReason>(MetalFXQuerySupportReason(SupportedUpscalerType));
 #else
 	return EMetalFXSupportReason::NotSupported;
 #endif
 }
 
-EMetalFXSupportReason FMetalFXUpscalerCore::GetIsSupportedDevice()
+EMetalFXSupportReason FMetalFXUpscalerCore::QuerySupportReason(EMetalFXUpscalerType SupportedUpscalerType)
 {
-	const EMetalFXSupportReason SupportReason = IsMetalFXSupported()
-		? EMetalFXSupportReason::Supported
-		: QueryMetalFXSupportReasonWithoutLogging();
+	const bool bTemporalSupported = SupportedUpscalerType == EMetalFXUpscalerType::Temporal;
+	const bool bSpatialSupported = SupportedUpscalerType == EMetalFXUpscalerType::Spatial;
+	const bool bHasSupportedUpscaler = bTemporalSupported || bSpatialSupported;
+	const EMetalFXSupportReason SupportReason = bHasSupportedUpscaler ? EMetalFXSupportReason::Supported : QueryMetalFXSupportReasonWithoutLogging(SupportedUpscalerType);
 
 	switch (SupportReason)
 	{
 	case EMetalFXSupportReason::Supported:
-		UE_LOG(LogRHI, Log, TEXT("MetalFX Supported Device."));
+		UE_LOG(LogMetalFX, Log, TEXT("MetalFX is supported on this device."));
 		return SupportReason;
 	case EMetalFXSupportReason::NotSupported:
-		UE_LOG(LogRHI, Warning, TEXT("MetalFX is not supported in this environment."));
+		UE_LOG(LogMetalFX, Warning, TEXT("MetalFX is not supported in this environment."));
 		return SupportReason;
 	case EMetalFXSupportReason::NotSupportedOldDeviceType:
-		UE_LOG(LogRHI, Warning, TEXT("MetalFX is not supported on this device. The device is too old."));
+		UE_LOG(LogMetalFX, Warning, TEXT("MetalFX is not supported on this device. The device is too old."));
 		return SupportReason;
 	case EMetalFXSupportReason::NotSupportedOSVersionOutOfDate:
-		UE_LOG(LogRHI, Warning, TEXT("MetalFX is not supported because the OS version is too old."));
+		UE_LOG(LogMetalFX, Warning, TEXT("MetalFX is not supported because the OS version is too old."));
 		return SupportReason;
 	case EMetalFXSupportReason::NotSupportedMetalFXFrameworkMissing:
-		UE_LOG(LogRHI, Warning, TEXT("MetalFX is not supported because the framework is missing."));
+		UE_LOG(LogMetalFX, Warning, TEXT("MetalFX is not supported because the framework is missing."));
 		return SupportReason;
 	case EMetalFXSupportReason::NotSupportedMetalFXCreationFailed:
-		UE_LOG(LogRHI, Warning, TEXT("MetalFX is not supported because the scaler support check failed."));
+		UE_LOG(LogMetalFX, Warning, TEXT("MetalFX is not supported because the scaler support check failed."));
 		return SupportReason;
 	}
 
-	UE_LOG(LogRHI, Warning, TEXT("MetalFX is not supported in this environment."));
+	UE_LOG(LogMetalFX, Warning, TEXT("MetalFX is not supported in this environment."));
 	return EMetalFXSupportReason::NotSupported;
 }
 
-bool FMetalFXUpscalerCore::IsMetalFXSupported()
-{
-	return GetMetalFXUpscalerType() != EMetalFXUpscalerType::None;
-}
-
-EMetalFXUpscalerType FMetalFXUpscalerCore::GetMetalFXUpscalerType()
+EMetalFXUpscalerType FMetalFXUpscalerCore::QuerySupportedUpscalerType()
 {
 #if METALFX_PLUGIN_ENABLED
-	return ::GetMetalFXUpscalerType();
+	return QuerySupportedMetalFXUpscalerType();
 #else
 	return EMetalFXUpscalerType::None;
 #endif
-}
-
-EMetalFXSupportReason FMetalFXUpscalerCore::GetMetalFXSupportReason()
-{
-	return GetIsSupportedDevice();
 }

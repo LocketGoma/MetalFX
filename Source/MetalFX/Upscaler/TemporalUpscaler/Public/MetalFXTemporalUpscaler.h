@@ -1,18 +1,23 @@
 #pragma once
 
+#if METALFX_PLUGIN_ENABLED
 #include "TemporalUpscaler.h"
 #include "MetalFXTemporalUpscalerCore.h"
-#include "MetalFXHelper.h"
 
 using ITemporalUpscaler = UE::Renderer::Private::ITemporalUpscaler;
+
+//해당 DebugName은 항상 TemporalUpscaler의 DebugName과 같아야 함.
+inline const TCHAR* GetMetalFXTemporalUpscalerDebugName()
+{
+	return TEXT("MetalFXTemporalUpscaler");
+}
 
 class FMetalFXHistory final : public ITemporalUpscaler::IHistory, public FRefCountBase
 {
 public:
 
-	//해당 DebugName은 항상 TemporalUpscaler의 DebugName과 같아야 함.
-	virtual const TCHAR* GetDebugName() const override { return TEXT("MetalFXTemporalUpscaler"); }
-	virtual uint64 GetGPUSizeBytes() const override { return sizeof(FMetalFXHistory); };
+	virtual const TCHAR* GetDebugName() const override { return GetMetalFXTemporalUpscalerDebugName(); }
+	virtual uint64 GetGPUSizeBytes() const override { return 0; }
 
 private:
 	virtual FReturnedRefCountValue AddRef() const final
@@ -31,7 +36,6 @@ private:
 	}
 };
 
-#if METALFX_PLUGIN_ENABLED
 class FMetalFXTemporalUpscaler final : public ITemporalUpscaler
 {
 public:
@@ -39,17 +43,14 @@ public:
 	virtual float GetMaxUpsampleResolutionFraction() const override;
 	explicit FMetalFXTemporalUpscaler(FMetalFXTemporalUpscalerCore* InUpscaler);
 
-	const bool GetIsSupportedDevice();
-
-	const TCHAR* GetDebugName() const override { return TEXT("MetalFXTemporalUpscaler"); }
+	const TCHAR* GetDebugName() const override { return GetMetalFXTemporalUpscalerDebugName(); }
 
 	virtual ITemporalUpscaler* Fork_GameThread(const class FSceneViewFamily& ViewFamily) const final override;
 	virtual ITemporalUpscaler::FOutputs AddPasses(FRDGBuilder& GraphBuilder, const FSceneView& View, const FInputs& Inputs) const override;
-	const void CheckValidate() const;
 private:
-	// Non-owning. FMetalFXModule owns the Core for the module lifetime.
-	FMetalFXTemporalUpscalerCore* m_FxUpscaler;
+	bool CheckValidate() const;
 
-	mutable TRefCountPtr<IPooledRenderTarget> ReactiveExtractedTexture;
+	// Non-owning. FMetalFXModule owns the Core for the module lifetime.
+	FMetalFXTemporalUpscalerCore* UpscalerCore = nullptr;
 };
-#endif //METALFX_PLUGIN_ENABLED
+#endif // METALFX_PLUGIN_ENABLED
