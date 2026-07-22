@@ -7,10 +7,6 @@
 #include "MetalRHIContext.h"
 #include "MetalCommandBuffer.h"
 #include "MetalRHIUtility.h"
-
-#include <Foundation/Foundation.hpp>
-#include <Metal/Metal.hpp>
-#include <MetalFX/MetalFX.hpp>
 #endif
 
 FMetalFXUpscalerCore::FMetalFXUpscalerCore() = default;
@@ -118,7 +114,8 @@ FMetalFXTextureView FMetalFXUpscalerCore::CreateMetalFXTextureView(FRDGTextureRe
 
 		Result.SetTexture(TextureView, TextureView != nullptr);
 	}
-#elif METALFX_NATIVE
+#endif
+#if METALFX_NATIVE
 	id<MTLTexture> SourceTexture = (__bridge id<MTLTexture>)RHITexture->GetNativeResource();
 	if (SourceTexture == nil)
 	{

@@ -6,9 +6,15 @@
 #include "RenderGraphResources.h"
 
 #if METALFX_PLUGIN_ENABLED && METALFX_METALCPP
+#include <Foundation/Foundation.hpp>
 #include <Metal/Metal.hpp>
-#elif METALFX_PLUGIN_ENABLED && METALFX_NATIVE
+#include <MetalFX/MetalFX.hpp>
+#endif
+
+#if METALFX_PLUGIN_ENABLED && METALFX_NATIVE
+#import <Foundation/Foundation.h>
 #import <Metal/Metal.h>
+#import <MetalFX/MetalFX.h>
 #endif
 
 class FRDGTexture;

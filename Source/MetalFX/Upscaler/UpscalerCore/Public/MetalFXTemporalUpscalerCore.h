@@ -49,7 +49,7 @@ private:
 	bool GenerateUpscaler();
 	void ResetUpscaler();
 
-	bool UpdateInputContentSize(FIntPoint InputContentExtent);
+	void UpdateInputContentSize(FIntPoint InputContentExtent);
 	void SetJitterOffset(FVector2D Offset);
 	void SetMotionVectorScale(FVector2f Scale);
 	void Encode(FRHICommandList& CmdList, FMetalFXTemporalTextureGroup& TextureGroup);

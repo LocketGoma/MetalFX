@@ -164,9 +164,9 @@ extern "C" int32 MetalFXQuerySupportReason(EMetalFXUpscalerType SupportedUpscale
 //------------Outer Utility Functions------------ (End)
 //------------Checker Utility Functions For MetalFX---------------- (End)
 
-
-//------------MetalFX System Utility Functions For Native--------------------
 #if METALFX_NATIVE
+//------------MetalFX System Utility Functions For Native--------------------
+
 extern "C" id<MTLFXTemporalScaler> MetalFXCreateTemporalUpscaler(id<MTLDevice> Device, const FMetalFXTemporalTextureFormatGroup& Formats, int32 InputWidth, int32 InputHeight, int32 OutputWidth, int32 OutputHeight)
 {
 	// 이 버전 이하에선 MetalFX 자체를 못쓰도록 처리
@@ -176,13 +176,27 @@ extern "C" id<MTLFXTemporalScaler> MetalFXCreateTemporalUpscaler(id<MTLDevice> D
 		return nil;
 	}
 
+	if (Device == nil)
+	{
+		return nil;
+	}
+
 	MTLFXTemporalScalerDescriptor* Desc = [MTLFXTemporalScalerDescriptor new];
+	if (Desc == nil)
+	{
+		return nil;
+	}
+
+	if (![MTLFXTemporalScalerDescriptor supportsDevice:Device])
+	{
+		[Desc release];
+		return nil;
+	}
 
 	Desc.inputWidth = InputWidth;
 	Desc.inputHeight = InputHeight;
 	Desc.outputWidth = OutputWidth;
 	Desc.outputHeight = OutputHeight;
-
 	Desc.colorTextureFormat = static_cast<MTLPixelFormat>(Formats.Color);
 	Desc.depthTextureFormat = static_cast<MTLPixelFormat>(Formats.Depth);
 	Desc.motionTextureFormat = static_cast<MTLPixelFormat>(Formats.Motion);
@@ -191,65 +205,53 @@ extern "C" id<MTLFXTemporalScaler> MetalFXCreateTemporalUpscaler(id<MTLDevice> D
 
 	id<MTLFXTemporalScaler> Scaler = [Desc newTemporalScalerWithDevice:Device];
 	[Desc release];
-
 	return Scaler;
 }
 
-//Note. "Output 해상도 바뀜" = Actual Output Resolution 바뀜 (=출력 해상도 바뀜) 이라서 이때는 그냥 업스케일러 다시 만들어야됨
-//해당 함수는 input이 바뀐 경우 (r.ScreenPercentage 등으로 변경된 경우) 에만 해당
-extern "C" bool MetalFXUpdateScalerResolution(id<MTLFXTemporalScaler> Scaler, int32 InputWidth, int32 InputHeight)
+// Note. "Output 해상도 바뀜" = Actual Output Resolution 바뀜 (=출력 해상도 바뀜) 이라서 이때는 그냥 업스케일러 다시 만들어야됨
+// 해당 함수는 input이 바뀐 경우 (r.ScreenPercentage 등으로 변경된 경우) 에만 해당
+extern "C" void MetalFXUpdateScalerResolution(id<MTLFXTemporalScaler> Scaler, int32 InputWidth, int32 InputHeight)
 {
 	if (Scaler == nil)
 	{
 		UE_LOG(LogMetalFX, Error, TEXT("MetalFX cannot update input content because the TemporalScaler is invalid."));
-		return false;
+		return;
 	}
 
-	//Output은 둘중 하나만 0일때 실패 판정
+	// Output은 둘중 하나만 0일때 실패 판정
 	if (InputWidth <= 0 || InputHeight <= 0)
 	{
 		UE_LOG(LogMetalFX, Warning, TEXT("MetalFX cannot update an empty input-content extent (%dx%d)."), InputWidth, InputHeight);
-		return false;
+		return;
 	}
 
-	//입력 컨텐츠 크기 변경시
-	const BOOL bCanSetInputContentWidth = [Scaler respondsToSelector:@selector(setInputContentWidth:)];
-	const BOOL bCanSetInputContentHeight = [Scaler respondsToSelector:@selector(setInputContentHeight:)];
-	
-	if (bCanSetInputContentWidth && bCanSetInputContentHeight)
-	{
-		Scaler.inputContentWidth  = InputWidth;
-		Scaler.inputContentHeight = InputHeight;
-	}
-	else
-	{
-		UE_LOG(LogMetalFX, Warning, TEXT("MetalFX TemporalScaler does not expose mutable input-content dimensions."));
-		return false;
-	}
-
-	return true;
+	// 입력 컨텐츠 크기 변경시
+	// TODO: 지원 OS 하한을 낮춰 해당 속성이 없는 런타임까지 대응할 경우, 갱신을 생략하지 않는 명시적인 재생성 fallback을 추가한다.
+	Scaler.inputContentWidth = InputWidth;
+	Scaler.inputContentHeight = InputHeight;
 }
 
 extern "C" void MetalFXEncode(id<MTLFXTemporalScaler> Scaler, id<MTLCommandBuffer> CmdBuffer, id<MTLTexture> Color, id<MTLTexture> Depth, id<MTLTexture> Motion, id<MTLTexture> Output)
 {
-	if (!Scaler || !CmdBuffer)
+	if (Scaler == nil || CmdBuffer == nil)
 	{
 		UE_LOG(LogMetalFX, Error, TEXT("MetalFX native encode received an invalid TemporalScaler or command buffer."));
 		return;
 	}
 
-	Scaler.colorTexture = Color; //Base Texture
-	Scaler.depthTexture = Depth;
-	Scaler.motionTexture = Motion; //Motion, Velocity Texture
-	Scaler.outputTexture = Output;
-
-	[Scaler encodeToCommandBuffer:CmdBuffer];
-
+	@autoreleasepool
+	{
+		Scaler.colorTexture = Color; // Base Texture
+		Scaler.depthTexture = Depth;
+		Scaler.motionTexture = Motion; // Motion, Velocity Texture
+		Scaler.outputTexture = Output;
+		[Scaler encodeToCommandBuffer:CmdBuffer];
+	}
 }
 
 extern "C" void MetalFXSetJitterOffset(id<MTLFXTemporalScaler> Scaler, float OffsetX, float OffsetY)
 {
-	if (!Scaler)
+	if (Scaler == nil)
 	{
 		UE_LOG(LogMetalFX, Verbose, TEXT("MetalFX ignored jitter because the TemporalScaler is invalid."));
 		return;
@@ -261,7 +263,7 @@ extern "C" void MetalFXSetJitterOffset(id<MTLFXTemporalScaler> Scaler, float Off
 
 extern "C" void MetalFXSetMotionVectorScale(id<MTLFXTemporalScaler> Scaler, float ScaleX, float ScaleY)
 {
-	if (!Scaler)
+	if (Scaler == nil)
 	{
 		UE_LOG(LogMetalFX, Verbose, TEXT("MetalFX ignored motion-vector scale because the TemporalScaler is invalid."));
 		return;
@@ -270,7 +272,8 @@ extern "C" void MetalFXSetMotionVectorScale(id<MTLFXTemporalScaler> Scaler, floa
 	Scaler.motionVectorScaleX = ScaleX;
 	Scaler.motionVectorScaleY = ScaleY;
 }
-#endif // METALFX_NATIVE
+
 //------------MetalFX System Utility Functions For Native-------------------- (End)
+#endif // METALFX_NATIVE
 
 #endif // METALFX_PLUGIN_ENABLED

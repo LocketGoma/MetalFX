@@ -2,12 +2,6 @@
 
 #if METALFX_PLUGIN_ENABLED
 #include "MetalCommandBuffer.h"
-#include <Foundation/Foundation.hpp>
-#include <Metal/Metal.hpp>
-#include <MetalFX/MetalFX.hpp>
-#if METALFX_NATIVE
-#import <MetalFX/MetalFX.h>
-#endif
 #endif
 
 //////////////////////////////////////////////////////////////////////////
@@ -21,16 +15,19 @@ struct FMetalFXSpatialCoreResources
 	{
 #if METALFX_METALCPP
 		return CppScaler.get() != nullptr;
-#elif METALFX_NATIVE
+#endif
+#if METALFX_NATIVE
 		return Scaler != nil;
-#else
+#endif
+#if !METALFX_METALCPP && !METALFX_NATIVE
 		return false;
 #endif
 	}
 
 #if METALFX_METALCPP
 	NS::SharedPtr<MTLFX::SpatialScaler> CppScaler;
-#elif METALFX_NATIVE
+#endif
+#if METALFX_NATIVE
 	id<MTLFXSpatialScaler> Scaler = nil;
 #endif
 #endif
@@ -65,7 +62,8 @@ void FMetalFXSpatialUpscalerCore::ResetUpscaler()
 
 #if METALFX_METALCPP
 	Resources->CppScaler.reset();
-#elif METALFX_NATIVE
+#endif
+#if METALFX_NATIVE
 	[Resources->Scaler release];
 	Resources->Scaler = nil;
 #endif
@@ -97,7 +95,8 @@ bool FMetalFXSpatialUpscalerCore::SetTexturesToGroup(const FMetalFXSpatialPassPa
 #if METALFX_METALCPP
 	OutFormats.Color = OutTextureGroup.ColorTexture.GetTexture()->pixelFormat();
 	OutFormats.Output = OutTextureGroup.OutputTexture.GetTexture()->pixelFormat();
-#elif METALFX_NATIVE
+#endif
+#if METALFX_NATIVE
 	OutFormats.Color = static_cast<FMetalFXPixelFormat>([OutTextureGroup.ColorTexture.GetTexture() pixelFormat]);
 	OutFormats.Output = static_cast<FMetalFXPixelFormat>([OutTextureGroup.OutputTexture.GetTexture() pixelFormat]);
 #endif
@@ -151,17 +150,29 @@ bool FMetalFXSpatialUpscalerCore::GenerateUpscaler()
 	Descriptor->setOutputTextureFormat(static_cast<MTL::PixelFormat>(Resources->Formats.Output));
 	// TODO: Automatically select Perceptual, Linear, or HDR from Unreal's output color-space configuration. Until then, keep MetalFX's default Perceptual mode.
 	Resources->CppScaler = NS::TransferPtr(Descriptor->newSpatialScaler(Device));
-#elif METALFX_NATIVE
+#endif
+#if METALFX_NATIVE
 	id<MTLDevice> Device = (__bridge id<MTLDevice>)GetMetalDevice();
-	const bool bDeviceValid = Device != nil;
-	const bool bDeviceSupported = bDeviceValid && [MTLFXSpatialScalerDescriptor supportsDevice:Device];
-	if (!bDeviceSupported)
+	if (Device == nil)
 	{
-		UE_LOG(LogMetalFX, Error, TEXT("MetalFX SpatialScaler is not supported by the current Metal device."));
+		UE_LOG(LogMetalFX, Error, TEXT("MetalFX SpatialScaler creation failed because the Metal device is unavailable."));
 		return false;
 	}
 
 	MTLFXSpatialScalerDescriptor* Descriptor = [MTLFXSpatialScalerDescriptor new];
+	if (Descriptor == nil)
+	{
+		UE_LOG(LogMetalFX, Error, TEXT("MetalFX SpatialScaler descriptor creation failed."));
+		return false;
+	}
+
+	if (![MTLFXSpatialScalerDescriptor supportsDevice:Device])
+	{
+		UE_LOG(LogMetalFX, Error, TEXT("MetalFX SpatialScaler is not supported by the current Metal device."));
+		[Descriptor release];
+		return false;
+	}
+
 	Descriptor.inputWidth = ConfiguredDescriptorInputExtent.X;
 	Descriptor.inputHeight = ConfiguredDescriptorInputExtent.Y;
 	Descriptor.outputWidth = ConfiguredOutputExtent.X;
@@ -198,7 +209,8 @@ void FMetalFXSpatialUpscalerCore::UpdateInputContentSize(FIntPoint InputContentE
 #if METALFX_METALCPP
 	Resources->CppScaler->setInputContentWidth(ConfiguredInputContentExtent.X);
 	Resources->CppScaler->setInputContentHeight(ConfiguredInputContentExtent.Y);
-#elif METALFX_NATIVE
+#endif
+#if METALFX_NATIVE
 	Resources->Scaler.inputContentWidth = ConfiguredInputContentExtent.X;
 	Resources->Scaler.inputContentHeight = ConfiguredInputContentExtent.Y;
 #endif
@@ -328,13 +340,18 @@ void FMetalFXSpatialUpscalerCore::Encode(FRHICommandList& CmdList, FMetalFXSpati
 		UE_LOG(LogMetalFX, Warning, TEXT("MetalFX Spatial could not find the native Metal command buffer. Skip upscaling this frame."));
 		TextureGroup.ReleaseAllTextures();
 	}
-#elif METALFX_NATIVE
+#endif
+#if METALFX_NATIVE
+	Resources->Scaler.colorTexture = TextureGroup.ColorTexture.GetTexture();
+	Resources->Scaler.outputTexture = TextureGroup.OutputTexture.GetTexture();
+
 	id<MTLCommandBuffer> CommandBuffer = (__bridge id<MTLCommandBuffer>)CurrentCommandBuffer->GetMTLCmdBuffer();
-	if (CommandBuffer)
+	if (CommandBuffer != nil)
 	{
-		Resources->Scaler.colorTexture = TextureGroup.ColorTexture.GetTexture();
-		Resources->Scaler.outputTexture = TextureGroup.OutputTexture.GetTexture();
-		[Resources->Scaler encodeToCommandBuffer:CommandBuffer];
+		@autoreleasepool
+		{
+			[Resources->Scaler encodeToCommandBuffer:CommandBuffer];
+		}
 		TextureGroup.ReleaseAllTexturesDeferred(CommandBuffer);
 	}
 	else
