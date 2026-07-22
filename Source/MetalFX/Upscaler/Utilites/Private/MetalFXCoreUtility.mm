@@ -44,12 +44,11 @@ static BOOL IsMetalFXSpatialSupported()
 	}
 
 	const BOOL bHasMetalFXSpatial = NSClassFromString(@"MTLFXSpatialScalerDescriptor") != Nil;
-	const BOOL bSupportsMetal3 = [MetalDevice supportsFamily:MTLGPUFamilyMetal3];
 	const BOOL bSupportsSpatialScaler = [MTLFXSpatialScalerDescriptor supportsDevice:MetalDevice];
-	return bHasMetalFXSpatial && bSupportsMetal3 && bSupportsSpatialScaler;
+	return bHasMetalFXSpatial && bSupportsSpatialScaler;
 }
 
-//MetalFX 는 가능한데, Temporal 이 가능한지 체크 여부 (Mac - M3 / iPhone&iPad - A17Pro)
+//현재 Metal 장치가 MetalFX Temporal Scaler를 지원하는지 확인
 static BOOL IsMetalFXTemporalSupported()
 {
 	id<MTLDevice> MetalDevice = GetMetalFXDevice();
@@ -77,8 +76,7 @@ static BOOL IsMetalFXTemporalSupported()
 
 	const BOOL bHasTemporalDescriptor = NSClassFromString(@"MTLFXTemporalScalerDescriptor") != Nil;
 	const BOOL bSupportsTemporalScaler = [MTLFXTemporalScalerDescriptor supportsDevice:MetalDevice];
-	const BOOL bSupportsRequiredGPU = [MetalDevice supportsFamily:MTLGPUFamilyApple9];
-	return bHasTemporalDescriptor && bSupportsTemporalScaler && bSupportsRequiredGPU;
+	return bHasTemporalDescriptor && bSupportsTemporalScaler;
 }
 
 //내부 함수 - MetalFX 기동 조건 체크

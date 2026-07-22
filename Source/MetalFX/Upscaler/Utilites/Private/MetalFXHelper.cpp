@@ -3,6 +3,7 @@
 #include "DynamicResolutionState.h"
 #include "Engine/Engine.h"
 #include "LegacyScreenPercentageDriver.h"
+#include "SceneInterface.h"
 #include "SceneView.h"
 
 float GetMetalFXMaxUpscaleResolutionFraction()
