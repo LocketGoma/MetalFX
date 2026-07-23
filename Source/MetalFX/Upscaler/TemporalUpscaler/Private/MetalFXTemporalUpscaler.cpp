@@ -153,9 +153,10 @@ ITemporalUpscaler::FOutputs FMetalFXTemporalUpscaler::AddPasses(FRDGBuilder& Gra
 	const FVector2f MotionVectorScale = GetMetalFXMotionVectorScale();
 
 	//3. History 생성
-	// Preserve the current placeholder history contract until MetalFX temporal
-	// history is represented explicitly.
+	// MetalFX owns the actual temporal history internally. Unreal's custom
+	// history object is retained as the continuity token for this view.
 	const bool bHasPreviousHistory = Inputs.PrevHistory != nullptr;
+	const bool bResetHistory = View.bCameraCut || !bHasPreviousHistory;
 	const TRefCountPtr<ITemporalUpscaler::IHistory> InputCustomHistory = bHasPreviousHistory ? Inputs.PrevHistory : new FMetalFXHistory();
 
 	//4. Velocity Texture 보정 & 생성
@@ -192,6 +193,7 @@ ITemporalUpscaler::FOutputs FMetalFXTemporalUpscaler::AddPasses(FRDGBuilder& Gra
 	EncodeInputs.OutputExtent = OutputExtent;
 	EncodeInputs.InputRect = InputContentRect;
 	EncodeInputs.OutputRect = Inputs.OutputViewRect;
+	EncodeInputs.bResetHistory = bResetHistory;
 	EncodeInputs.JitterOffset = JitterOffset;
 	EncodeInputs.MotionVectorScale = MotionVectorScale;
 

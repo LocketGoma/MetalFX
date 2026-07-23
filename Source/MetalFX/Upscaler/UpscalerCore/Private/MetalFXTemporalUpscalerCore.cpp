@@ -210,6 +210,16 @@ bool FMetalFXTemporalUpscalerCore::SetTexturesToGroup(const FMetalFXTemporalPass
 	return true;
 }
 
+void FMetalFXTemporalUpscalerCore::SetHistoryReset(bool bReset)
+{
+#if METALFX_METALCPP
+	Resources->CppScaler->setReset(bReset);
+#endif
+#if METALFX_NATIVE
+	MetalFXSetReset(Resources->Scaler, bReset);
+#endif
+}
+
 void FMetalFXTemporalUpscalerCore::SetJitterOffset(FVector2D Offset)
 {
 #if METALFX_METALCPP
@@ -328,6 +338,7 @@ bool FMetalFXTemporalUpscalerCore::PrepareToEncode(const FMetalFXTemporalEncodeI
 		return false;
 	}
 
+	SetHistoryReset(Inputs.bResetHistory);
 	SetJitterOffset(Inputs.JitterOffset);
 	SetMotionVectorScale(Inputs.MotionVectorScale);
 	UpdateActiveDebugInfo(Inputs.InputRect, Inputs.OutputRect);

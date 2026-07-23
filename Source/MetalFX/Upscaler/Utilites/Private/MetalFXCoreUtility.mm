@@ -247,6 +247,17 @@ extern "C" void MetalFXEncode(id<MTLFXTemporalScaler> Scaler, id<MTLCommandBuffe
 	}
 }
 
+extern "C" void MetalFXSetReset(id<MTLFXTemporalScaler> Scaler, bool bReset)
+{
+	if (Scaler == nil)
+	{
+		UE_LOG(LogMetalFX, Verbose, TEXT("MetalFX ignored history reset because the TemporalScaler is invalid."));
+		return;
+	}
+
+	Scaler.reset = bReset;
+}
+
 extern "C" void MetalFXSetJitterOffset(id<MTLFXTemporalScaler> Scaler, float OffsetX, float OffsetY)
 {
 	if (Scaler == nil)
