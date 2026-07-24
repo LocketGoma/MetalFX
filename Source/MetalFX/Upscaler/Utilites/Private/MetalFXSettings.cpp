@@ -74,7 +74,7 @@ TAutoConsoleVariable<float> CVarMetalFXMotionVectorScaleY(
 TAutoConsoleVariable<float> CVarMetalFXSharpness(
 	TEXT("r.MetalFX.Sharpness"),
 	0.0f,
-	TEXT("Range from 0.0 to 1.0, when greater than 0 this enables Robust Contrast Adaptive Sharpening Filter to sharpen the output image. Default is 0."),
+	TEXT("Direct linear RCAS strength applied after MetalFX. 0 disables sharpening and 1 applies maximum strength. Default is 0."),
 	ECVF_RenderThreadSafe);
 
 TAutoConsoleVariable<int32> CVarMetalFXUpscalerMode(

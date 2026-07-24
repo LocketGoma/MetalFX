@@ -220,6 +220,26 @@ void FMetalFXTemporalUpscalerCore::SetHistoryReset(bool bReset)
 #endif
 }
 
+void FMetalFXTemporalUpscalerCore::SetDepthReversed(bool bDepthReversed)
+{
+#if METALFX_METALCPP
+	Resources->CppScaler->setDepthReversed(bDepthReversed);
+#endif
+#if METALFX_NATIVE
+	MetalFXSetDepthReversed(Resources->Scaler, bDepthReversed);
+#endif
+}
+
+void FMetalFXTemporalUpscalerCore::SetPreExposure(float PreExposure)
+{
+#if METALFX_METALCPP
+	Resources->CppScaler->setPreExposure(PreExposure);
+#endif
+#if METALFX_NATIVE
+	MetalFXSetPreExposure(Resources->Scaler, PreExposure);
+#endif
+}
+
 void FMetalFXTemporalUpscalerCore::SetJitterOffset(FVector2D Offset)
 {
 #if METALFX_METALCPP
@@ -339,6 +359,8 @@ bool FMetalFXTemporalUpscalerCore::PrepareToEncode(const FMetalFXTemporalEncodeI
 	}
 
 	SetHistoryReset(Inputs.bResetHistory);
+	SetDepthReversed(Inputs.bDepthReversed);
+	SetPreExposure(Inputs.PreExposure);
 	SetJitterOffset(Inputs.JitterOffset);
 	SetMotionVectorScale(Inputs.MotionVectorScale);
 	UpdateActiveDebugInfo(Inputs.InputRect, Inputs.OutputRect);

@@ -76,15 +76,9 @@ FRDGTextureRef FMetalFXTemporalUpscalerCore::PrepareVelocityTexture(FRDGBuilder&
 FRDGTextureRef FMetalFXTemporalUpscalerCore::GenerateVelocityTexturePass(FRDGBuilder& GraphBuilder, const FSceneView& View, FRDGTextureRef InSceneDepthTexture, FRDGTextureRef InVelocityTexture, FIntPoint InputTextureExtent, FIntRect InputViewRect)
 {
 	const bool bHasSceneVelocity = HasUsableSceneVelocity(InVelocityTexture);
-	FRDGTextureRef VelocityTexture = bHasSceneVelocity
-		? InVelocityTexture
-		: GSystemTextures.GetBlackDummy(GraphBuilder);
+	FRDGTextureRef VelocityTexture = bHasSceneVelocity ? InVelocityTexture : GSystemTextures.GetBlackDummy(GraphBuilder);
 
-	FRDGTextureDesc Desc = FRDGTextureDesc::Create2D(
-		InputTextureExtent,
-		PF_G16R16F,
-		FClearValueBinding::Black,
-		TexCreate_ShaderResource | TexCreate_UAV);
+	FRDGTextureDesc Desc = FRDGTextureDesc::Create2D(InputTextureExtent, PF_G16R16F, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV);
 
 	FRDGTextureRef OutputTexture = GraphBuilder.CreateTexture(Desc, TEXT("MetalFX.Velocity"));
 	AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(OutputTexture), FVector4f::Zero());
@@ -99,23 +93,14 @@ FRDGTextureRef FMetalFXTemporalUpscalerCore::GenerateVelocityTexturePass(FRDGBui
 	PassParameters->OutputVelocityTexture = GraphBuilder.CreateUAV(OutputTexture);
 
 	TShaderMapRef<FMetalFXVelocityCS> ComputeShader(GetGlobalShaderMap(View.GetFeatureLevel()));
-	FComputeShaderUtils::AddPass(
-		GraphBuilder,
-		RDG_EVENT_NAME("MetalFX Prepare Velocity"),
-		ComputeShader,
-		PassParameters,
-		FComputeShaderUtils::GetGroupCount(InputViewRect.Size(), FMetalFXVelocityCS::ThreadGroupSize));
+	FComputeShaderUtils::AddPass(GraphBuilder, RDG_EVENT_NAME("MetalFX Prepare Velocity"), ComputeShader, PassParameters, FComputeShaderUtils::GetGroupCount(InputViewRect.Size(), FMetalFXVelocityCS::ThreadGroupSize));
 
 	return OutputTexture;
 }
 
 FRDGTextureRef FMetalFXTemporalUpscalerCore::AddBlackVelocityTexturePass(FRDGBuilder& GraphBuilder, FIntPoint OutputExtent)
 {
-	FRDGTextureDesc Desc = FRDGTextureDesc::Create2D(
-		OutputExtent,
-		PF_G16R16F,
-		FClearValueBinding::Black,
-		TexCreate_ShaderResource | TexCreate_UAV);
+	FRDGTextureDesc Desc = FRDGTextureDesc::Create2D(OutputExtent, PF_G16R16F, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV);
 
 	FRDGTextureRef OutputTexture = GraphBuilder.CreateTexture(Desc, TEXT("MetalFX.ResetVelocity"));
 	AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(OutputTexture), FVector4f::Zero());

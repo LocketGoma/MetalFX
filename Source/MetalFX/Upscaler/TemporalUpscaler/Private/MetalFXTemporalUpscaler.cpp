@@ -1,6 +1,7 @@
 #include "MetalFXTemporalUpscaler.h"
 #include "MetalFXHelper.h"
 #include "MetalFXSettings.h"
+#include "RHIDefinitions.h"
 
 #if METALFX_PLUGIN_ENABLED
 bool FMetalFXTemporalUpscaler::CheckValidate() const
@@ -101,6 +102,12 @@ static FVector2f GetMetalFXMotionVectorScale()
 	return FVector2f(CVarMetalFXMotionVectorScaleX.GetValueOnRenderThread(), CVarMetalFXMotionVectorScaleY.GetValueOnRenderThread());
 }
 
+static float GetMetalFXPreExposure(float PreExposure)
+{
+	const bool bPreExposureValid = FMath::IsFinite(PreExposure) && PreExposure > 0.0f;
+	return bPreExposureValid ? PreExposure : 1.0f;
+}
+
 static FIntPoint ResolveMetalFXDescriptorInputExtent(FIntPoint InputTextureExtent, FIntPoint InputContentExtent, FIntPoint OutputExtent)
 {
 	switch (CVarMetalFXExperimentalInputExtentMode.GetValueOnRenderThread())
@@ -194,6 +201,8 @@ ITemporalUpscaler::FOutputs FMetalFXTemporalUpscaler::AddPasses(FRDGBuilder& Gra
 	EncodeInputs.InputRect = InputContentRect;
 	EncodeInputs.OutputRect = Inputs.OutputViewRect;
 	EncodeInputs.bResetHistory = bResetHistory;
+	EncodeInputs.bDepthReversed = static_cast<bool>(ERHIZBuffer::IsInverted);
+	EncodeInputs.PreExposure = GetMetalFXPreExposure(Inputs.PreExposure);
 	EncodeInputs.JitterOffset = JitterOffset;
 	EncodeInputs.MotionVectorScale = MotionVectorScale;
 

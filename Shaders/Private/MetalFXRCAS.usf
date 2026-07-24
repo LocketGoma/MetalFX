@@ -1,0 +1,75 @@
+// MetalFX integration Copyright (c) 2026 Locketgoma.
+//
+// RCAS implementation adapted from AMD FidelityFX Super Resolution 1.0.
+//
+// Copyright (c) 2021 Advanced Micro Devices, Inc. All rights reserved.
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+// THE SOFTWARE.
+
+#include "/Engine/Private/Common.ush"
+#include "/Engine/Private/ScreenPass.ush"
+
+Texture2D<float4> InputTexture;
+int2 InputViewMin;
+int2 InputViewMax;
+int2 OutputViewMin;
+float Sharpness;
+
+static const float RcasLobeLimit = 0.1875;
+static const float RcasSafeDenominator = 0.000001;
+
+float4 LoadInputClamped(int2 PixelPosition)
+{
+	const int2 MaximumPixel = InputViewMax - int2(1, 1);
+	return InputTexture.Load(int3(clamp(PixelPosition, InputViewMin, MaximumPixel), 0));
+}
+
+float3 CalculateRcasColor(int2 InputPixel)
+{
+	// The Secondary Spatial stage supplies post-tonemap perceptual color, which
+	// is the color space expected by RCAS.
+	const float3 North = LoadInputClamped(InputPixel + int2(0, -1)).rgb;
+	const float3 West = LoadInputClamped(InputPixel + int2(-1, 0)).rgb;
+	const float3 Center = LoadInputClamped(InputPixel).rgb;
+	const float3 East = LoadInputClamped(InputPixel + int2(1, 0)).rgb;
+	const float3 South = LoadInputClamped(InputPixel + int2(0, 1)).rgb;
+
+	const float3 RingMinimum = min(min(North, West), min(East, South));
+	const float3 RingMaximum = max(max(North, West), max(East, South));
+
+	const float3 MinimumDenominator = max(4.0 * RingMaximum, RcasSafeDenominator);
+	const float3 MaximumDenominator = min(4.0 * RingMinimum - 4.0, -RcasSafeDenominator);
+
+	const float3 HitMinimum = min(RingMinimum, Center) / MinimumDenominator;
+	const float3 HitMaximum = (1.0 - max(RingMaximum, Center)) / MaximumDenominator;
+	const float3 PerChannelLobe = max(-HitMinimum, HitMaximum);
+
+	const float Lobe = max(-RcasLobeLimit, min(max(PerChannelLobe.r, max(PerChannelLobe.g, PerChannelLobe.b)), 0.0)) * Sharpness;
+	const float Normalization = rcp(4.0 * Lobe + 1.0);
+
+	return (Lobe * (North + West + East + South) + Center) * Normalization;
+}
+
+void MainPS(noperspective float4 UVAndScreenPosition : TEXCOORD0, float4 SvPosition : SV_POSITION, out float4 OutColor : SV_Target0)
+{
+	const int2 OutputPixel = int2(SvPosition.xy);
+	const int2 InputPixel = InputViewMin + OutputPixel - OutputViewMin;
+	const float4 Center = LoadInputClamped(InputPixel);
+
+	OutColor = float4(CalculateRcasColor(InputPixel), Center.a);
+}

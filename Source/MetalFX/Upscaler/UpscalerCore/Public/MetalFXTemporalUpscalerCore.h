@@ -7,6 +7,8 @@
 struct FMetalFXTemporalEncodeInputs : FMetalFXEncodeGeometry
 {
 	bool bResetHistory = false;
+	bool bDepthReversed = false;
+	float PreExposure = 1.0f;
 	FVector2D JitterOffset = FVector2D::ZeroVector;
 	FVector2f MotionVectorScale = FVector2f::ZeroVector;
 };
@@ -52,6 +54,8 @@ private:
 
 	void UpdateInputContentSize(FIntPoint InputContentExtent);
 	void SetHistoryReset(bool bReset);
+	void SetDepthReversed(bool bDepthReversed);
+	void SetPreExposure(float PreExposure);
 	void SetJitterOffset(FVector2D Offset);
 	void SetMotionVectorScale(FVector2f Scale);
 	void Encode(FRHICommandList& CmdList, FMetalFXTemporalTextureGroup& TextureGroup);

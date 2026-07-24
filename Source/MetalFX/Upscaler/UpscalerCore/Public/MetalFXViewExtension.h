@@ -22,4 +22,5 @@ private:
 	bool CanActivateSpatial(const FSceneViewFamily& ViewFamily, const FMetalFXModule& MetalFXModule) const;
 	void InstallTemporalUpscaler(FSceneViewFamily& ViewFamily, FMetalFXModule& MetalFXModule) const;
 	void InstallSpatialUpscaler(FSceneViewFamily& ViewFamily, FMetalFXModule& MetalFXModule) const;
+	void InstallSharpeningUpscaler(FSceneViewFamily& ViewFamily) const;
 };

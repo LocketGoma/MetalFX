@@ -258,6 +258,28 @@ extern "C" void MetalFXSetReset(id<MTLFXTemporalScaler> Scaler, bool bReset)
 	Scaler.reset = bReset;
 }
 
+extern "C" void MetalFXSetDepthReversed(id<MTLFXTemporalScaler> Scaler, bool bDepthReversed)
+{
+	if (Scaler == nil)
+	{
+		UE_LOG(LogMetalFX, Verbose, TEXT("MetalFX ignored the depth convention because the TemporalScaler is invalid."));
+		return;
+	}
+
+	Scaler.depthReversed = bDepthReversed;
+}
+
+extern "C" void MetalFXSetPreExposure(id<MTLFXTemporalScaler> Scaler, float PreExposure)
+{
+	if (Scaler == nil)
+	{
+		UE_LOG(LogMetalFX, Verbose, TEXT("MetalFX ignored pre-exposure because the TemporalScaler is invalid."));
+		return;
+	}
+
+	Scaler.preExposure = PreExposure;
+}
+
 extern "C" void MetalFXSetJitterOffset(id<MTLFXTemporalScaler> Scaler, float OffsetX, float OffsetY)
 {
 	if (Scaler == nil)

@@ -157,7 +157,7 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "General Settings", meta = (ConsoleVariable = "r.MetalFX.UpscalerMode", DisplayName = "Upscaler Mode", ToolTip = "Selects the MetalFX upscaler mode."))
 	EMetalFXUpscalerType UpscalerMode;
 
-	UPROPERTY(Config, EditAnywhere, Category = "Quality Settings", meta = (ConsoleVariable = "r.MetalFX.Sharpness", DisplayName = "Sharpness", ClampMin = 0, ClampMax = 1, ToolTip = "(WIP) Applies the Robust Contrast Adaptive Sharpening Filter to sharpen the output image."))
+	UPROPERTY(Config, EditAnywhere, Category = "Quality Settings", meta = (ConsoleVariable = "r.MetalFX.Sharpness", DisplayName = "Sharpness", ClampMin = 0, ClampMax = 1, ToolTip = "Applies direct linear RCAS strength after MetalFX. 0 disables sharpening and 1 applies the maximum supported strength."))
 	float Sharpness;
 
 	UPROPERTY(Config, EditAnywhere, Category = "Quality Settings", meta = (ConsoleVariable = "r.MetalFX.QualityMode", DisplayName = "Quality Mode", ToolTip = "Selects the default quality mode to be used when upscaling with MetalFX."))

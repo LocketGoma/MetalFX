@@ -2,6 +2,7 @@
 #include "MetalFXUpscalerCore.h"
 #include "MetalFX.h"
 #include "MetalFXHelper.h"
+#include "MetalFXSharpeningUpscaler.h"
 #include "MetalFXSettings.h"
 #include "MetalFXTemporalUpscaler.h"
 #include "MetalFXSpatialUpscaler.h"
@@ -401,6 +402,25 @@ void FMetalFXViewExtension::InstallSpatialUpscaler(FSceneViewFamily& ViewFamily,
 #endif
 }
 
+void FMetalFXViewExtension::InstallSharpeningUpscaler(FSceneViewFamily& ViewFamily) const
+{
+#if METALFX_PLUGIN_ENABLED
+	const float Sharpness = CVarMetalFXSharpness.GetValueOnGameThread();
+	if (Sharpness <= 0.0f)
+	{
+		return;
+	}
+
+	if (ViewFamily.GetSecondarySpatialUpscalerInterface())
+	{
+		UE_LOG(LogMetalFX, Verbose, TEXT("MetalFX RCAS skipped because another secondary spatial upscaler is already installed."));
+		return;
+	}
+
+	ViewFamily.SetSecondarySpatialUpscalerInterface(new FMetalFXSharpeningUpscaler());
+#endif
+}
+
 void FMetalFXViewExtension::BeginRenderViewFamily(FSceneViewFamily& InViewFamily)
 {
 	FMetalFXModule& MetalFXModule = FMetalFXModule::Get();
@@ -450,6 +470,11 @@ void FMetalFXViewExtension::BeginRenderViewFamily(FSceneViewFamily& InViewFamily
 	const bool bTemporalUpscalerActive = bTemporalModeSelected && bTemporalUpscalerInstalled;
 	const bool bSpatialUpscalerActive = !bTemporalModeSelected && bSpatialUpscalerInstalled;
 	const bool bIsActive = bTemporalUpscalerActive || bSpatialUpscalerActive;
+	if (bIsActive)
+	{
+		InstallSharpeningUpscaler(InViewFamily);
+	}
+
 	UpdateMetalFXDebugStatus(InViewFamily, MetalFXModule, bMetalFXSupported, UpscalerType, bIsActive);
 	QueueMetalFXResolutionDebugInfo(MetalFXModule, bIsActive, ResolutionDebugInfo);
 }
