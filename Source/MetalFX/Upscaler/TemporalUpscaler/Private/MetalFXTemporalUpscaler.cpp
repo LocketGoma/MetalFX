@@ -161,7 +161,7 @@ ITemporalUpscaler::FOutputs FMetalFXTemporalUpscaler::AddPasses(FRDGBuilder& Gra
 
 	//4. Velocity Texture 보정 & 생성
 	// Prepare velocity and output resources.
-	FRDGTextureRef GeneratedVelocityTexture = FMetalFXTemporalUpscalerCore::PrepareVelocityTexture(GraphBuilder, View, Inputs.SceneColor.Texture, Inputs.SceneDepth.Texture, Inputs.SceneVelocity.Texture, InputContentRect, Inputs.OutputViewRect, View.ViewMatrices.GetTemporalAAJitter());
+	FRDGTextureRef GeneratedVelocityTexture = FMetalFXTemporalUpscalerCore::PrepareVelocityTexture(GraphBuilder, View, Inputs.SceneColor.Texture, Inputs.SceneDepth.Texture, Inputs.SceneVelocity.Texture, InputContentRect, bResetHistory);
 	if (!GeneratedVelocityTexture)
 	{
 		UE_LOG(LogMetalFX, Error, TEXT("MetalFX Temporal could not prepare a velocity texture."));

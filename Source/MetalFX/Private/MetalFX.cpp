@@ -8,7 +8,10 @@
 #include "MetalFXUpscalerCore.h"
 #include "MetalFXViewExtension.h"
 #include "DataDrivenShaderPlatformInfo.h"
+#include "Interfaces/IPluginManager.h"
+#include "Misc/Paths.h"
 #include "RenderingThread.h"
+#include "ShaderCore.h"
 
 IMPLEMENT_MODULE(FMetalFXModule, MetalFX)
 
@@ -113,6 +116,13 @@ static TCore* GetTypedMetalFXCore(FMetalFXUpscalerCore* Core, EMetalFXUpscalerTy
 
 void FMetalFXModule::StartupModule()
 {
+	const TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(TEXT("MetalFX"));
+	if (Plugin)
+	{
+		const FString ShaderDirectory = FPaths::Combine(Plugin->GetBaseDir(), TEXT("Shaders"));
+		AddShaderSourceDirectoryMapping(TEXT("/Plugin/MetalFX"), ShaderDirectory);
+	}
+
 	if (IsRunningCommandlet())
 	{
 		return;

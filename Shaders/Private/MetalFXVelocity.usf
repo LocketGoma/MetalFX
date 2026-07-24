@@ -1,0 +1,65 @@
+// Copyright Locketgoma. All Rights Reserved.
+//
+// MetalFX motion-vector preparation shader authored for this plugin.
+// Its processing flow references the DLSS Velocity Combine approach:
+// decode valid Unreal scene velocity, reconstruct camera motion when velocity
+// is unavailable, then convert the result to the upscaler's pixel-space
+// convention. This is an independent MetalFX implementation and does not
+// contain NVIDIA DLSS source code.
+
+#include "/Engine/Private/Common.ush"
+
+Texture2D DepthTexture;
+Texture2D VelocityTexture;
+RWTexture2D<float2> OutputVelocityTexture;
+
+int2 InputViewMin;
+int2 InputViewSize;
+uint bHasSceneVelocity;
+
+float2 GetCameraMotionVelocity(uint2 ViewPixel, float DeviceZ)
+{
+	float2 ViewportUV = (float2(ViewPixel) + 0.5) / float2(InputViewSize);
+	float2 CurrentScreenPosition = 2.0 * float2(ViewportUV.x, 1.0 - ViewportUV.y) - 1.0;
+	float4 CurrentClipPosition = float4(CurrentScreenPosition, DeviceZ, 1.0);
+	float4 PreviousClipPosition = mul(CurrentClipPosition, View.ClipToPrevClip);
+
+	if (PreviousClipPosition.w <= 0.0)
+	{
+		return 0.0;
+	}
+
+	float2 PreviousScreenPosition = PreviousClipPosition.xy / PreviousClipPosition.w;
+	return AdjustClipToPrevClipForProjectionType(CurrentScreenPosition - PreviousScreenPosition, DeviceZ);
+}
+
+float2 ConvertScreenVelocityToMetalFXPixels(float2 ScreenVelocity)
+{
+	// Unreal stores current-minus-previous motion in clip-space screen units.
+	// MetalFX expects current-to-previous motion in framebuffer pixel units.
+	return ScreenVelocity * float2(-0.5, 0.5) * float2(InputViewSize);
+}
+
+[numthreads(THREADGROUP_SIZE, THREADGROUP_SIZE, 1)]
+void MainCS(uint2 DispatchThreadId : SV_DispatchThreadID)
+{
+	if (any(DispatchThreadId >= uint2(InputViewSize)))
+	{
+		return;
+	}
+
+	int2 SourcePixel = InputViewMin + int2(DispatchThreadId);
+	float DeviceZ = DepthTexture.Load(int3(SourcePixel, 0)).x;
+	float2 ScreenVelocity = GetCameraMotionVelocity(DispatchThreadId, DeviceZ);
+
+	if (bHasSceneVelocity != 0)
+	{
+		float4 EncodedVelocity = VelocityTexture.Load(int3(SourcePixel, 0));
+		if (EncodedVelocity.x > 0.0)
+		{
+			ScreenVelocity = DecodeVelocityFromTexture(EncodedVelocity).xy;
+		}
+	}
+
+	OutputVelocityTexture[SourcePixel] = ConvertScreenVelocityToMetalFXPixels(ScreenVelocity);
+}

@@ -169,10 +169,10 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "Temporal Settings", meta = (ConsoleVariable = "r.MetalFX.JitterMode", DisplayName = "Jitter Mode", ToolTip = "Controls temporal jitter forwarding. 1: normal, 0: disabled, -1: inverted."))
 	int32 JitterMode;
 
-	UPROPERTY(Config, EditAnywhere, Category = "Temporal Settings", meta = (ConsoleVariable = "r.MetalFX.MotionVectorScaleX", DisplayName = "Motion Vector Scale X", ToolTip = "(WIP) Horizontal motion vector scale passed to MetalFX."))
+	UPROPERTY(Config, EditAnywhere, Category = "Temporal Settings", meta = (ConsoleVariable = "r.MetalFX.MotionVectorScaleX", DisplayName = "Motion Vector Scale X", ToolTip = "Scales the horizontal pixel-space motion vector passed to MetalFX. The normal value is 1."))
 	float MotionVectorScaleX;
 
-	UPROPERTY(Config, EditAnywhere, Category = "Temporal Settings", meta = (ConsoleVariable = "r.MetalFX.MotionVectorScaleY", DisplayName = "Motion Vector Scale Y", ToolTip = "(WIP) Vertical motion vector scale passed to MetalFX."))
+	UPROPERTY(Config, EditAnywhere, Category = "Temporal Settings", meta = (ConsoleVariable = "r.MetalFX.MotionVectorScaleY", DisplayName = "Motion Vector Scale Y", ToolTip = "Scales the vertical pixel-space motion vector passed to MetalFX. The normal value is 1."))
 	float MotionVectorScaleY;
 
 };

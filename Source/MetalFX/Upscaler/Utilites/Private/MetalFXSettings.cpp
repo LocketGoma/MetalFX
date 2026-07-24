@@ -61,14 +61,14 @@ TAutoConsoleVariable<int32> CVarMetalFXExperimentalInputExtentMode(
 
 TAutoConsoleVariable<float> CVarMetalFXMotionVectorScaleX(
 	TEXT("r.MetalFX.MotionVectorScaleX"),
-	0.0f,
-	TEXT("Horizontal scale applied by MetalFX to the motion vector texture. Keep 0 until the Unreal velocity conversion pass is enabled."),
+	1.0f,
+	TEXT("Horizontal scale applied by MetalFX to the pixel-space motion vector texture."),
 	ECVF_RenderThreadSafe);
 
 TAutoConsoleVariable<float> CVarMetalFXMotionVectorScaleY(
 	TEXT("r.MetalFX.MotionVectorScaleY"),
-	0.0f,
-	TEXT("Vertical scale applied by MetalFX to the motion vector texture. Keep 0 until the Unreal velocity conversion pass is enabled."),
+	1.0f,
+	TEXT("Vertical scale applied by MetalFX to the pixel-space motion vector texture."),
 	ECVF_RenderThreadSafe);
 
 TAutoConsoleVariable<float> CVarMetalFXSharpness(
@@ -109,8 +109,8 @@ UMetalFXSettings::UMetalFXSettings(const FObjectInitializer& ObjectInitializer)
 	QualityMode = EMetalFXQualityMode::UltraQuality;
 	bAutoScalingFromEngine = true;
 	JitterMode = 1;
-	MotionVectorScaleX = 0.0f;
-	MotionVectorScaleY = 0.0f;
+	MotionVectorScaleX = 1.0f;
+	MotionVectorScaleY = 1.0f;
 }
 
 FName UMetalFXSettings::GetContainerName() const

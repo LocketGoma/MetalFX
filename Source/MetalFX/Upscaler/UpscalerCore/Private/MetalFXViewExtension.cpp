@@ -146,7 +146,7 @@ static void QueueMetalFXResolutionDebugInfo(FMetalFXModule& MetalFXModule, bool 
 #endif
 }
 
-static bool LogMetalFXActivationFailure(const TCHAR* Reason, ELogVerbosity::Type Verbosity = ELogVerbosity::Log)
+static bool LogMetalFXActivationFailure(const TCHAR* Reason, ELogVerbosity::Type Verbosity = ELogVerbosity::Verbose)
 {
 	const bool bCompiledIn = (Verbosity & ELogVerbosity::VerbosityMask) <= LogMetalFX.GetCompileTimeVerbosity();
 	if (bCompiledIn && !LogMetalFX.IsSuppressed(Verbosity))
