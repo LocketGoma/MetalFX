@@ -71,7 +71,7 @@ static bool TryGetManualScreenPercentageFraction(const FSceneViewFamily& ViewFam
 		return false;
 	}
 
-	const float ResolutionFraction = ScreenPercentage->GetFloat() / 100.0f;
+	const float ResolutionFraction = ScreenPercentage->GetFloat() / METALFX_FULL_SCREEN_PERCENTAGE;
 	if (!IsValidResolutionFraction(ResolutionFraction))
 	{
 		return false;
@@ -235,21 +235,37 @@ static bool TryGetEngineBaseResolutionFraction(const FSceneViewFamily& ViewFamil
 	return false;
 }
 
-static float CalculateMetalFXOutputResolutionFraction(const FMetalFXQualitySettings& Quality, bool bAutoScalingFromEngine, float EngineBaseResolutionFraction, float PreviousSecondaryResolutionFraction)
+static float CalculateMetalFXPrimaryResolutionFraction(const FMetalFXQualitySettings& Quality, bool bAutoScalingFromEngine, float EngineBaseResolutionFraction)
 {
 	if (Quality.bForceNativeResolution)
 	{
-		return 1.0f;
+		return METALFX_FULL_SCREEN_PERCENTAGE * 0.01f;
 	}
 
-	// Absolute mode retains its legacy full-output contract. Moving a smaller
-	// engine base to the output in this mode could make an absolute input larger
-	// than the MetalFX output and request a downscale.
-	const float OutputResolutionFraction = bAutoScalingFromEngine ? PreviousSecondaryResolutionFraction * EngineBaseResolutionFraction : PreviousSecondaryResolutionFraction;
+	const float QualityResolutionFraction = Quality.GetPrimaryResolutionFraction();
+	float RequestedPrimaryResolutionFraction = QualityResolutionFraction;
+	if (bAutoScalingFromEngine)
+	{
+		RequestedPrimaryResolutionFraction *= EngineBaseResolutionFraction;
+	}
+
+	// The lowest production preset is also the safe input floor. Clamping to
+	// 34% prevents engine-base combinations from exceeding a 3x upscale.
+	const float MinimumPrimaryResolutionFraction = METALFX_MIN_SCREEN_PERCENTAGE * 0.01f;
+	const float MaximumPrimaryResolutionFraction = METALFX_FULL_SCREEN_PERCENTAGE * 0.01f;
+	return FMath::Clamp(RequestedPrimaryResolutionFraction, MinimumPrimaryResolutionFraction, MaximumPrimaryResolutionFraction);
+}
+
+static float CalculateMetalFXOutputResolutionFraction(const FMetalFXQualitySettings& Quality, float PreviousSecondaryResolutionFraction)
+{
+	if (Quality.bForceNativeResolution)
+	{
+		return METALFX_FULL_SCREEN_PERCENTAGE * 0.01f;
+	}
 
 	// METALFX_DEBUG exposes Unreal's supersampling range for validation;
 	// production keeps the MetalFX output target at or below NativeAA.
-	return FMath::Clamp(OutputResolutionFraction, ISceneViewFamilyScreenPercentage::kMinResolutionFraction, GetMetalFXMaxUpscaleResolutionFraction());
+	return FMath::Clamp(PreviousSecondaryResolutionFraction, ISceneViewFamilyScreenPercentage::kMinResolutionFraction, GetMetalFXMaxUpscaleResolutionFraction());
 }
 
 static FMetalFXResolutionDebugInfo BuildMetalFXResolutionInfo(EMetalFXQualityMode QualityMode, bool bAutoScalingFromEngine, bool bDynamicResolutionActive, float EngineBaseResolutionFraction, float PreviousSecondaryResolutionFraction)
@@ -258,8 +274,8 @@ static FMetalFXResolutionDebugInfo BuildMetalFXResolutionInfo(EMetalFXQualityMod
 	const FMetalFXQualitySettings Quality = GetMetalFXQualitySettings(QualityMode);
 	ResolutionInfo.QualityMode = QualityMode;
 	ResolutionInfo.EngineBaseResolutionFraction = FMath::Clamp(EngineBaseResolutionFraction, ISceneViewFamilyScreenPercentage::kMinResolutionFraction, GetMetalFXMaxUpscaleResolutionFraction());
-	ResolutionInfo.PrimaryResolutionFraction = Quality.GetPrimaryResolutionFraction();
-	ResolutionInfo.OutputResolutionFraction = CalculateMetalFXOutputResolutionFraction(Quality, bAutoScalingFromEngine, ResolutionInfo.EngineBaseResolutionFraction, PreviousSecondaryResolutionFraction);
+	ResolutionInfo.PrimaryResolutionFraction = CalculateMetalFXPrimaryResolutionFraction(Quality, bAutoScalingFromEngine, ResolutionInfo.EngineBaseResolutionFraction);
+	ResolutionInfo.OutputResolutionFraction = CalculateMetalFXOutputResolutionFraction(Quality, PreviousSecondaryResolutionFraction);
 	ResolutionInfo.FinalInputResolutionFraction = ResolutionInfo.PrimaryResolutionFraction * ResolutionInfo.OutputResolutionFraction;
 	ResolutionInfo.bAutoScalingFromEngine = bAutoScalingFromEngine;
 	ResolutionInfo.bDynamicResolutionActive = bDynamicResolutionActive;
@@ -321,11 +337,9 @@ public:
 		const float PreviousSecondaryResolutionFraction = ViewFamily.SecondaryViewFraction;
 		const FMetalFXResolutionDebugInfo ResolutionInfo = BuildMetalFXResolutionInfo(QualityMode, bAutoScalingFromEngine, bDynamicResolutionActive, State.EngineBaseResolutionFraction, PreviousSecondaryResolutionFraction);
 
-		// Unreal sends a third-party temporal/spatial upscaler the Secondary view
-		// rect as its output target. Move the engine-selected base fraction to the
-		// Secondary stage, then express MetalFX quality as a Primary fraction of
-		// that target. For example, Base=0.6 and Quality=0.667 becomes a 0.4
-		// Primary input and a 0.6 MetalFX output instead of a 1.0 output.
+		// Keep Unreal's existing Secondary target so MetalFX produces the final
+		// output resolution directly. Auto mode combines the engine-selected base
+		// and quality scale in the Primary input fraction.
 		ViewFamily.SecondaryViewFraction = ResolutionInfo.OutputResolutionFraction;
 
 		if (OutDebugInfo)
@@ -338,12 +352,35 @@ public:
 		if (bQualityModeChanged || bAutoScalingModeChanged)
 		{
 			const FMetalFXQualitySettings Quality = GetMetalFXQualitySettings(QualityMode);
-			UE_LOG(LogMetalFX, Log, TEXT("MetalFX ScreenPercentage ON: ActivationValue=%.3f ActivationSetBy=%s ActivationAutoState=%s Base=%.3f BaseSource=%s AutoScalingFromEngine=%s QualityMode=%s InputFraction=%.3f InputPercentage=%.3f PreviousSecondary=%.3f Primary=%.3f Output=%.3f FinalInput=%.3f"), State.ActivationValue, GetConsoleVariableSetByName(State.ActivationSetBy), State.ActivationValue <= 0.0f ? TEXT("true") : TEXT("false"), State.EngineBaseResolutionFraction, BaseSource, bAutoScalingFromEngine ? TEXT("true") : TEXT("false"), Quality.Name, Quality.GetPrimaryResolutionFraction(), Quality.GetScreenPercentage(), PreviousSecondaryResolutionFraction, ResolutionInfo.PrimaryResolutionFraction, ResolutionInfo.OutputResolutionFraction, ResolutionInfo.FinalInputResolutionFraction);
+			UE_LOG(LogMetalFX, Log, TEXT("MetalFX ScreenPercentage ON: ActivationValue=%.3f ActivationSetBy=%s ActivationAutoState=%s Base=%.3f BaseSource=%s AutoScalingFromEngine=%s QualityMode=%s QualityFraction=%.3f QualityPercentage=%.3f PreviousSecondary=%.3f Primary=%.3f Output=%.3f FinalInput=%.3f"), State.ActivationValue, GetConsoleVariableSetByName(State.ActivationSetBy), State.ActivationValue <= 0.0f ? TEXT("true") : TEXT("false"), State.EngineBaseResolutionFraction, BaseSource, bAutoScalingFromEngine ? TEXT("true") : TEXT("false"), Quality.Name, Quality.GetPrimaryResolutionFraction(), Quality.GetScreenPercentage(), PreviousSecondaryResolutionFraction, ResolutionInfo.PrimaryResolutionFraction, ResolutionInfo.OutputResolutionFraction, ResolutionInfo.FinalInputResolutionFraction);
 		}
 
 		State.LastQualityMode = QualityMode;
 		State.bLastAutoScalingFromEngine = bAutoScalingFromEngine;
 		return true;
+	}
+
+	FMetalFXResolutionDebugInfo GetConfiguredResolutionInfo(const FSceneViewFamily& ViewFamily, EMetalFXQualityMode QualityMode) const
+	{
+		float EngineBaseResolutionFraction = 1.0f;
+		float DynamicResolutionFraction = 1.0f;
+		const bool bDynamicResolutionActive = TryGetDynamicResolutionFraction(ViewFamily, DynamicResolutionFraction);
+
+		if (bDynamicResolutionActive)
+		{
+			EngineBaseResolutionFraction = DynamicResolutionFraction;
+		}
+		else if (State.bValid && State.bBaseFractionValid)
+		{
+			EngineBaseResolutionFraction = State.EngineBaseResolutionFraction;
+		}
+		else
+		{
+			const TCHAR* BaseSource = TEXT("Unknown");
+			TryGetEngineBaseResolutionFraction(ViewFamily, EngineBaseResolutionFraction, BaseSource);
+		}
+
+		return BuildMetalFXResolutionInfo(QualityMode, CVarMetalFXAutoScalingFromEngine.GetValueOnGameThread(), bDynamicResolutionActive, EngineBaseResolutionFraction, ViewFamily.SecondaryViewFraction);
 	}
 
 	void Restore()
@@ -575,7 +612,10 @@ private:
 
 		if (IConsoleVariable* ScreenPercentage = GetScreenPercentageCVar())
 		{
-			const float FinalScreenPercentage = GetMetalFXQualitySettings(QualityMode).GetScreenPercentage();
+			const FMetalFXQualitySettings Quality = GetMetalFXQualitySettings(QualityMode);
+			const bool bAutoScalingFromEngine = CVarMetalFXAutoScalingFromEngine.GetValueOnGameThread();
+			const float PrimaryResolutionFraction = CalculateMetalFXPrimaryResolutionFraction(Quality, bAutoScalingFromEngine, State.EngineBaseResolutionFraction);
+			const float FinalScreenPercentage = PrimaryResolutionFraction * METALFX_FULL_SCREEN_PERCENTAGE;
 
 			if (!FMath::IsNearlyEqual(ScreenPercentage->GetFloat(), FinalScreenPercentage))
 			{
@@ -624,12 +664,7 @@ bool ApplyMetalFXScreenPercentageToViewFamily(FSceneViewFamily& ViewFamily, EMet
 
 FMetalFXResolutionDebugInfo GetConfiguredMetalFXResolutionDebugInfo(const FSceneViewFamily& ViewFamily, EMetalFXQualityMode QualityMode)
 {
-	float EngineBaseResolutionFraction = 1.0f;
-	bool bDynamicResolutionActive = false;
-	const TCHAR* BaseSource = TEXT("Unknown");
-	TryGetEngineBaseResolutionFraction(ViewFamily, EngineBaseResolutionFraction, BaseSource, &bDynamicResolutionActive);
-
-	return BuildMetalFXResolutionInfo(QualityMode, CVarMetalFXAutoScalingFromEngine.GetValueOnGameThread(), bDynamicResolutionActive, EngineBaseResolutionFraction, ViewFamily.SecondaryViewFraction);
+	return FMetalFXScreenPercentageController::Get().GetConfiguredResolutionInfo(ViewFamily, QualityMode);
 }
 
 void RestoreMetalFXScreenPercentage()

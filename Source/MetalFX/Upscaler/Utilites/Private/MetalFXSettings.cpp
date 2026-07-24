@@ -56,7 +56,7 @@ TAutoConsoleVariable<int32> CVarMetalFXJitterMode(
 TAutoConsoleVariable<int32> CVarMetalFXExperimentalInputExtentMode(
 	TEXT("r.MetalFX.Experimental.InputExtentMode"),
 	1,
-	TEXT("Experimental MetalFX descriptor input size source. 0: SceneColor.ViewRect, 1: SceneColor.Texture extent, 2: OutputViewRect. Default 1 matches MetalFX texture allocation size."),
+	TEXT("Experimental MetalFX temporal input geometry. 0: legacy ViewRect descriptor workaround, 1: texture-sized descriptor with MetalFX dynamic input content. Default 1."),
 	ECVF_RenderThreadSafe);
 
 TAutoConsoleVariable<float> CVarMetalFXMotionVectorScaleX(
@@ -86,14 +86,14 @@ TAutoConsoleVariable<int32> CVarMetalFXUpscalerMode(
 TAutoConsoleVariable<int32> CVarMetalFXQualityMode(
 	TEXT("r.MetalFX.QualityMode"),
 	static_cast<int32>(EMetalFXQualityMode::UltraQuality),
-	TEXT("Quality mode. 0: NativeAA always 100%. With AutoScalingFromEngine=true: 1: UltraQuality base x 100% (1.0x), 2: Quality base x 66.7% (1.5x), 3: Balanced base x 50% (2.0x), 4: Performance base x 42% (~2.4x), 5: UltraPerformance base x 34% (~2.94x). With AutoScalingFromEngine=false, modes 1-5 use the corresponding absolute primary screen percentages."),
+	TEXT("Quality mode. 0: NativeAA always 100%. With AutoScalingFromEngine=true, the MetalFX primary input is engine base x quality and is clamped to 34%: 1: 100%, 2: 66.7%, 3: 50%, 4: 42%, 5: 34%. With AutoScalingFromEngine=false, modes 1-5 use the corresponding absolute primary screen percentages."),
 	FConsoleVariableDelegate::CreateStatic(&HandleQualityModeChanged),
 	ECVF_RenderThreadSafe);
 
 TAutoConsoleVariable<bool> CVarMetalFXAutoScalingFromEngine(
 	TEXT("r.MetalFX.AutoScalingFromEngine"),
 	true,
-	TEXT("When true, use the engine-selected resolution as the MetalFX output target and apply the quality scale to its input. When false, retain the legacy output target and use the quality mode's absolute primary screen percentage."),
+	TEXT("When true, keep the engine output target and set the MetalFX primary input to engine base x quality, clamped to 34%. When false, keep the engine output target and use the quality mode's absolute primary screen percentage."),
 	FConsoleVariableDelegate::CreateStatic(&HandleAutoScalingChanged),
 	ECVF_RenderThreadSafe);
 

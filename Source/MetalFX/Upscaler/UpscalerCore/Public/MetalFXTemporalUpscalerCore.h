@@ -6,6 +6,7 @@
 
 struct FMetalFXTemporalEncodeInputs : FMetalFXEncodeGeometry
 {
+	bool bDynamicInputEnabled = false;
 	bool bResetHistory = false;
 	bool bDepthReversed = false;
 	float PreExposure = 1.0f;
@@ -39,7 +40,7 @@ public:
 #if METALFX_PLUGIN_ENABLED
 	bool SetTexturesToGroup(const FMetalFXTemporalPassParameters& Parameters, FMetalFXTemporalTextureGroup& OutTextureGroup, FMetalFXTemporalTextureFormatGroup& OutFormats);
 
-	bool PrepareToEncode(const FMetalFXTemporalEncodeInputs& Inputs, const FMetalFXTemporalTextureFormatGroup& Formats);
+	bool PrepareToEncode(const FMetalFXTemporalEncodeInputs& Inputs, const FMetalFXTemporalTextureFormatGroup& Formats, const FMetalFXTemporalTextureGroup& TextureGroup);
 	void ExecuteMetalFX(FRHICommandList& CmdList, FMetalFXTemporalTextureGroup& TextureGroup);
 #endif
 
@@ -48,7 +49,7 @@ private:
 
 #if METALFX_PLUGIN_ENABLED
 	bool CheckValidate() const;
-	bool EnsureUpscalerForConfiguration(FIntPoint InputTextureExtent, FIntPoint InputContentExtent, FIntPoint OutputExtent, const FMetalFXTemporalTextureFormatGroup& Formats);
+	bool EnsureUpscalerForConfiguration(FIntPoint InputTextureExtent, FIntPoint InputContentExtent, FIntPoint OutputExtent, bool bDynamicInputEnabled, const FMetalFXTemporalTextureFormatGroup& Formats);
 	bool GenerateUpscaler();
 	void ResetUpscaler();
 
@@ -66,4 +67,5 @@ private:
 	FIntPoint ConfiguredDescriptorInputExtent = FIntPoint::ZeroValue;
 	FIntPoint ConfiguredInputContentExtent = FIntPoint::ZeroValue;
 	FIntPoint ConfiguredOutputExtent = FIntPoint::ZeroValue;
+	bool bConfiguredDynamicInputEnabled = false;
 };

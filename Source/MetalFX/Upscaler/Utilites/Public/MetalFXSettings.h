@@ -7,6 +7,12 @@
 
 #include "MetalFXSettings.generated.h"
 
+// Integer Screen Percentage limits shared by presets and fraction conversion.
+// - MetalFX의 확대배율 제한인 x3 배율 문제 대응을 위한 하한선
+#define METALFX_MIN_SCREEN_PERCENTAGE 34
+// - 일반적인 풀스크린 배율 (100%)
+#define METALFX_FULL_SCREEN_PERCENTAGE 100
+
 //= Metal이 지원되는 Apple 기기인지 아닌지
 enum class EMetalSupportDevice : uint8
 {
@@ -99,7 +105,7 @@ struct FMetalFXQualitySettings
 
 	float GetScreenPercentage() const
 	{
-		return InputResolutionFraction * 100.0f;
+		return InputResolutionFraction * METALFX_FULL_SCREEN_PERCENTAGE;
 	}
 };
 
@@ -163,7 +169,7 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "Quality Settings", meta = (ConsoleVariable = "r.MetalFX.QualityMode", DisplayName = "Quality Mode", ToolTip = "Selects the default quality mode to be used when upscaling with MetalFX."))
 	EMetalFXQualityMode QualityMode;
 
-	UPROPERTY(Config, EditAnywhere, Category = "Quality Settings", meta = (ConsoleVariable = "r.MetalFX.AutoScalingFromEngine", DisplayName = "Scale From Engine Resolution", ToolTip = "Uses the engine-selected resolution as the MetalFX output target and applies the quality scale to its input. Disable to retain the legacy output target and absolute primary screen percentage."))
+	UPROPERTY(Config, EditAnywhere, Category = "Quality Settings", meta = (ConsoleVariable = "r.MetalFX.AutoScalingFromEngine", DisplayName = "Scale From Engine Resolution", ToolTip = "Keeps the engine output target and sets the MetalFX primary input to engine base multiplied by quality, clamped to 34%. Disable to use the quality mode's absolute primary screen percentage."))
 	bool bAutoScalingFromEngine;
 
 	UPROPERTY(Config, EditAnywhere, Category = "Temporal Settings", meta = (ConsoleVariable = "r.MetalFX.JitterMode", DisplayName = "Jitter Mode", ToolTip = "Controls temporal jitter forwarding. 1: normal, 0: disabled, -1: inverted."))

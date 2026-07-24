@@ -38,9 +38,9 @@ inline FMetalFXQualitySettings GetMetalFXQualitySettings(EMetalFXQualityMode Qua
 	switch (QualityMode)
 	{
 	case EMetalFXQualityMode::NativeAA:
-		return { TEXT("NativeAA"), 1.0f, true };
+		return { TEXT("NativeAA"), METALFX_FULL_SCREEN_PERCENTAGE * 0.01f, true };
 	case EMetalFXQualityMode::UltraQuality:
-		return { TEXT("UltraQuality"), 1.0f, false };
+		return { TEXT("UltraQuality"), METALFX_FULL_SCREEN_PERCENTAGE * 0.01f, false };
 	case EMetalFXQualityMode::Quality:
 		return { TEXT("Quality"), 0.667f, false };
 	case EMetalFXQualityMode::Balanced:
@@ -49,9 +49,9 @@ inline FMetalFXQualitySettings GetMetalFXQualitySettings(EMetalFXQualityMode Qua
 		return { TEXT("Performance"), 0.42f, false };
 	case EMetalFXQualityMode::UltraPerformance:
 		// MetalFX TemporalScaler는 각 축 (X,Y축)당 3배를 초과하는 업스케일링을 지원하지 않음.
-		return { TEXT("UltraPerformance"), 0.34f, false };
+		return { TEXT("UltraPerformance"), METALFX_MIN_SCREEN_PERCENTAGE * 0.01f, false };
 	default:
-		return { TEXT("UltraQuality"), 1.0f, false };
+		return { TEXT("UltraQuality"), METALFX_FULL_SCREEN_PERCENTAGE * 0.01f, false };
 	}
 }
 

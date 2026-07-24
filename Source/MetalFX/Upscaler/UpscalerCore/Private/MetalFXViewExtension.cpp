@@ -19,7 +19,7 @@ static FString FormatMetalFXRect(const FIntRect& Rect)
 
 static FIntPoint GetMetalFXExpectedInputSize(const FIntRect& OutputRect, float ScreenPercentage)
 {
-	const float ResolutionFraction = ScreenPercentage > 0.0f ? (ScreenPercentage / 100.0f) : 1.0f;
+	const float ResolutionFraction = ScreenPercentage > 0.0f ? (ScreenPercentage / METALFX_FULL_SCREEN_PERCENTAGE) : 1.0f;
 	return FIntPoint(
 		FMath::RoundToInt(static_cast<float>(OutputRect.Width()) * ResolutionFraction),
 		FMath::RoundToInt(static_cast<float>(OutputRect.Height()) * ResolutionFraction));
@@ -82,7 +82,7 @@ static void AddMetalFXStatusDebugMessages(bool bCanActivate, bool bEnableInEdito
 
 			if (bIsActive && ActiveDebugInfo->bIsValid)
 			{
-				const float RequestedPrimaryScreenPercentage = Resolution.PrimaryResolutionFraction * 100.0f;
+				const float RequestedPrimaryScreenPercentage = Resolution.PrimaryResolutionFraction * METALFX_FULL_SCREEN_PERCENTAGE;
 				const FIntPoint ExpectedInputSize = GetMetalFXExpectedInputSize(ActiveDebugInfo->OutputRect, RequestedPrimaryScreenPercentage);
 				const FVector2D ActualScreenPercentage = GetMetalFXActualScreenPercentage(ActiveDebugInfo->InputRect, ActiveDebugInfo->OutputRect);
 				Details = FString::Printf(TEXT("Apple MetalFX Active Rects : Input[%s] Output[%s] ExpectedInput[Size=%dx%d]\nMetalFX Scale : Mode=%s Requested=%.2f%% Actual=%.2f%%/%.2f%%"), *FormatMetalFXRect(ActiveDebugInfo->InputRect), *FormatMetalFXRect(ActiveDebugInfo->OutputRect), ExpectedInputSize.X, ExpectedInputSize.Y, Quality.Name, RequestedPrimaryScreenPercentage, ActualScreenPercentage.X, ActualScreenPercentage.Y);
@@ -92,7 +92,7 @@ static void AddMetalFXStatusDebugMessages(bool bCanActivate, bool bEnableInEdito
 				Details = FString::Printf(TEXT("Apple MetalFX Config : Mode=%s (Deactivated)"), Quality.Name);
 			}
 
-			Details += FString::Printf(TEXT("\nEngine Resolution : DynamicRes=%s Base=%.2f%% Output=%.2f%%\n%s Resolution : Primary=%.2f%% FinalInput=%.2f%% AutoScaling=%s"), Resolution.bDynamicResolutionActive ? TEXT("On") : TEXT("Off"), Resolution.EngineBaseResolutionFraction * 100.0f, Resolution.OutputResolutionFraction * 100.0f, bIsActive ? TEXT("Applied") : TEXT("Configured"), Resolution.PrimaryResolutionFraction * 100.0f, Resolution.FinalInputResolutionFraction * 100.0f, Resolution.bAutoScalingFromEngine ? TEXT("On") : TEXT("Off"));
+			Details += FString::Printf(TEXT("\nEngine Resolution : DynamicRes=%s Base=%.2f%% Output=%.2f%%\n%s Resolution : Primary=%.2f%% FinalInput=%.2f%% AutoScaling=%s"), Resolution.bDynamicResolutionActive ? TEXT("On") : TEXT("Off"), Resolution.EngineBaseResolutionFraction * METALFX_FULL_SCREEN_PERCENTAGE, Resolution.OutputResolutionFraction * METALFX_FULL_SCREEN_PERCENTAGE, bIsActive ? TEXT("Applied") : TEXT("Configured"), Resolution.PrimaryResolutionFraction * METALFX_FULL_SCREEN_PERCENTAGE, Resolution.FinalInputResolutionFraction * METALFX_FULL_SCREEN_PERCENTAGE, Resolution.bAutoScalingFromEngine ? TEXT("On") : TEXT("Off"));
 
 			GEngine->AddOnScreenDebugMessage(ActiveDetailsMessageKey, MessageDuration, bIsActive ? FColor::Emerald : FColor::Yellow, Details, true);
 		}
@@ -250,9 +250,10 @@ void FMetalFXViewExtension::SetupView(FSceneViewFamily& InViewFamily, FSceneView
 
 	const EMetalFXQualityMode QualityMode = static_cast<EMetalFXQualityMode>(CVarMetalFXQualityMode.GetValueOnGameThread());
 	// SetupView provides the mutable FSceneView intended for per-view overrides.
-	// BeginRenderViewFamily exposes const view pointers and only adjusts the
-	// family-wide Secondary output fraction.
-	InView.SceneViewInitOptions.OverridePrimaryResolutionFraction = GetMetalFXQualitySettings(QualityMode).GetPrimaryResolutionFraction();
+	// Use the same composed resolution plan that BeginRenderViewFamily applies
+	// to the family-wide Secondary output fraction.
+	const FMetalFXResolutionDebugInfo ResolutionInfo = GetConfiguredMetalFXResolutionDebugInfo(InViewFamily, QualityMode);
+	InView.SceneViewInitOptions.OverridePrimaryResolutionFraction = ResolutionInfo.PrimaryResolutionFraction;
 #endif
 }
 

@@ -108,17 +108,40 @@ static float GetMetalFXPreExposure(float PreExposure)
 	return bPreExposureValid ? PreExposure : 1.0f;
 }
 
-static FIntPoint ResolveMetalFXDescriptorInputExtent(FIntPoint InputTextureExtent, FIntPoint InputContentExtent, FIntPoint OutputExtent)
+static bool ShouldUseMetalFXDynamicInput(const ITemporalUpscaler::FInputs& Inputs)
 {
-	switch (CVarMetalFXExperimentalInputExtentMode.GetValueOnRenderThread())
+	const bool bDynamicInputRequested = CVarMetalFXExperimentalInputExtentMode.GetValueOnRenderThread() == 1;
+	const bool bInputRectOriginAligned = Inputs.SceneColor.ViewRect.Min == FIntPoint::ZeroValue;
+	const bool bColorAndDepthExtentsMatch = Inputs.SceneColor.Texture->Desc.Extent == Inputs.SceneDepth.Texture->Desc.Extent;
+	const bool bContentFitsTexture = Inputs.SceneColor.ViewRect.Max.X <= Inputs.SceneColor.Texture->Desc.Extent.X && Inputs.SceneColor.ViewRect.Max.Y <= Inputs.SceneColor.Texture->Desc.Extent.Y;
+	const float WidthScale = static_cast<float>(Inputs.OutputViewRect.Width()) / static_cast<float>(Inputs.SceneColor.ViewRect.Width());
+	const float HeightScale = static_cast<float>(Inputs.OutputViewRect.Height()) / static_cast<float>(Inputs.SceneColor.ViewRect.Height());
+	constexpr float MaximumScaleDifference = 0.01f;
+	const bool bAspectRatioCompatible = FMath::Abs(WidthScale - HeightScale) <= MaximumScaleDifference;
+	bool bMetalCPPDynamicInputAvailable = false;
+
+#if METALFX_METALCPP
+	bMetalCPPDynamicInputAvailable = true;
+#endif
+
+	const bool bDynamicInputEnabled = bDynamicInputRequested && bMetalCPPDynamicInputAvailable && bInputRectOriginAligned && bColorAndDepthExtentsMatch && bContentFitsTexture && bAspectRatioCompatible;
+	if (bDynamicInputRequested && !bDynamicInputEnabled)
 	{
-	case 1:
-		return InputTextureExtent;
-	case 2:
-		return OutputExtent;
-	default:
-		return InputContentExtent;
+		UE_LOG(LogMetalFX, VeryVerbose, TEXT("MetalFX dynamic input unavailable for this view. MetalCPP=%s, InputOrigin=(%d,%d), ColorExtent=%dx%d, DepthExtent=%dx%d, InputRectMax=(%d,%d), Scale=%.3f/%.3f"),
+			bMetalCPPDynamicInputAvailable ? TEXT("true") : TEXT("false"),
+			Inputs.SceneColor.ViewRect.Min.X,
+			Inputs.SceneColor.ViewRect.Min.Y,
+			Inputs.SceneColor.Texture->Desc.Extent.X,
+			Inputs.SceneColor.Texture->Desc.Extent.Y,
+			Inputs.SceneDepth.Texture->Desc.Extent.X,
+			Inputs.SceneDepth.Texture->Desc.Extent.Y,
+			Inputs.SceneColor.ViewRect.Max.X,
+			Inputs.SceneColor.ViewRect.Max.Y,
+			WidthScale,
+			HeightScale);
 	}
+
+	return bDynamicInputEnabled;
 }
 
 ITemporalUpscaler::FOutputs FMetalFXTemporalUpscaler::AddPasses(FRDGBuilder& GraphBuilder, const FSceneView& View, const ITemporalUpscaler::FInputs& Inputs) const
@@ -146,15 +169,8 @@ ITemporalUpscaler::FOutputs FMetalFXTemporalUpscaler::AddPasses(FRDGBuilder& Gra
 	const FIntPoint InputTextureExtent = Inputs.SceneColor.Texture->Desc.Extent;
 	const FIntPoint InputContentExtent = Inputs.SceneColor.ViewRect.Size();
 	const FIntPoint OutputExtent = Inputs.OutputViewRect.Size();
-	FIntPoint DescriptorInputExtent = ResolveMetalFXDescriptorInputExtent(InputTextureExtent, InputContentExtent, OutputExtent);
-	const bool bDescriptorWidthFitsContent = DescriptorInputExtent.X <= InputContentExtent.X;
-	const bool bDescriptorHeightFitsContent = DescriptorInputExtent.Y <= InputContentExtent.Y;
-	if (!bDescriptorWidthFitsContent || !bDescriptorHeightFitsContent)
-	{
-		// MetalFX validates the actual content scale against the descriptor scale.
-		// Constrained ViewRects can be slightly smaller than the texture allocation, so keep both sizes aligned in that case.
-		DescriptorInputExtent = InputContentExtent;
-	}
+	const bool bDynamicInputEnabled = ShouldUseMetalFXDynamicInput(Inputs);
+	const FIntPoint DescriptorInputExtent = bDynamicInputEnabled ? InputTextureExtent : InputContentExtent;
 	const FIntRect InputContentRect = Inputs.SceneColor.ViewRect;
 	const FVector2D JitterOffset = GetMetalFXJitterOffset(Inputs.TemporalJitterPixels);
 	const FVector2f MotionVectorScale = GetMetalFXMotionVectorScale();
@@ -200,6 +216,7 @@ ITemporalUpscaler::FOutputs FMetalFXTemporalUpscaler::AddPasses(FRDGBuilder& Gra
 	EncodeInputs.OutputExtent = OutputExtent;
 	EncodeInputs.InputRect = InputContentRect;
 	EncodeInputs.OutputRect = Inputs.OutputViewRect;
+	EncodeInputs.bDynamicInputEnabled = bDynamicInputEnabled;
 	EncodeInputs.bResetHistory = bResetHistory;
 	EncodeInputs.bDepthReversed = static_cast<bool>(ERHIZBuffer::IsInverted);
 	EncodeInputs.PreExposure = GetMetalFXPreExposure(Inputs.PreExposure);
@@ -231,7 +248,7 @@ ITemporalUpscaler::FOutputs FMetalFXTemporalUpscaler::AddPasses(FRDGBuilder& Gra
 			// Serialize mutable scaler configuration with the encode that consumes it.
 			RHICmdList.EnqueueLambda([PassUpscalerCore, EncodeInputs, Formats, TextureGroup = MoveTemp(LocalTextureGroup)](FRHICommandListImmediate& Cmd) mutable
 				{
-					if (PassUpscalerCore->PrepareToEncode(EncodeInputs, Formats))
+					if (PassUpscalerCore->PrepareToEncode(EncodeInputs, Formats, TextureGroup))
 					{
 						PassUpscalerCore->ExecuteMetalFX(Cmd, TextureGroup);
 					}
