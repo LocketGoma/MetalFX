@@ -66,6 +66,10 @@ Replay playback may display some scene colors differently due to a replay-system
 |:---:|:---:|
 | [![Lyra motion sample with MetalFX disabled at 50% input scale](ProfilingResults/260726_motion_50percent_off_grenade.jpg)](ProfilingResults/260726_motion_50percent_off_grenade.jpg) | [![Lyra motion sample with MetalFX Temporal Balanced at 50% input scale](ProfilingResults/260726_motion_50percent_temporal_balanced_grenade.jpg)](ProfilingResults/260726_motion_50percent_temporal_balanced_grenade.jpg) |
 
+Full-resolution aligned frames, comparison sheets, source checksums, and
+alignment metadata are retained in the
+[260726 benchmark evidence package](BenchmarkEvidence/260726/README.md).
+
 ## Stress Test — Unreal Engine CassiniSample
 
 | Device | CPU | GPU | Memory |
