@@ -294,8 +294,10 @@ bool FMetalFXSpatialUpscalerCore::PrepareToEncode(const FMetalFXSpatialEncodeInp
 		UE_LOG(LogMetalFX, Verbose, TEXT("MetalFX Spatial Upscaler is not ready. Skip upscaling this frame."));
 		return false;
 	}
-
+#if !UE_BUILD_SHIPPING
 	UpdateActiveDebugInfo(Inputs.InputRect, Inputs.OutputRect);
+#endif
+	
 	return true;
 }
 

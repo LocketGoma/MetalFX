@@ -15,25 +15,13 @@ inline const TCHAR* GetMetalFXTemporalUpscalerDebugName()
 class FMetalFXHistory final : public ITemporalUpscaler::IHistory, public FRefCountBase
 {
 public:
-
 	virtual const TCHAR* GetDebugName() const override { return GetMetalFXTemporalUpscalerDebugName(); }
 	virtual uint64 GetGPUSizeBytes() const override { return 0; }
 
 private:
-	virtual FReturnedRefCountValue AddRef() const final
-	{
-		return FRefCountBase::AddRef();
-	}
-
-	virtual uint32 Release() const final
-	{
-		return FRefCountBase::Release();
-	}
-
-	virtual uint32 GetRefCount() const final
-	{
-		return FRefCountBase::GetRefCount();
-	}
+	virtual FReturnedRefCountValue AddRef() const final	{	return FRefCountBase::AddRef();	}
+	virtual uint32 Release() const final {	return FRefCountBase::Release();	}
+	virtual uint32 GetRefCount() const final {	return FRefCountBase::GetRefCount();	}
 };
 
 class FMetalFXTemporalUpscaler final : public ITemporalUpscaler

@@ -13,6 +13,8 @@
 #include "RenderGraphUtils.h"
 #include "SystemTextures.h"
 
+// Keep the shader type and its helpers private to this translation unit.
+// This avoids exposing implementation details or colliding with shader types and registration symbols declared in other source files.
 namespace
 {
 class FMetalFXVelocityCS : public FGlobalShader
@@ -35,7 +37,7 @@ public:
 	{
 		return IsMetalPlatform(Parameters.Platform);
 	}
-
+	//(Apple에선 threadExecutionWidth) 값의 배수 권장 - 언리얼에서 대체로 8x 사용함.
 	static constexpr int32 ThreadGroupSize = 8;
 
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
@@ -60,11 +62,12 @@ FRDGTextureRef FMetalFXTemporalUpscalerCore::PrepareVelocityTexture(FRDGBuilder&
 		return nullptr;
 	}
 
+	//히스토리 리셋하는 조건에서는 DepthTex가 필요하진 않음.
 	if (bResetHistory)
 	{
 		return AddBlackVelocityTexturePass(GraphBuilder, InSceneColorTexture->Desc.Extent);
 	}
-
+	
 	if (!InSceneDepthTexture)
 	{
 		return nullptr;

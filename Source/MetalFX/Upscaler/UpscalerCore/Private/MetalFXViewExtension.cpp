@@ -102,14 +102,14 @@ static void AddMetalFXStatusDebugMessages(bool bCanActivate, bool bEnableInEdito
 
 static void UpdateMetalFXDebugStatus(const FSceneViewFamily& ViewFamily, FMetalFXModule& MetalFXModule, bool bMetalFXSupported, EMetalFXUpscalerType UpscalerType, bool bIsActive)
 {
-	#if !UE_BUILD_SHIPPING
+#if !UE_BUILD_SHIPPING
 	if (!GEngine || !CVarMetalFXDebugDisplay.GetValueOnGameThread())
 	{
 		return;
 	}
 
 	FMetalFXActiveDebugInfo ActiveDebugInfo;
-#if METALFX_PLUGIN_ENABLED
+#if METALFX_PLUGIN_ENABLED //&& !UE_BUILD_SHIPPING
 	if (FMetalFXUpscalerCore* Upscaler = MetalFXModule.GetMetalFXUpscaler())
 	{
 		ActiveDebugInfo = Upscaler->GetActiveDebugInfo();

@@ -48,7 +48,7 @@ bool FMetalFXUpscalerCore::ValidateCommonExtents(FIntPoint InputTextureExtent, F
 	return bHasValidExtents;
 }
 
-bool FMetalFXUpscalerCore::ValidateCommonRects(FIntRect InputRect, FIntRect OutputRect) const
+bool FMetalFXUpscalerCore::ValidateCommonRects(const FIntRect& InputRect, const FIntRect& OutputRect)
 {
 	const bool bHasValidRects = !InputRect.IsEmpty() && !OutputRect.IsEmpty();
 	if (!bHasValidRects)
@@ -59,7 +59,8 @@ bool FMetalFXUpscalerCore::ValidateCommonRects(FIntRect InputRect, FIntRect Outp
 	return bHasValidRects;
 }
 
-void FMetalFXUpscalerCore::UpdateActiveDebugInfo(FIntRect InputRect, FIntRect OutputRect)
+#if !UE_BUILD_SHIPPING
+void FMetalFXUpscalerCore::UpdateActiveDebugInfo(const FIntRect& InputRect,const FIntRect& OutputRect)
 {
 	FScopeLock Lock(&ActiveDebugInfoCS);
 
@@ -79,6 +80,7 @@ FMetalFXActiveDebugInfo FMetalFXUpscalerCore::GetActiveDebugInfo() const
 	FScopeLock Lock(&ActiveDebugInfoCS);
 	return ActiveDebugInfo;
 }
+#endif
 
 #if METALFX_PLUGIN_ENABLED
 FMetalFXTextureView FMetalFXUpscalerCore::CreateMetalFXTextureView(FRDGTextureRef Texture)
@@ -169,27 +171,44 @@ EMetalFXSupportReason FMetalFXUpscalerCore::QuerySupportReason(EMetalFXUpscalerT
 	switch (SupportReason)
 	{
 	case EMetalFXSupportReason::Supported:
-		UE_LOG(LogMetalFX, Log, TEXT("MetalFX is supported on this device."));
-		return SupportReason;
+		{
+			UE_LOG(LogMetalFX, Log, TEXT("MetalFX is supported on this device."));
+			break;
+		}
 	case EMetalFXSupportReason::NotSupported:
-		UE_LOG(LogMetalFX, Warning, TEXT("MetalFX is not supported in this environment."));
-		return SupportReason;
+		{
+			UE_LOG(LogMetalFX, Warning, TEXT("MetalFX is not supported in this environment."));
+			break;
+		}
 	case EMetalFXSupportReason::NotSupportedOldDeviceType:
-		UE_LOG(LogMetalFX, Warning, TEXT("MetalFX is not supported on this device. The device is too old."));
-		return SupportReason;
+		{
+			UE_LOG(LogMetalFX, Warning, TEXT("MetalFX is not supported on this device. The device is too old."));
+			break;
+		}
 	case EMetalFXSupportReason::NotSupportedOSVersionOutOfDate:
-		UE_LOG(LogMetalFX, Warning, TEXT("MetalFX is not supported because the OS version is too old."));
-		return SupportReason;
+		{
+			UE_LOG(LogMetalFX, Warning, TEXT("MetalFX is not supported because the OS version is too old."));
+			break;
+		}
 	case EMetalFXSupportReason::NotSupportedMetalFXFrameworkMissing:
-		UE_LOG(LogMetalFX, Warning, TEXT("MetalFX is not supported because the framework is missing."));
-		return SupportReason;
+		{
+			UE_LOG(LogMetalFX, Warning, TEXT("MetalFX is not supported because the framework is missing."));		
+			break;
+		}
 	case EMetalFXSupportReason::NotSupportedMetalFXCreationFailed:
-		UE_LOG(LogMetalFX, Warning, TEXT("MetalFX is not supported because the scaler support check failed."));
-		return SupportReason;
+		{
+			UE_LOG(LogMetalFX, Warning, TEXT("MetalFX is not supported because the scaler support check failed."));
+			break;
+		}
+	default:
+		{
+			UE_LOG(LogMetalFX, Warning, TEXT("MetalFX is not supported because an unknown support reason was returned. SupportReason=%d."), static_cast<int32>(SupportReason));
+			return EMetalFXSupportReason::NotSupported;
+		}
 	}
 
-	UE_LOG(LogMetalFX, Warning, TEXT("MetalFX is not supported in this environment."));
-	return EMetalFXSupportReason::NotSupported;
+	return SupportReason;
+	
 }
 
 EMetalFXUpscalerType FMetalFXUpscalerCore::QuerySupportedUpscalerType()

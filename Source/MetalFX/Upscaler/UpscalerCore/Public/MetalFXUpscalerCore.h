@@ -2,8 +2,10 @@
 
 #include "CoreMinimal.h"
 #include "CustomResourcePool.h"
-#include "HAL/CriticalSection.h"
 #include "MetalFXHelper.h"
+#if !UE_BUILD_SHIPPING
+#include "HAL/CriticalSection.h"		//디버그 메시지 출력용
+#endif
 
 class FMetalCommandBuffer;
 
@@ -51,10 +53,6 @@ public:
 
 	static FRDGTextureRef CreateOutputTexture(FRDGBuilder& GraphBuilder, FRDGTextureRef InSceneColorTexture, FIntRect OutputViewRect);
 
-	void UpdateActiveDebugInfo(FIntRect InputRect, FIntRect OutputRect);
-	void UpdateResolutionDebugInfo(const FMetalFXResolutionDebugInfo& ResolutionDebugInfo);
-	FMetalFXActiveDebugInfo GetActiveDebugInfo() const;
-
 protected:
 #if METALFX_PLUGIN_ENABLED
 	static FMetalFXTextureView CreateMetalFXTextureView(FRDGTextureRef Texture);
@@ -63,11 +61,19 @@ protected:
 #endif
 
 	bool ValidateCommonExtents(FIntPoint InputTextureExtent, FIntPoint InputContentExtent, FIntPoint OutputExtent) const;
-	bool ValidateCommonRects(FIntRect InputRect, FIntRect OutputRect) const;
+	static bool ValidateCommonRects(const FIntRect& InputRect, const FIntRect& OutputRect);
 
 private:
 	bool bIsInitialized = false;
 
+#if !UE_BUILD_SHIPPING
+public:
+	void UpdateActiveDebugInfo(const FIntRect& InputRect, const FIntRect& OutputRect);
+	void UpdateResolutionDebugInfo(const FMetalFXResolutionDebugInfo& ResolutionDebugInfo);
+	FMetalFXActiveDebugInfo GetActiveDebugInfo() const;
+	
+private:
 	mutable FCriticalSection ActiveDebugInfoCS;
 	FMetalFXActiveDebugInfo ActiveDebugInfo;
+#endif
 };
