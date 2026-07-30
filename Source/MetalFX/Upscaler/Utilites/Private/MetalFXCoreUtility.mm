@@ -43,9 +43,19 @@ static BOOL IsMetalFXSpatialSupported()
 		return NO;
 	}
 
-	const BOOL bHasMetalFXSpatial = NSClassFromString(@"MTLFXSpatialScalerDescriptor") != Nil;
-	const BOOL bSupportsSpatialScaler = [MTLFXSpatialScalerDescriptor supportsDevice:MetalDevice];
-	return bHasMetalFXSpatial && bSupportsSpatialScaler;
+	Class DescriptorClass = NSClassFromString(@"MTLFXSpatialScalerDescriptor");
+	if (DescriptorClass == Nil)
+	{
+		return NO;
+	}
+
+	const SEL SupportsDeviceSelector = NSSelectorFromString(@"supportsDevice:");
+	if (![DescriptorClass respondsToSelector:SupportsDeviceSelector])
+	{
+		return NO;
+	}
+
+	return [MTLFXSpatialScalerDescriptor supportsDevice:MetalDevice];
 }
 
 //현재 Metal 장치가 MetalFX Temporal Scaler를 지원하는지 확인
@@ -74,15 +84,45 @@ static BOOL IsMetalFXTemporalSupported()
 	}
 #endif
 
-	const BOOL bHasTemporalDescriptor = NSClassFromString(@"MTLFXTemporalScalerDescriptor") != Nil;
-	const BOOL bSupportsTemporalScaler = [MTLFXTemporalScalerDescriptor supportsDevice:MetalDevice];
-	return bHasTemporalDescriptor && bSupportsTemporalScaler;
+	Class DescriptorClass = NSClassFromString(@"MTLFXTemporalScalerDescriptor");
+	if (DescriptorClass == Nil)
+	{
+		return NO;
+	}
+
+	const SEL SupportsDeviceSelector = NSSelectorFromString(@"supportsDevice:");
+	if (![DescriptorClass respondsToSelector:SupportsDeviceSelector])
+	{
+		return NO;
+	}
+
+	return [MTLFXTemporalScalerDescriptor supportsDevice:MetalDevice];
 }
 
-//내부 함수 - MetalFX 기동 조건 체크
+// MetalFX 전체 기동 가능 여부를 확인한다.
+// Spatial 또는 Temporal 중 하나만 지원되어도 YES이며, 아래의 Dynamic Input API 지원 여부와는 별개의 검사다.
 static BOOL IsMetalFXSupported()
 {
 	return IsMetalFXSpatialSupported() || IsMetalFXTemporalSupported();
+}
+
+// TemporalScaler 지원만으로는 Dynamic Input용 selector까지 존재한다고 보장할 수 없다.
+// 이 함수는 Dynamic Input 부가 API만 확인하며, MetalFX 전체 지원 여부를 대신하지 않는다.
+static BOOL IsMetalFXDynamicInputContentSupported()
+{
+	Class DescriptorClass = NSClassFromString(@"MTLFXTemporalScalerDescriptor");
+	if (DescriptorClass == Nil)
+	{
+		return NO;
+	}
+
+	const SEL EnableSelector = NSSelectorFromString(@"setInputContentPropertiesEnabled:");
+	const SEL MinimumScaleSelector = NSSelectorFromString(@"setInputContentMinScale:");
+	const SEL MaximumScaleSelector = NSSelectorFromString(@"setInputContentMaxScale:");
+	const BOOL bCanEnableDynamicInput = [DescriptorClass instancesRespondToSelector:EnableSelector];
+	const BOOL bCanSetMinimumScale = [DescriptorClass instancesRespondToSelector:MinimumScaleSelector];
+	const BOOL bCanSetMaximumScale = [DescriptorClass instancesRespondToSelector:MaximumScaleSelector];
+	return bCanEnableDynamicInput && bCanSetMinimumScale && bCanSetMaximumScale;
 }
 
 // 의도된 사항: 지원 타입을 OR로 누적하지 않고 이번 실행에 사용할 타입 하나만 반환한다.
@@ -159,6 +199,12 @@ extern "C" int32 MetalFXQuerySupportReason(EMetalFXUpscalerType SupportedUpscale
 	return static_cast<int32>(Reason::Supported);
 }
 
+extern "C" bool MetalFXSupportsDynamicInputContent()
+{
+	static const bool bSupportsDynamicInputContent = IsMetalFXDynamicInputContentSupported();
+	return bSupportsDynamicInputContent;
+}
+
 //------------Outer Utility Functions------------ (End)
 //------------Checker Utility Functions For MetalFX---------------- (End)
 
@@ -176,6 +222,14 @@ extern "C" id<MTLFXTemporalScaler> MetalFXCreateTemporalUpscaler(id<MTLDevice> D
 
 	if (Device == nil)
 	{
+		return nil;
+	}
+
+	const bool bInputExtentValid = InputWidth > 0 && InputHeight > 0;
+	const bool bOutputExtentValid = OutputWidth > 0 && OutputHeight > 0;
+	if (!bInputExtentValid || !bOutputExtentValid || !Formats.IsReady())
+	{
+		UE_LOG(LogMetalFX, Error, TEXT("MetalFX native TemporalScaler creation received an invalid descriptor configuration."));
 		return nil;
 	}
 
@@ -234,6 +288,13 @@ extern "C" void MetalFXEncode(id<MTLFXTemporalScaler> Scaler, id<MTLCommandBuffe
 	if (Scaler == nil || CmdBuffer == nil)
 	{
 		UE_LOG(LogMetalFX, Error, TEXT("MetalFX native encode received an invalid TemporalScaler or command buffer."));
+		return;
+	}
+
+	const bool bInputTexturesValid = Color != nil && Depth != nil && Motion != nil;
+	if (!bInputTexturesValid || Output == nil)
+	{
+		UE_LOG(LogMetalFX, Error, TEXT("MetalFX native encode received one or more invalid textures."));
 		return;
 	}
 

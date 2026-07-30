@@ -7,6 +7,7 @@
 // Returns one module-lifetime type: Temporal is preferred and Spatial is the fallback.
 EMetalFXUpscalerType QuerySupportedMetalFXUpscalerType();
 extern "C" int32 MetalFXQuerySupportReason(EMetalFXUpscalerType SupportedUpscalerType);
+extern "C" bool MetalFXSupportsDynamicInputContent();
 
 #if METALFX_NATIVE
 // Native TemporalScaler의 Objective-C 구현은 .mm 파일에 유지하고, Core에서는 이 경계를 통해 호출한다.

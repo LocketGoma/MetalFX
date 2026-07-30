@@ -47,9 +47,16 @@ public:
 
 IMPLEMENT_GLOBAL_SHADER(FMetalFXVelocityCS, "/Plugin/MetalFX/Private/MetalFXVelocity.usf", "MainCS", SF_Compute);
 
-static bool HasUsableSceneVelocity(FRDGTextureRef VelocityTexture)
+static bool HasUsableSceneVelocity(FRDGTextureRef VelocityTexture, FIntRect InputViewRect)
 {
-	return VelocityTexture && VelocityTexture->Desc.Extent != FIntPoint(1, 1);
+	if (!VelocityTexture || VelocityTexture->Desc.Extent == FIntPoint(1, 1))
+	{
+		return false;
+	}
+
+	const bool bMinimumValid = InputViewRect.Min.X >= 0 && InputViewRect.Min.Y >= 0;
+	const bool bMaximumValid = InputViewRect.Max.X <= VelocityTexture->Desc.Extent.X && InputViewRect.Max.Y <= VelocityTexture->Desc.Extent.Y;
+	return bMinimumValid && bMaximumValid;
 }
 } // namespace
 
@@ -75,7 +82,7 @@ FRDGTextureRef FMetalFXTemporalUpscalerCore::PrepareVelocityTexture(FRDGBuilder&
 
 FRDGTextureRef FMetalFXTemporalUpscalerCore::GenerateVelocityTexturePass(FRDGBuilder& GraphBuilder, const FSceneView& View, FRDGTextureRef InSceneDepthTexture, FRDGTextureRef InVelocityTexture, FIntPoint InputTextureExtent, FIntRect InputViewRect)
 {
-	const bool bHasSceneVelocity = HasUsableSceneVelocity(InVelocityTexture);
+	const bool bHasSceneVelocity = HasUsableSceneVelocity(InVelocityTexture, InputViewRect);
 	FRDGTextureRef VelocityTexture = bHasSceneVelocity ? InVelocityTexture : GSystemTextures.GetBlackDummy(GraphBuilder);
 
 	FRDGTextureDesc Desc = FRDGTextureDesc::Create2D(InputTextureExtent, PF_G16R16F, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV);

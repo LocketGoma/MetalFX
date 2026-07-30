@@ -299,7 +299,6 @@ void FMetalFXModule::HandlePostRHIInitialized()
 	#if METALFX_PLUGIN_ENABLED
 		SupportedUpscalerType = FMetalFXUpscalerCore::QuerySupportedUpscalerType();
 		MetalFXSupport = FMetalFXUpscalerCore::QuerySupportReason(SupportedUpscalerType);
-		//SupportedUpscalerType = EMetalFXUpscalerType::Spatial;
 		const bool bMetalFXRuntimeSupported = MetalFXSupport == EMetalFXSupportReason::Supported;
 		const bool bHasSupportedUpscaler = SupportedUpscalerType != EMetalFXUpscalerType::None;
 		if (bMetalFXRuntimeSupported && bHasSupportedUpscaler)

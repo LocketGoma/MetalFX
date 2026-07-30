@@ -177,6 +177,12 @@ bool FMetalFXTemporalUpscalerCore::GenerateUpscaler()
 		const bool bDeviceSupported = bDescriptorValid && MTLFX::TemporalScalerDescriptor::supportsDevice(MetalDevice);
 		if (bDeviceSupported)
 		{
+			if (bConfiguredDynamicInputEnabled && !MetalFXSupportsDynamicInputContent())
+			{
+				UE_LOG(LogMetalFX, Warning, TEXT("MetalFX TemporalScaler dynamic input is unavailable on this runtime."));
+				return false;
+			}
+
 			FMetalFXContentScaleRange RequestedScaleRange;
 			const bool bRequestedScaleValid = GetMetalFXContentScaleRange(ConfiguredInputContentExtent, ConfiguredOutputExtent, RequestedScaleRange);
 			if (bConfiguredDynamicInputEnabled && !bRequestedScaleValid)
@@ -246,6 +252,12 @@ bool FMetalFXTemporalUpscalerCore::GenerateUpscaler()
 void FMetalFXTemporalUpscalerCore::UpdateInputContentSize(FIntPoint InputContentExtent)
 {
 	// Descriptor와 출력 크기는 재생성이 필요하지만, 입력 컨텐츠 크기는 생성된 Scaler에 직접 갱신할 수 있다.
+	if (!Resources || !Resources->HasScaler())
+	{
+		UE_LOG(LogMetalFX, Error, TEXT("MetalFX cannot update input content without a valid TemporalScaler."));
+		return;
+	}
+
 #if METALFX_METALCPP
 	Resources->CppScaler->setInputContentWidth(InputContentExtent.X);
 	Resources->CppScaler->setInputContentHeight(InputContentExtent.Y);
@@ -275,12 +287,7 @@ bool FMetalFXTemporalUpscalerCore::SetTexturesToGroup(const FMetalFXTemporalPass
 	OutTextureGroup.VelocityTexture = CreateMetalFXTextureView(Parameters.VelocityTexture);
 	OutTextureGroup.OutputTexture = CreateMetalFXTextureView(Parameters.OutputTexture);
 
-	const bool bColorTextureViewValid = OutTextureGroup.ColorTexture.IsValid();
-	const bool bDepthTextureViewValid = OutTextureGroup.DepthTexture.IsValid();
-	const bool bVelocityTextureViewValid = OutTextureGroup.VelocityTexture.IsValid();
-	const bool bOutputTextureViewValid = OutTextureGroup.OutputTexture.IsValid();
-	const bool bInputTextureViewsValid = bColorTextureViewValid && bDepthTextureViewValid && bVelocityTextureViewValid;
-	if (!bInputTextureViewsValid || !bOutputTextureViewValid)
+	if (!OutTextureGroup.IsValid())
 	{
 		UE_LOG(LogMetalFX, Error, TEXT("MetalFX temporal texture view conversion failed."));
 		return false;
@@ -467,8 +474,33 @@ bool FMetalFXTemporalUpscalerCore::EnsureUpscalerForConfiguration(FIntPoint Inpu
 
 bool FMetalFXTemporalUpscalerCore::PrepareToEncode(const FMetalFXTemporalEncodeInputs& Inputs, const FMetalFXTemporalTextureFormatGroup& Formats, const FMetalFXTemporalTextureGroup& TextureGroup)
 {
+	if (!TextureGroup.IsValid())
+	{
+		UE_LOG(LogMetalFX, Error, TEXT("MetalFX TemporalScaler cannot encode with invalid texture views."));
+		return false;
+	}
+
 	if (!ValidateCommonRects(Inputs.InputRect, Inputs.OutputRect))
 	{
+		return false;
+	}
+
+	const bool bInputGeometryConsistent = Inputs.InputContentExtent == Inputs.InputRect.Size();
+	const bool bOutputGeometryConsistent = Inputs.OutputExtent == Inputs.OutputRect.Size();
+	const bool bOutputOriginAligned = Inputs.OutputRect.Min == FIntPoint::ZeroValue;
+	const bool bDynamicInputOriginAligned = !Inputs.bDynamicInputEnabled || Inputs.InputRect.Min == FIntPoint::ZeroValue;
+	if (!bInputGeometryConsistent || !bOutputGeometryConsistent || !bOutputOriginAligned || !bDynamicInputOriginAligned)
+	{
+		UE_LOG(LogMetalFX, Error, TEXT("MetalFX TemporalScaler received inconsistent content geometry."));
+		return false;
+	}
+
+	const bool bPreExposureValid = FMath::IsFinite(Inputs.PreExposure) && Inputs.PreExposure > 0.0f;
+	const bool bJitterValid = FMath::IsFinite(Inputs.JitterOffset.X) && FMath::IsFinite(Inputs.JitterOffset.Y);
+	const bool bMotionScaleValid = FMath::IsFinite(Inputs.MotionVectorScale.X) && FMath::IsFinite(Inputs.MotionVectorScale.Y);
+	if (!bPreExposureValid || !bJitterValid || !bMotionScaleValid)
+	{
+		UE_LOG(LogMetalFX, Error, TEXT("MetalFX TemporalScaler received invalid per-frame scalar inputs."));
 		return false;
 	}
 
@@ -521,6 +553,13 @@ void FMetalFXTemporalUpscalerCore::ExecuteMetalFX(FRHICommandList& CmdList, FMet
 
 void FMetalFXTemporalUpscalerCore::Encode(FRHICommandList& CmdList, FMetalFXTemporalTextureGroup& TextureGroup)
 {
+	if (!TextureGroup.IsValid())
+	{
+		UE_LOG(LogMetalFX, Error, TEXT("MetalFX TemporalScaler encode skipped because its texture views are invalid."));
+		TextureGroup.ReleaseAllTextures();
+		return;
+	}
+
 	FMetalCommandBuffer* CurrentCommandBuffer = GetCurrentMetalCommandBuffer(CmdList);
 	if (!CurrentCommandBuffer)
 	{

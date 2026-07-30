@@ -1,4 +1,5 @@
 #include "MetalFXTemporalUpscaler.h"
+#include "MetalFXCoreUtility.h"
 #include "MetalFXHelper.h"
 #include "MetalFXSettings.h"
 #include "RHIDefinitions.h"
@@ -6,7 +7,10 @@
 #if METALFX_PLUGIN_ENABLED
 bool FMetalFXTemporalUpscaler::CheckValidate() const
 {
-	if (!UpscalerCore)
+	const bool bCoreExists = UpscalerCore != nullptr;
+	const bool bCoreInitialized = bCoreExists && UpscalerCore->IsInitialized();
+	const bool bTemporalCoreSelected = bCoreInitialized && UpscalerCore->GetUpscalerType() == EMetalFXUpscalerType::Temporal;
+	if (!bTemporalCoreSelected)
 	{
 		UE_LOG(LogMetalFX, Error, TEXT("MetalFX Temporal Core is not ready."));
 		return false;
@@ -87,6 +91,13 @@ static void LogTemporalUpscalerInputsForMetalFX(const ITemporalUpscaler::FInputs
 static FVector2D GetMetalFXJitterOffset(FVector2f TemporalJitterPixels)
 {
 	const FVector2D JitterOffset(TemporalJitterPixels);
+	const bool bJitterOffsetValid = FMath::IsFinite(JitterOffset.X) && FMath::IsFinite(JitterOffset.Y);
+	if (!bJitterOffsetValid)
+	{
+		UE_LOG(LogMetalFX, Verbose, TEXT("MetalFX received a non-finite temporal jitter offset. Using zero jitter for this frame."));
+		return FVector2D::ZeroVector;
+	}
+
 	const int32 JitterMode = CVarMetalFXJitterMode.GetValueOnRenderThread();
 
 	if (JitterMode == 0)
@@ -99,7 +110,16 @@ static FVector2D GetMetalFXJitterOffset(FVector2f TemporalJitterPixels)
 
 static FVector2f GetMetalFXMotionVectorScale()
 {
-	return FVector2f(CVarMetalFXMotionVectorScaleX.GetValueOnRenderThread(), CVarMetalFXMotionVectorScaleY.GetValueOnRenderThread());
+	const float ScaleX = CVarMetalFXMotionVectorScaleX.GetValueOnRenderThread();
+	const float ScaleY = CVarMetalFXMotionVectorScaleY.GetValueOnRenderThread();
+	const bool bScaleValid = FMath::IsFinite(ScaleX) && FMath::IsFinite(ScaleY);
+	if (!bScaleValid)
+	{
+		UE_LOG(LogMetalFX, Verbose, TEXT("MetalFX received a non-finite motion-vector scale. Using the default scale for this frame."));
+		return FVector2f(1.0f, 1.0f);
+	}
+
+	return FVector2f(ScaleX, ScaleY);
 }
 
 static float GetMetalFXPreExposure(float PreExposure)
@@ -113,7 +133,9 @@ static bool ShouldUseMetalFXDynamicInput(const ITemporalUpscaler::FInputs& Input
 	const bool bDynamicInputRequested = CVarMetalFXExperimentalInputExtentMode.GetValueOnRenderThread() == 1;
 	const bool bInputRectOriginAligned = Inputs.SceneColor.ViewRect.Min == FIntPoint::ZeroValue;
 	const bool bColorAndDepthExtentsMatch = Inputs.SceneColor.Texture->Desc.Extent == Inputs.SceneDepth.Texture->Desc.Extent;
-	const bool bContentFitsTexture = Inputs.SceneColor.ViewRect.Max.X <= Inputs.SceneColor.Texture->Desc.Extent.X && Inputs.SceneColor.ViewRect.Max.Y <= Inputs.SceneColor.Texture->Desc.Extent.Y;
+	const bool bInputRectMinimumValid = Inputs.SceneColor.ViewRect.Min.X >= 0 && Inputs.SceneColor.ViewRect.Min.Y >= 0;
+	const bool bInputRectMaximumValid = Inputs.SceneColor.ViewRect.Max.X <= Inputs.SceneColor.Texture->Desc.Extent.X && Inputs.SceneColor.ViewRect.Max.Y <= Inputs.SceneColor.Texture->Desc.Extent.Y;
+	const bool bContentFitsTexture = bInputRectMinimumValid && bInputRectMaximumValid;
 	const float WidthScale = static_cast<float>(Inputs.OutputViewRect.Width()) / static_cast<float>(Inputs.SceneColor.ViewRect.Width());
 	const float HeightScale = static_cast<float>(Inputs.OutputViewRect.Height()) / static_cast<float>(Inputs.SceneColor.ViewRect.Height());
 	constexpr float MaximumScaleDifference = 0.01f;
@@ -121,7 +143,7 @@ static bool ShouldUseMetalFXDynamicInput(const ITemporalUpscaler::FInputs& Input
 	bool bMetalCPPDynamicInputAvailable = false;
 
 #if METALFX_METALCPP
-	bMetalCPPDynamicInputAvailable = true;
+	bMetalCPPDynamicInputAvailable = MetalFXSupportsDynamicInputContent();
 #endif
 
 	const bool bDynamicInputEnabled = bDynamicInputRequested && bMetalCPPDynamicInputAvailable && bInputRectOriginAligned && bColorAndDepthExtentsMatch && bContentFitsTexture && bAspectRatioCompatible;
@@ -257,7 +279,7 @@ ITemporalUpscaler::FOutputs FMetalFXTemporalUpscaler::AddPasses(FRDGBuilder& Gra
 
 	Outputs.FullRes.Texture = OutputTexture;
 	Outputs.FullRes.ViewRect = Inputs.OutputViewRect;
-	//To do : 정상적인 Custom History 사용 필요
+	// Unreal retains this token and only returns it to a compatible MetalFX upscaler on the next frame.
 	Outputs.NewHistory = InputCustomHistory;
 	return Outputs;
 }
