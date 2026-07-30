@@ -38,7 +38,7 @@ ITemporalUpscaler* FMetalFXTemporalUpscaler::Fork_GameThread(const FSceneViewFam
 	return new FMetalFXTemporalUpscaler(UpscalerCore);
 }
 
-//-------
+//-------DEBUG------
 #if METALFX_DEBUG
 static void LogRDGTextureDescForMetalFX(const TCHAR* Label, FRDGTextureRef Texture)
 {
@@ -220,6 +220,7 @@ ITemporalUpscaler::FOutputs FMetalFXTemporalUpscaler::AddPasses(FRDGBuilder& Gra
 		return Outputs;
 	}
 
+	//+ 텍스쳐 검사
 #if METALFX_DEBUG
 	LogTemporalUpscalerInputsForMetalFX(Inputs, OutputTexture);
 #endif

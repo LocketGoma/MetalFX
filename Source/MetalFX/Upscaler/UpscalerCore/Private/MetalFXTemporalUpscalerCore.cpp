@@ -535,7 +535,11 @@ bool FMetalFXTemporalUpscalerCore::PrepareToEncode(const FMetalFXTemporalEncodeI
 	SetPreExposure(Inputs.PreExposure);
 	SetJitterOffset(Inputs.JitterOffset);
 	SetMotionVectorScale(Inputs.MotionVectorScale);
+	
+#if !UE_BUILD_SHIPPING
 	UpdateActiveDebugInfo(Inputs.InputRect, Inputs.OutputRect);
+#endif
+	
 	return true;
 }
 
@@ -589,6 +593,7 @@ void FMetalFXTemporalUpscalerCore::Encode(FRHICommandList& CmdList, FMetalFXTemp
 		TextureGroup.ReleaseAllTextures();
 	}
 #endif
+	
 #if METALFX_NATIVE
 	id<MTLTexture> ColorTexture = TextureGroup.ColorTexture.GetTexture();
 	id<MTLTexture> DepthTexture = TextureGroup.DepthTexture.GetTexture();
@@ -597,6 +602,7 @@ void FMetalFXTemporalUpscalerCore::Encode(FRHICommandList& CmdList, FMetalFXTemp
 	id<MTLCommandBuffer> MetalCommandBuffer = (__bridge id<MTLCommandBuffer>)CurrentCommandBuffer->GetMTLCmdBuffer();
 	if (MetalCommandBuffer != nil)
 	{
+		//Native는 Objective-C 로직에서 수행함.
 		MetalFXEncode(Resources->Scaler, MetalCommandBuffer, ColorTexture, DepthTexture, MotionTexture, OutputTexture);
 		TextureGroup.ReleaseAllTexturesDeferred(MetalCommandBuffer);
 	}

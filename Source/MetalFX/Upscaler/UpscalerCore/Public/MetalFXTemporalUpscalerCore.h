@@ -17,8 +17,7 @@ struct FMetalFXTemporalEncodeInputs : FMetalFXEncodeGeometry
 /**
  * Core for MetalFX TemporalScaler.
  *
- * This owns all temporal scaler state. It is owned once by FMetalFXModule and
- * referenced non-owningly by FMetalFXTemporalUpscaler and its forks.
+ * This owns all temporal scaler state. It is owned once by FMetalFXModule and referenced non-owningly by FMetalFXTemporalUpscaler and its forks.
  */
 class FMetalFXTemporalUpscalerCore final : public FMetalFXUpscalerCore
 {
@@ -34,7 +33,6 @@ public:
 	}
 
 	static FRDGTextureRef PrepareVelocityTexture(FRDGBuilder& GraphBuilder, const FSceneView& View, FRDGTextureRef InSceneColorTexture, FRDGTextureRef InSceneDepthTexture, FRDGTextureRef InVelocityTexture, FIntRect InputViewRect, bool bResetHistory);
-
 	static FRDGTextureRef GenerateVelocityTexturePass(FRDGBuilder& GraphBuilder, const FSceneView& View, FRDGTextureRef InSceneDepthTexture, FRDGTextureRef InVelocityTexture, FIntPoint InputTextureExtent, FIntRect InputViewRect);
 
 #if METALFX_PLUGIN_ENABLED

@@ -6,6 +6,7 @@
 #include "MetalFXSettings.h"
 #include "Modules/ModuleManager.h"
 
+//Note : MetalFX Disabled 상태라면 4개 클래스는 없음. (접근시 오류 발생)
 class FMetalFXViewExtension;
 class FMetalFXUpscalerCore;
 class FMetalFXSpatialUpscalerCore;

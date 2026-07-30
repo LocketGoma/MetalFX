@@ -233,30 +233,42 @@ FMetalFXUpscalerCore* FMetalFXModule::CreateMetalFXUpscaler(EMetalFXUpscalerType
 		return nullptr;
 	}
 
+	//이미 만들어져 있으면 만들어진걸 리턴. 잘못 만들어져 있으면 리셋
 	if (MetalFXUpscaler)
 	{
-		if (SelectedUpscalerType != RequestedType)
+		const EMetalFXUpscalerType ExistingUpscalerType = MetalFXUpscaler->GetUpscalerType();
+		const bool bExistingCoreMatches = ExistingUpscalerType == RequestedType && SelectedUpscalerType == RequestedType;
+		if (bExistingCoreMatches)
 		{
-			UE_LOG(LogMetalFX, Warning, TEXT("Ignoring MetalFX Core mode change from %d to %d. The first requested mode remains fixed for this run."), static_cast<int32>(SelectedUpscalerType), static_cast<int32>(RequestedType));
-			return nullptr;
+			return MetalFXUpscaler.Get();
 		}
 
-		return MetalFXUpscaler.Get();
-	}
+		UE_LOG(LogMetalFX, Warning, TEXT("Recreating mismatched MetalFX Core. ExistingType=%d, SelectedType=%d, RequestedType=%d."), static_cast<int32>(ExistingUpscalerType), static_cast<int32>(SelectedUpscalerType), static_cast<int32>(RequestedType));
 
-	// The startup RHI initialization path creates exactly one concrete Core.
-	// Runtime Enabled changes only control adapter activation and never recreate
-	// the Core or replace its concrete type.
+		// Adapters and queued render work keep non-owning pointers to the Core.
+		FlushRenderingCommands();
+		MetalFXUpscaler.Reset();
+		SelectedUpscalerType = EMetalFXUpscalerType::None;
+	}
+	// Create the concrete Core for the validated configuration. Runtime Enabled
+	// changes only control adapter activation and do not call this path.
 	switch (RequestedType)
 	{
 	case EMetalFXUpscalerType::Temporal:
-		MetalFXUpscaler = MakeUnique<FMetalFXTemporalUpscalerCore>();
-		break;
+		{
+			MetalFXUpscaler = MakeUnique<FMetalFXTemporalUpscalerCore>();
+			break;
+		}
 	case EMetalFXUpscalerType::Spatial:
-		MetalFXUpscaler = MakeUnique<FMetalFXSpatialUpscalerCore>();
-		break;
+		{
+			MetalFXUpscaler = MakeUnique<FMetalFXSpatialUpscalerCore>();
+			break;
+		}
 	default:
-		return nullptr;
+		{
+			checkNoEntry();
+			return nullptr;
+		}
 	}
 
 	if (!MetalFXUpscaler)
@@ -277,6 +289,13 @@ FMetalFXUpscalerCore* FMetalFXModule::CreateMetalFXUpscaler(EMetalFXUpscalerType
 
 void FMetalFXModule::HandlePostRHIInitialized()
 {
+	if (!GDynamicRHI)
+	{
+		UE_LOG(LogMetalFX, Warning, TEXT("MetalFX requires an Apple Metal RHI."));
+		MetalSupport = EMetalSupportDevice::NotSupported;
+		return;
+	}
+	
 	// Apply the startup CVars before selecting and creating the single Core.
 	// Import project settings after the engine has registered its CVars, then use
 	// that finalized startup configuration for the module-lifetime Core.
@@ -285,18 +304,16 @@ void FMetalFXModule::HandlePostRHIInitialized()
 		ApplyMetalFXSettingsToCVars(*Settings);
 	}
 
-	if (!GDynamicRHI)
-	{
-		UE_LOG(LogMetalFX, Warning, TEXT("MetalFX requires an Apple Metal RHI."));
-		MetalSupport = EMetalSupportDevice::NotSupported;
-		return;
-	}
-
 	MetalSupport = (IsMetalPlatform(GMaxRHIShaderPlatform) ? EMetalSupportDevice::Supported : EMetalSupportDevice::NotSupported);
 
+	if (MetalSupport != EMetalSupportDevice::Supported)
+	{
+		UE_LOG(LogMetalFX, Warning, TEXT("MetalFX is unavailable because the active RHI is not Metal."));
+	}
+	
+#if METALFX_PLUGIN_ENABLED
 	if (MetalSupport == EMetalSupportDevice::Supported)
 	{
-	#if METALFX_PLUGIN_ENABLED
 		SupportedUpscalerType = FMetalFXUpscalerCore::QuerySupportedUpscalerType();
 		MetalFXSupport = FMetalFXUpscalerCore::QuerySupportReason(SupportedUpscalerType);
 		const bool bMetalFXRuntimeSupported = MetalFXSupport == EMetalFXSupportReason::Supported;
@@ -305,11 +322,7 @@ void FMetalFXModule::HandlePostRHIInitialized()
 		{
 			CreateMetalFXUpscaler(SupportedUpscalerType);
 		}
-#endif
-	}
 
-	if (MetalSupport == EMetalSupportDevice::Supported)
-	{
 		// The view extension is also used to show debug status on Metal RHI,
 		// even when the current device cannot activate MetalFX.
 		MetalFXViewExtension = FSceneViewExtensions::NewExtension<FMetalFXViewExtension>();
@@ -317,7 +330,6 @@ void FMetalFXModule::HandlePostRHIInitialized()
 
 	if (IsMetalFXSupported())
 	{
-#if METALFX_PLUGIN_ENABLED
 		if (MetalFXUpscaler)
 		{
 			UE_LOG(LogMetalFX, Log, TEXT("MetalFX is available and its upscaler Core is ready."));
@@ -326,13 +338,10 @@ void FMetalFXModule::HandlePostRHIInitialized()
 		{
 			UE_LOG(LogMetalFX, Error, TEXT("MetalFX is supported, but its upscaler Core could not be created."));
 		}
+	}
 #endif
-	}
-	else if (MetalSupport != EMetalSupportDevice::Supported)
-	{
-		UE_LOG(LogMetalFX, Warning, TEXT("MetalFX is unavailable because the active RHI is not Metal."));
-	}
-	else
+
+	if (MetalFXSupport != EMetalFXSupportReason::Supported)
 	{
 		// QuerySupportReason already emitted the specific device/framework reason.
 		UE_LOG(LogMetalFX, Verbose, TEXT("MetalFX activation is unavailable. SupportReason=%d."), static_cast<int32>(MetalFXSupport));
