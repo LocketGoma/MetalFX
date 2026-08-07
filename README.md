@@ -75,6 +75,7 @@ Its purpose is to verify Unreal Engine and MetalFX SDK integration, required eng
   - [Current Implementation Scope](#current-implementation-scope)
   - [Work in Progress / Unverified Items](#work-in-progress--unverified-items)
   - [Limitations](#limitations)
+  - [License and Third-Party Software](#license-and-third-party-software)
   - [Release Information](#release-information)
 
 - [한국어](#metalfx-for-unreal-plugin-1)
@@ -92,6 +93,7 @@ Its purpose is to verify Unreal Engine and MetalFX SDK integration, required eng
   - [현재 구현 범위](#현재-구현-범위)
   - [작업 중 / 미확인 사항](#작업-중--미확인-사항)
   - [제한 사항](#제한-사항)
+  - [라이선스 및 서드파티 소프트웨어](#라이선스-및-서드파티-소프트웨어)
   - [릴리즈 정보](#릴리즈-정보)
 
 ---
@@ -347,6 +349,16 @@ Current limitations:
 - MetalFX TemporalScaler does not support upscaling greater than 3x per dimension
 - UltraPerformance uses a 34% input ratio (approximately 2.94x) to remain below the MetalFX 3x upscaling limit
 - Additional work is required for production use, including motion-vector and Temporal History validation, Spatial validation, RCAS tuning, and broader resolution / aspect-ratio validation
+
+---
+
+## License and Third-Party Software
+
+This project is licensed under the [MIT License](LICENSE). External Apple and
+Unreal Engine components are not included and remain subject to their own terms.
+The AMD notice is retained in `Shaders/Private/MetalFXRCAS.usf`. For the optional
+Unreal Engine patches, see
+[Source/Thirdparty/EngineEdit/notice.md](Source/Thirdparty/EngineEdit/notice.md).
 
 ---
 
@@ -622,6 +634,16 @@ stop 단위가 아닌 선형 강도를 사용하므로 FSR의 `0.2` stop은
 - MetalFX TemporalScaler는 각 축 기준 3x를 초과하는 업스케일을 지원하지 않습니다.
 - UltraPerformance는 MetalFX 3x 업스케일 제한 아래를 유지하기 위해 34% 입력 비율(약 2.94배)을 사용합니다.
 - 실사용을 위해서는 Motion Vector와 Temporal History 검증, Spatial 검증, RCAS 튜닝 및 더 넓은 해상도 / 화면 비율 검증이 필요합니다.
+
+---
+
+## 라이선스 및 서드파티 소프트웨어
+
+이 프로젝트는 [MIT License](LICENSE)에 따라 배포됩니다. 저장소에 포함되지 않은 Apple
+및 Unreal Engine 구성 요소에는 각각의 이용 조건이 적용됩니다. AMD 고지는
+`Shaders/Private/MetalFXRCAS.usf`에 유지되어 있습니다. 선택적 Unreal Engine 패치는
+[Source/Thirdparty/EngineEdit/notice.md](Source/Thirdparty/EngineEdit/notice.md)를
+참고하십시오.
 
 ---
 

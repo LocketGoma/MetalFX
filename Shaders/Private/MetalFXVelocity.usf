@@ -1,5 +1,3 @@
-// Copyright Locketgoma. All Rights Reserved.
-//
 // MetalFX motion-vector preparation shader authored for this plugin.
 // Its processing flow references the DLSS Velocity Combine approach:
 // decode valid Unreal scene velocity, reconstruct camera motion when velocity
