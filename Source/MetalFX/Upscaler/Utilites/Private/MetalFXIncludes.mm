@@ -1,4 +1,8 @@
 #if METALFX_PLUGIN_ENABLED
+#if PLATFORM_MAC
+#include "Mac/MacSystemIncludes.h"
+#endif
+
 //---Active When you need this--- (ex. You add other MetalCPP versions)
 #if METALFX_METALCPP
 //#define NS_PRIVATE_IMPLEMENTATION

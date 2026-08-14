@@ -2,6 +2,10 @@
 
 //= Enabled If MetalFX Plugin Enabled
 #if METALFX_PLUGIN_ENABLED
+#if PLATFORM_MAC
+#include "Mac/MacSystemIncludes.h"
+#endif
+
 #import <Foundation/Foundation.h>
 #import <Metal/Metal.h>
 #import <MetalFX/MetalFX.h>

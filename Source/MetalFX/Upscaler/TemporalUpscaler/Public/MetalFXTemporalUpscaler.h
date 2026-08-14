@@ -12,16 +12,31 @@ inline const TCHAR* GetMetalFXTemporalUpscalerDebugName()
 	return TEXT("MetalFXTemporalUpscaler");
 }
 
-class FMetalFXHistory final : public ITemporalUpscaler::IHistory, public FRefCountBase
+class FMetalFXHistory final : public ITemporalUpscaler::IHistory, public TRefCountingMixin<FMetalFXHistory>
 {
 public:
 	virtual const TCHAR* GetDebugName() const override { return GetMetalFXTemporalUpscalerDebugName(); }
 	virtual uint64 GetGPUSizeBytes() const override { return 0; }
 
 private:
-	virtual FReturnedRefCountValue AddRef() const final	{	return FRefCountBase::AddRef();	}
-	virtual uint32 Release() const final {	return FRefCountBase::Release();	}
-	virtual uint32 GetRefCount() const final {	return FRefCountBase::GetRefCount();	}
+	using FRefCountMixin = TRefCountingMixin<FMetalFXHistory>;
+
+	// TRefCountingMixin follows IRefCountedObject's return-type changes, allowing
+	// this history implementation to support both signatures without a version branch.
+	virtual auto AddRef() const -> decltype(DeclVal<const FRefCountMixin&>().AddRef()) override final
+	{
+		return FRefCountMixin::AddRef();
+	}
+
+	virtual auto Release() const -> decltype(DeclVal<const FRefCountMixin&>().Release()) override final
+	{
+		return FRefCountMixin::Release();
+	}
+
+	virtual auto GetRefCount() const -> decltype(DeclVal<const FRefCountMixin&>().GetRefCount()) override final
+	{
+		return FRefCountMixin::GetRefCount();
+	}
 };
 
 class FMetalFXTemporalUpscaler final : public ITemporalUpscaler

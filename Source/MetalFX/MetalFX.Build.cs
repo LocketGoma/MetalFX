@@ -51,6 +51,10 @@ public class MetalFX : ModuleRules
 		{
 			PrivateDependencyModuleNames.Add("MetalCPP");
 			PrivateDependencyModuleNames.Add("MetalRHI");
+			AddEngineThirdPartyPrivateStaticDependencies(
+				Target,
+				"MetalShaderConverter"
+			);
 			PublicFrameworks.AddRange(new string[]
 			{
 				"Metal",
@@ -67,8 +71,7 @@ public class MetalFX : ModuleRules
 			PrivateIncludePaths.AddRange(new string[]
 			{
 				Path.Combine(EngineDirectory, "Source/Runtime/Apple/MetalRHI/Public"),
-				Path.Combine(EngineDirectory, "Source/Runtime/Apple/MetalRHI/Private"),
-				Path.Combine(EngineDirectory, "Source/ThirdParty/Apple/MetalShaderConverter/Include/common")
+				Path.Combine(EngineDirectory, "Source/Runtime/Apple/MetalRHI/Private")
 			});
 
 			PublicDefinitions.Add("METALFX_PLUGIN_ENABLED=1");

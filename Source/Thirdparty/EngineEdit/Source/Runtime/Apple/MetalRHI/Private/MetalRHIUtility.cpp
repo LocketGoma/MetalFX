@@ -14,7 +14,7 @@ FMetalCommandBuffer* FMetalRHIUtility::GetCurrentCommandBuffer(FMetalRHICommandC
 }
 
 FMetalCommandBuffer* FMetalRHIUtility::GetCurrentCommandBufferFromCmdList(FRHICommandList& CmdList)
-{	
-	FMetalRHICommandContext& MetalContext =	static_cast<FMetalRHICommandContext&>(CmdList.GetContext().GetLowestLevelContext());		
+{
+	FMetalRHICommandContext& MetalContext = FMetalRHICommandContext::Get(CmdList);
 	return GetCurrentCommandBuffer(&MetalContext);
 }
