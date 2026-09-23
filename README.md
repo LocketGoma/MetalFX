@@ -2,6 +2,8 @@
 
 > English section is automatically translated from the Korean README draft.
 
+> 해당 프로젝트는 디버깅, Readme.md 작성 등에서 AI 서포트를 이용했습니다.
+
 ## Notice
 
 ### English
