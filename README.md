@@ -40,7 +40,7 @@ bSharedMaterialNativeLibraries=False
 
 MetalFX For Unreal Plugin is an engine plugin for using Apple MetalFX in Unreal Engine.
 
-The current version is **Alpha v0.4 / Proof of Concept** (PoC), intended to verify whether MetalFX can be integrated into Unreal Engine’s rendering and upscaling flow.
+The current version is **Alpha v0.5 / Proof of Concept** (PoC), intended to verify whether MetalFX can be integrated into Unreal Engine’s rendering and upscaling flow.
 
 This plugin is not a production-ready plugin intended for immediate use in commercial projects.  
 Its purpose is to verify Unreal Engine and MetalFX SDK integration, required engine modification points, platform-specific limitations, and behavior in packaged builds.
@@ -118,7 +118,7 @@ This project focuses on verifying the following areas:
 
 ## Current Status
 
-Alpha v0.4 has verified the following:
+Alpha v0.5 has verified the following:
 
 - MetalFX SDK integration
 - MetalFX Temporal Upscaler startup and execution on Apple Silicon Mac
@@ -232,7 +232,7 @@ It is recommended to review the changes before applying them.
 MetalFX testing can be controlled with the following console variables:
 
 > [!IMPORTANT]
-> The numeric values of `r.MetalFX.QualityMode` changed after v0.2. Review existing project configuration before using v0.4.
+> The numeric values of `r.MetalFX.QualityMode` changed after v0.2. Review existing project configuration before using v0.5.
 
 | Command | Parameters | Description |
 | --- | --- | --- |
@@ -244,7 +244,7 @@ MetalFX testing can be controlled with the following console variables:
 | `r.MetalFX.QualityMode` | int | Select the MetalFX quality preset. Range: `0` to `5`. Default: `1` (UltraQuality). |
 | `r.MetalFX.AutoScalingFromEngine` | bool (0,1) | Use the engine-selected resolution as the MetalFX output target and apply the quality ratio to its input. Default: `1`. |
 | `r.MetalFX.JitterMode` | int | Control temporal jitter forwarding. `1`: normal and recommended, `0`: disabled for diagnostics, `-1`: inverted for diagnostics and not recommended. Default: `1`. |
-| `r.MetalFX.AutoExposure` | bool | Temporal exposure source. `false` (default) uses Unreal's eye adaptation through a 1x1 R16Float texture; `true` restores MetalFX's independent auto exposure for comparison. Changing the source recreates the scaler and resets history. See [exposure validation](Docs/ExposureValidation.md). |
+| `r.MetalFX.AutoExposure` | bool | Temporal exposure source. `false` (default) uses Unreal's eye adaptation through a 1x1 R16Float texture; `true` restores MetalFX's independent auto exposure for comparison. Changing the source recreates the scaler and resets history. |
 | `r.MetalFX.MotionVectorScaleX` | float | Horizontal scale for the pixel-space motion vectors passed to MetalFX. The normal value is `1`. |
 | `r.MetalFX.MotionVectorScaleY` | float | Vertical scale for the pixel-space motion vectors passed to MetalFX. The normal value is `1`. |
 | `r.MetalFX.Experimental.InputExtentMode` | int | Select Temporal input geometry. `0`: legacy active-content descriptor, `1`: texture-sized descriptor with Dynamic Input content through Metal-cpp. Default: `1`. |
@@ -384,7 +384,7 @@ Detailed change logs are documented in each Release Note.
 
 MetalFX For Unreal Plugin은 Apple MetalFX를 Unreal Engine에서 사용하기 위한 엔진 플러그인입니다.
 
-현재 버전은 MetalFX를 Unreal Engine의 렌더링/업스케일링 흐름에 통합할 수 있는지 검증하기 위한 **Alpha v0.4 / Proof of Concept** (PoC) 버전입니다.
+현재 버전은 MetalFX를 Unreal Engine의 렌더링/업스케일링 흐름에 통합할 수 있는지 검증하기 위한 **Alpha v0.5 / Proof of Concept** (PoC) 버전입니다.
 
 이 플러그인은 상용 프로젝트에 바로 투입하기 위한 완성 버전이 아니며, Unreal Engine과 MetalFX SDK 연동 가능성, 엔진 수정 지점, 플랫폼별 제약, 패키징 빌드에서의 동작 가능성을 검증하기 위한 프로젝트입니다.
 
@@ -408,7 +408,7 @@ MetalFX For Unreal Plugin은 Apple MetalFX를 Unreal Engine에서 사용하기 �
 
 ## 현재 상태
 
-Alpha v0.4에서 확인된 사항은 다음과 같습니다.
+Alpha v0.5에서 확인된 사항은 다음과 같습니다.
 
 - MetalFX SDK 통합
 - Apple Silicon Mac에서 MetalFX Temporal Upscaler 기동 및 실행
@@ -521,7 +521,7 @@ MetalFX/Source/Thirdparty/EngineEditScript.sh
 MetalFX 테스트는 다음 콘솔 변수들을 통해 제어할 수 있습니다.
 
 > [!IMPORTANT]
-> v0.2 이후 `r.MetalFX.QualityMode`의 정수별 의미가 변경되었습니다. v0.4 적용 전에 기존 프로젝트 설정을 확인해야 합니다.
+> v0.2 이후 `r.MetalFX.QualityMode`의 정수별 의미가 변경되었습니다. v0.5 적용 전에 기존 프로젝트 설정을 확인해야 합니다.
 
 | Command | Parameters | Description |
 | --- | --- | --- |
@@ -533,7 +533,7 @@ MetalFX 테스트는 다음 콘솔 변수들을 통해 제어할 수 있습니�
 | `r.MetalFX.QualityMode` | int | MetalFX 품질 프리셋을 선택합니다. 범위: `0` ~ `5`. 기본값: `1` (UltraQuality). |
 | `r.MetalFX.AutoScalingFromEngine` | bool (0,1) | 엔진이 선택한 해상도를 MetalFX 출력 목표로 사용하고 품질 비율을 입력에 적용합니다. 기본값: `1`. |
 | `r.MetalFX.JitterMode` | int | Temporal Jitter 전달 방식을 제어합니다. `1`: 기본 및 권장, `0`: 진단용 비활성화, `-1`: 진단용 반전이며 권장하지 않음. 기본값: `1`. |
-| `r.MetalFX.AutoExposure` | bool | Temporal 노출 기준입니다. 기본값 `false`는 UE Eye Adaptation을 1×1 R16Float 텍스처로 전달하며, `true`는 비교를 위해 기존 MetalFX 자체 자동 노출을 사용합니다. 변경 시 Scaler를 재생성하고 히스토리를 초기화합니다. [노출 검증](Docs/ExposureValidation.md) 참고. |
+| `r.MetalFX.AutoExposure` | bool | Temporal 노출 기준입니다. 기본값 `false`는 UE Eye Adaptation을 1×1 R16Float 텍스처로 전달하며, `true`는 비교를 위해 기존 MetalFX 자체 자동 노출을 사용합니다. 변경 시 Scaler를 재생성하고 히스토리를 초기화합니다. |
 | `r.MetalFX.MotionVectorScaleX` | float | MetalFX에 전달되는 픽셀 단위 Motion Vector의 가로 배율입니다. 일반 값은 `1`입니다. |
 | `r.MetalFX.MotionVectorScaleY` | float | MetalFX에 전달되는 픽셀 단위 Motion Vector의 세로 배율입니다. 일반 값은 `1`입니다. |
 | `r.MetalFX.Experimental.InputExtentMode` | int | Temporal 입력 Geometry를 선택합니다. `0`: 기존 활성 콘텐츠 크기 디스크립터, `1`: Metal-cpp Dynamic Input 콘텐츠를 사용하는 텍스처 크기 디스크립터. 기본값: `1`. |
