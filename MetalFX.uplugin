@@ -1,7 +1,7 @@
 {
 	"FileVersion": 3,
-	"Version": 2,
-	"VersionName": "0.2",
+	"Version": 5,
+	"VersionName": "0.5",
 	"FriendlyName": "MetalFX",
 	"Description": "MetalFX for Unreal Engine using Metal-cpp",
 	"Category": "Rendering",
