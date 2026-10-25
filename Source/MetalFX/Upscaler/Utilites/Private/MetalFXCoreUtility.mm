@@ -215,7 +215,7 @@ extern "C" bool MetalFXSupportsDynamicInputContent()
 #if METALFX_NATIVE
 //------------MetalFX System Utility Functions For Native--------------------
 
-extern "C" id<MTLFXTemporalScaler> MetalFXCreateTemporalUpscaler(id<MTLDevice> Device, const FMetalFXTemporalTextureFormatGroup& Formats, int32 InputWidth, int32 InputHeight, int32 OutputWidth, int32 OutputHeight)
+extern "C" id<MTLFXTemporalScaler> MetalFXCreateTemporalUpscaler(id<MTLDevice> Device, const FMetalFXTemporalTextureFormatGroup& Formats, int32 InputWidth, int32 InputHeight, int32 OutputWidth, int32 OutputHeight, bool bAutoExposureEnabled)
 {
 	// 이 버전 이하에선 MetalFX 자체를 못쓰도록 처리
 	if (!IsMetalFXTemporalSupported())
@@ -257,7 +257,7 @@ extern "C" id<MTLFXTemporalScaler> MetalFXCreateTemporalUpscaler(id<MTLDevice> D
 	Desc.depthTextureFormat = static_cast<MTLPixelFormat>(Formats.Depth);
 	Desc.motionTextureFormat = static_cast<MTLPixelFormat>(Formats.Motion);
 	Desc.outputTextureFormat = static_cast<MTLPixelFormat>(Formats.Output);
-	Desc.autoExposureEnabled = true;
+	Desc.autoExposureEnabled = bAutoExposureEnabled;
 
 	id<MTLFXTemporalScaler> Scaler = [Desc newTemporalScalerWithDevice:Device];
 	[Desc release];
@@ -287,7 +287,7 @@ extern "C" void MetalFXUpdateScalerResolution(id<MTLFXTemporalScaler> Scaler, in
 	Scaler.inputContentHeight = InputHeight;
 }
 
-extern "C" void MetalFXEncode(id<MTLFXTemporalScaler> Scaler, id<MTLCommandBuffer> CmdBuffer, id<MTLTexture> Color, id<MTLTexture> Depth, id<MTLTexture> Motion, id<MTLTexture> Output)
+extern "C" void MetalFXEncode(id<MTLFXTemporalScaler> Scaler, id<MTLCommandBuffer> CmdBuffer, id<MTLTexture> Color, id<MTLTexture> Depth, id<MTLTexture> Motion, id<MTLTexture> Output, id<MTLTexture> Exposure)
 {
 	if (Scaler == nil || CmdBuffer == nil)
 	{
@@ -295,7 +295,7 @@ extern "C" void MetalFXEncode(id<MTLFXTemporalScaler> Scaler, id<MTLCommandBuffe
 		return;
 	}
 
-	const bool bInputTexturesValid = Color != nil && Depth != nil && Motion != nil;
+	const bool bInputTexturesValid = Color != nil && Depth != nil && Motion != nil && Exposure != nil;
 	if (!bInputTexturesValid || Output == nil)
 	{
 		UE_LOG(LogMetalFX, Error, TEXT("MetalFX native encode received one or more invalid textures."));
@@ -305,6 +305,7 @@ extern "C" void MetalFXEncode(id<MTLFXTemporalScaler> Scaler, id<MTLCommandBuffe
 	@autoreleasepool
 	{
 		Scaler.colorTexture = Color; // Base Texture
+		Scaler.exposureTexture = Exposure;
 		Scaler.depthTexture = Depth;
 		Scaler.motionTexture = Motion; // Motion, Velocity Texture
 		Scaler.outputTexture = Output;

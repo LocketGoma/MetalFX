@@ -125,6 +125,7 @@ extern TAutoConsoleVariable<bool> CVarEnableMetalFX;
 extern TAutoConsoleVariable<bool> CVarEnableMetalFXInEditor;
 extern TAutoConsoleVariable<bool> CVarMetalFXDebugDisplay;
 extern TAutoConsoleVariable<int32> CVarMetalFXJitterMode;
+extern TAutoConsoleVariable<bool> CVarMetalFXAutoExposure;
 extern TAutoConsoleVariable<int32> CVarMetalFXExperimentalInputExtentMode;
 extern TAutoConsoleVariable<float> CVarMetalFXMotionVectorScaleX;
 extern TAutoConsoleVariable<float> CVarMetalFXMotionVectorScaleY;

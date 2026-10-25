@@ -9,6 +9,7 @@ struct FMetalFXTemporalEncodeInputs : FMetalFXEncodeGeometry
 	bool bDynamicInputEnabled = false;
 	bool bResetHistory = false;
 	bool bDepthReversed = false;
+	bool bAutoExposureEnabled = false;
 	float PreExposure = 1.0f;
 	FVector2D JitterOffset = FVector2D::ZeroVector;
 	FVector2f MotionVectorScale = FVector2f::ZeroVector;
@@ -34,6 +35,7 @@ public:
 
 	static FRDGTextureRef PrepareVelocityTexture(FRDGBuilder& GraphBuilder, const FSceneView& View, FRDGTextureRef InSceneColorTexture, FRDGTextureRef InSceneDepthTexture, FRDGTextureRef InVelocityTexture, FIntRect InputViewRect, bool bResetHistory);
 	static FRDGTextureRef GenerateVelocityTexturePass(FRDGBuilder& GraphBuilder, const FSceneView& View, FRDGTextureRef InSceneDepthTexture, FRDGTextureRef InVelocityTexture, FIntPoint InputTextureExtent, FIntRect InputViewRect);
+	static FRDGTextureRef PrepareExposureTexture(FRDGBuilder& GraphBuilder, const FSceneView& View, FRDGTextureRef EyeAdaptationTexture, float PreExposure);
 
 #if METALFX_PLUGIN_ENABLED
 	bool SetTexturesToGroup(const FMetalFXTemporalPassParameters& Parameters, FMetalFXTemporalTextureGroup& OutTextureGroup, FMetalFXTemporalTextureFormatGroup& OutFormats);
@@ -47,7 +49,7 @@ private:
 
 #if METALFX_PLUGIN_ENABLED
 	bool CheckValidate() const;
-	bool EnsureUpscalerForConfiguration(FIntPoint InputTextureExtent, FIntPoint InputContentExtent, FIntPoint OutputExtent, bool bDynamicInputEnabled, const FMetalFXTemporalTextureFormatGroup& Formats);
+	bool EnsureUpscalerForConfiguration(FIntPoint InputTextureExtent, FIntPoint InputContentExtent, FIntPoint OutputExtent, bool bDynamicInputEnabled, bool bAutoExposureEnabled, const FMetalFXTemporalTextureFormatGroup& Formats);
 	bool GenerateUpscaler();
 	void ResetUpscaler();
 
@@ -66,4 +68,6 @@ private:
 	FIntPoint ConfiguredInputContentExtent = FIntPoint::ZeroValue;
 	FIntPoint ConfiguredOutputExtent = FIntPoint::ZeroValue;
 	bool bConfiguredDynamicInputEnabled = false;
+	bool bConfiguredAutoExposureEnabled = false;
+	bool bPendingHistoryReset = true;
 };

@@ -160,6 +160,7 @@ struct FMetalFXSpatialTextureFormatGroup
 
 BEGIN_SHADER_PARAMETER_STRUCT(FMetalFXTemporalPassParameters, )
 	RDG_TEXTURE_ACCESS(ColorTexture, ERHIAccess::SRVMask)
+	RDG_TEXTURE_ACCESS(ExposureTexture, ERHIAccess::SRVMask)
 	RDG_TEXTURE_ACCESS(DepthTexture, ERHIAccess::SRVMask)
 	RDG_TEXTURE_ACCESS(VelocityTexture, ERHIAccess::SRVMask)
 	RDG_TEXTURE_ACCESS(OutputTexture, ERHIAccess::UAVMask)
@@ -389,13 +390,14 @@ struct FMetalFXTemporalTextureGroup
 
 	bool IsValid() const
 	{
-		const bool bInputTexturesValid = ColorTexture.IsValid() && DepthTexture.IsValid() && VelocityTexture.IsValid();
+		const bool bInputTexturesValid = ColorTexture.IsValid() && ExposureTexture.IsValid() && DepthTexture.IsValid() && VelocityTexture.IsValid();
 		return bInputTexturesValid && OutputTexture.IsValid();
 	}
 
 	void ReleaseAllTextures()
 	{
 		ColorTexture.ReleaseTexture();
+		ExposureTexture.ReleaseTexture();
 		DepthTexture.ReleaseTexture();
 		VelocityTexture.ReleaseTexture();
 		OutputTexture.ReleaseTexture();
@@ -405,12 +407,14 @@ struct FMetalFXTemporalTextureGroup
 	void ReleaseAllTexturesDeferred(MTL::CommandBuffer* CommandBuffer)
 	{
 		ColorTexture.ReleaseTextureDeferred(CommandBuffer);
+		ExposureTexture.ReleaseTextureDeferred(CommandBuffer);
 		DepthTexture.ReleaseTextureDeferred(CommandBuffer);
 		VelocityTexture.ReleaseTextureDeferred(CommandBuffer);
 		OutputTexture.ReleaseTextureDeferred(CommandBuffer);
 	}
 
 	FMetalFXCppTextureView ColorTexture;
+	FMetalFXCppTextureView ExposureTexture;
 	FMetalFXCppTextureView DepthTexture;
 	FMetalFXCppTextureView VelocityTexture;
 	FMetalFXCppTextureView OutputTexture;
@@ -420,12 +424,14 @@ struct FMetalFXTemporalTextureGroup
 	void ReleaseAllTexturesDeferred(id<MTLCommandBuffer> CommandBuffer)
 	{
 		ColorTexture.ReleaseTextureDeferred(CommandBuffer);
+		ExposureTexture.ReleaseTextureDeferred(CommandBuffer);
 		DepthTexture.ReleaseTextureDeferred(CommandBuffer);
 		VelocityTexture.ReleaseTextureDeferred(CommandBuffer);
 		OutputTexture.ReleaseTextureDeferred(CommandBuffer);
 	}
 
 	FMetalFXObjCTextureView ColorTexture;
+	FMetalFXObjCTextureView ExposureTexture;
 	FMetalFXObjCTextureView DepthTexture;
 	FMetalFXObjCTextureView VelocityTexture;
 	FMetalFXObjCTextureView OutputTexture;

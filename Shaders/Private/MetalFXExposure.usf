@@ -1,0 +1,23 @@
+#include "/Engine/Private/Common.ush"
+
+Texture2D<float4> EyeAdaptationTexture;
+uint bHasEyeAdaptation;
+float FallbackExposure;
+RWTexture2D<float> OutputExposureTexture;
+
+// Binary16 with zero exponent and only the lowest mantissa bit set.
+static const float MinPositiveHalfFloat = f16tof32(0x0001u);
+
+[numthreads(1, 1, 1)]
+void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
+{
+	float Exposure = bHasEyeAdaptation != 0 ? EyeAdaptationTexture.Load(int3(0, 0, 0)).r : FallbackExposure;
+	if (!isfinite(Exposure) || Exposure <= 0.0f)
+	{
+		Exposure = FallbackExposure;
+	}
+
+	// Preserve small physical-light exposure values, including representable half
+	// subnormals. Never store zero, infinity, or NaN into MetalFX's exposure input.
+	OutputExposureTexture[uint2(0, 0)] = clamp(Exposure, MinPositiveHalfFloat, MaxHalfFloat);
+}

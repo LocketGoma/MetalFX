@@ -196,6 +196,8 @@ ITemporalUpscaler::FOutputs FMetalFXTemporalUpscaler::AddPasses(FRDGBuilder& Gra
 	const FIntRect InputContentRect = Inputs.SceneColor.ViewRect;
 	const FVector2D JitterOffset = GetMetalFXJitterOffset(Inputs.TemporalJitterPixels);
 	const FVector2f MotionVectorScale = GetMetalFXMotionVectorScale();
+	const float PreExposure = GetMetalFXPreExposure(Inputs.PreExposure);
+	const bool bAutoExposureEnabled = CVarMetalFXAutoExposure.GetValueOnRenderThread();
 
 	//3. History 생성
 	// MetalFX owns the actual temporal history internally. Unreal's custom
@@ -227,6 +229,7 @@ ITemporalUpscaler::FOutputs FMetalFXTemporalUpscaler::AddPasses(FRDGBuilder& Gra
 
 	auto* PassParams = GraphBuilder.AllocParameters<FMetalFXTemporalPassParameters>();
 	PassParams->ColorTexture = Inputs.SceneColor.Texture;
+	PassParams->ExposureTexture = FMetalFXTemporalUpscalerCore::PrepareExposureTexture(GraphBuilder, View, Inputs.EyeAdaptationTexture, PreExposure);
 	PassParams->DepthTexture = Inputs.SceneDepth.Texture;
 	PassParams->VelocityTexture = GeneratedVelocityTexture;
 	PassParams->OutputTexture = OutputTexture;
@@ -242,7 +245,8 @@ ITemporalUpscaler::FOutputs FMetalFXTemporalUpscaler::AddPasses(FRDGBuilder& Gra
 	EncodeInputs.bDynamicInputEnabled = bDynamicInputEnabled;
 	EncodeInputs.bResetHistory = bResetHistory;
 	EncodeInputs.bDepthReversed = static_cast<bool>(ERHIZBuffer::IsInverted);
-	EncodeInputs.PreExposure = GetMetalFXPreExposure(Inputs.PreExposure);
+	EncodeInputs.PreExposure = PreExposure;
+	EncodeInputs.bAutoExposureEnabled = bAutoExposureEnabled;
 	EncodeInputs.JitterOffset = JitterOffset;
 	EncodeInputs.MotionVectorScale = MotionVectorScale;
 

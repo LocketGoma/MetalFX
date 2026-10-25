@@ -244,6 +244,7 @@ MetalFX testing can be controlled with the following console variables:
 | `r.MetalFX.QualityMode` | int | Select the MetalFX quality preset. Range: `0` to `5`. Default: `1` (UltraQuality). |
 | `r.MetalFX.AutoScalingFromEngine` | bool (0,1) | Use the engine-selected resolution as the MetalFX output target and apply the quality ratio to its input. Default: `1`. |
 | `r.MetalFX.JitterMode` | int | Control temporal jitter forwarding. `1`: normal and recommended, `0`: disabled for diagnostics, `-1`: inverted for diagnostics and not recommended. Default: `1`. |
+| `r.MetalFX.AutoExposure` | bool | Temporal exposure source. `false` (default) uses Unreal's eye adaptation through a 1x1 R16Float texture; `true` restores MetalFX's independent auto exposure for comparison. Changing the source recreates the scaler and resets history. See [exposure validation](Docs/ExposureValidation.md). |
 | `r.MetalFX.MotionVectorScaleX` | float | Horizontal scale for the pixel-space motion vectors passed to MetalFX. The normal value is `1`. |
 | `r.MetalFX.MotionVectorScaleY` | float | Vertical scale for the pixel-space motion vectors passed to MetalFX. The normal value is `1`. |
 | `r.MetalFX.Experimental.InputExtentMode` | int | Select Temporal input geometry. `0`: legacy active-content descriptor, `1`: texture-sized descriptor with Dynamic Input content through Metal-cpp. Default: `1`. |
@@ -532,6 +533,7 @@ MetalFX 테스트는 다음 콘솔 변수들을 통해 제어할 수 있습니�
 | `r.MetalFX.QualityMode` | int | MetalFX 품질 프리셋을 선택합니다. 범위: `0` ~ `5`. 기본값: `1` (UltraQuality). |
 | `r.MetalFX.AutoScalingFromEngine` | bool (0,1) | 엔진이 선택한 해상도를 MetalFX 출력 목표로 사용하고 품질 비율을 입력에 적용합니다. 기본값: `1`. |
 | `r.MetalFX.JitterMode` | int | Temporal Jitter 전달 방식을 제어합니다. `1`: 기본 및 권장, `0`: 진단용 비활성화, `-1`: 진단용 반전이며 권장하지 않음. 기본값: `1`. |
+| `r.MetalFX.AutoExposure` | bool | Temporal 노출 기준입니다. 기본값 `false`는 UE Eye Adaptation을 1×1 R16Float 텍스처로 전달하며, `true`는 비교를 위해 기존 MetalFX 자체 자동 노출을 사용합니다. 변경 시 Scaler를 재생성하고 히스토리를 초기화합니다. [노출 검증](Docs/ExposureValidation.md) 참고. |
 | `r.MetalFX.MotionVectorScaleX` | float | MetalFX에 전달되는 픽셀 단위 Motion Vector의 가로 배율입니다. 일반 값은 `1`입니다. |
 | `r.MetalFX.MotionVectorScaleY` | float | MetalFX에 전달되는 픽셀 단위 Motion Vector의 세로 배율입니다. 일반 값은 `1`입니다. |
 | `r.MetalFX.Experimental.InputExtentMode` | int | Temporal 입력 Geometry를 선택합니다. `0`: 기존 활성 콘텐츠 크기 디스크립터, `1`: Metal-cpp Dynamic Input 콘텐츠를 사용하는 텍스처 크기 디스크립터. 기본값: `1`. |

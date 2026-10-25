@@ -213,7 +213,7 @@ bool FMetalFXTemporalUpscalerCore::GenerateUpscaler()
 			Descriptor->setDepthTextureFormat(static_cast<MTL::PixelFormat>(Resources->Formats.Depth));
 			Descriptor->setMotionTextureFormat(static_cast<MTL::PixelFormat>(Resources->Formats.Motion));
 			Descriptor->setOutputTextureFormat(static_cast<MTL::PixelFormat>(Resources->Formats.Output));
-			Descriptor->setAutoExposureEnabled(true);
+			Descriptor->setAutoExposureEnabled(bConfiguredAutoExposureEnabled);
 
 			if (bConfiguredDynamicInputEnabled)
 			{
@@ -231,7 +231,7 @@ bool FMetalFXTemporalUpscalerCore::GenerateUpscaler()
 	id<MTLDevice> MetalDevice = (__bridge id<MTLDevice>)GetMetalDevice();
 	if (MetalDevice != nil)
 	{
-		Resources->Scaler = MetalFXCreateTemporalUpscaler(MetalDevice, Resources->Formats, ConfiguredDescriptorInputExtent.X, ConfiguredDescriptorInputExtent.Y, ConfiguredOutputExtent.X, ConfiguredOutputExtent.Y);
+		Resources->Scaler = MetalFXCreateTemporalUpscaler(MetalDevice, Resources->Formats, ConfiguredDescriptorInputExtent.X, ConfiguredDescriptorInputExtent.Y, ConfiguredOutputExtent.X, ConfiguredOutputExtent.Y, bConfiguredAutoExposureEnabled);
 		bSuccess = Resources->HasScaler();
 	}
 #endif
@@ -239,6 +239,7 @@ bool FMetalFXTemporalUpscalerCore::GenerateUpscaler()
 	if (bSuccess)
 	{
 		UpdateInputContentSize(ConfiguredInputContentExtent);
+		bPendingHistoryReset = true;
 	}
 
 	if (!bSuccess)
@@ -272,10 +273,11 @@ void FMetalFXTemporalUpscalerCore::UpdateInputContentSize(FIntPoint InputContent
 bool FMetalFXTemporalUpscalerCore::SetTexturesToGroup(const FMetalFXTemporalPassParameters& Parameters, FMetalFXTemporalTextureGroup& OutTextureGroup, FMetalFXTemporalTextureFormatGroup& OutFormats)
 {
 	const bool bColorTextureValid = Parameters.ColorTexture != nullptr;
+	const bool bExposureTextureValid = Parameters.ExposureTexture != nullptr;
 	const bool bDepthTextureValid = Parameters.DepthTexture != nullptr;
 	const bool bVelocityTextureValid = Parameters.VelocityTexture != nullptr;
 	const bool bOutputTextureValid = Parameters.OutputTexture != nullptr;
-	const bool bInputTexturesValid = bColorTextureValid && bDepthTextureValid && bVelocityTextureValid;
+	const bool bInputTexturesValid = bColorTextureValid && bExposureTextureValid && bDepthTextureValid && bVelocityTextureValid;
 	if (!bInputTexturesValid || !bOutputTextureValid)
 	{
 		UE_LOG(LogMetalFX, Error, TEXT("MetalFX temporal texture setup failed because one or more textures are invalid."));
@@ -283,6 +285,7 @@ bool FMetalFXTemporalUpscalerCore::SetTexturesToGroup(const FMetalFXTemporalPass
 	}
 
 	OutTextureGroup.ColorTexture = CreateMetalFXTextureView(Parameters.ColorTexture);
+	OutTextureGroup.ExposureTexture = CreateMetalFXTextureView(Parameters.ExposureTexture);
 	OutTextureGroup.DepthTexture = CreateMetalFXTextureView(Parameters.DepthTexture);
 	OutTextureGroup.VelocityTexture = CreateMetalFXTextureView(Parameters.VelocityTexture);
 	OutTextureGroup.OutputTexture = CreateMetalFXTextureView(Parameters.OutputTexture);
@@ -367,7 +370,7 @@ void FMetalFXTemporalUpscalerCore::SetMotionVectorScale(FVector2f Scale)
 #endif
 }
 
-bool FMetalFXTemporalUpscalerCore::EnsureUpscalerForConfiguration(FIntPoint InputTextureExtent, FIntPoint InputContentExtent, FIntPoint OutputExtent, bool bDynamicInputEnabled, const FMetalFXTemporalTextureFormatGroup& Formats)
+bool FMetalFXTemporalUpscalerCore::EnsureUpscalerForConfiguration(FIntPoint InputTextureExtent, FIntPoint InputContentExtent, FIntPoint OutputExtent, bool bDynamicInputEnabled, bool bAutoExposureEnabled, const FMetalFXTemporalTextureFormatGroup& Formats)
 {
 	if (!Resources)
 	{
@@ -412,10 +415,11 @@ bool FMetalFXTemporalUpscalerCore::EnsureUpscalerForConfiguration(FIntPoint Inpu
 	const bool bInputContentResolutionChanged = ConfiguredInputContentExtent != InputContentExtent;
 	const bool bOutputResolutionChanged = ConfiguredOutputExtent != OutputExtent;
 	const bool bDynamicInputChanged = bConfiguredDynamicInputEnabled != bDynamicInputEnabled;
+	const bool bExposureModeChanged = bConfiguredAutoExposureEnabled != bAutoExposureEnabled;
 	const bool bFormatChanged = Resources->Formats != Formats;
 	const bool bDynamicInputScaleChanged = bDynamicInputEnabled && bInputContentResolutionChanged;
 	const bool bDescriptorGeometryChanged = bDescriptorInputResolutionChanged || bOutputResolutionChanged || bDynamicInputChanged || bDynamicInputScaleChanged;
-	const bool bNeedsScalerRecreation = !bHasScaler || bFormatChanged || bDescriptorGeometryChanged;
+	const bool bNeedsScalerRecreation = !bHasScaler || bFormatChanged || bDescriptorGeometryChanged || bExposureModeChanged;
 
 	if (!bNeedsScalerRecreation)
 	{
@@ -460,6 +464,10 @@ bool FMetalFXTemporalUpscalerCore::EnsureUpscalerForConfiguration(FIntPoint Inpu
 	{
 		AddRecreateReason(TEXT("DynamicInputChanged"));
 	}
+	if (bExposureModeChanged)
+	{
+		AddRecreateReason(TEXT("ExposureModeChanged"));
+	}
 
 	UE_LOG(LogMetalFX, Log, TEXT("MetalFX TemporalScaler %s. Reason: %s. DescriptorInput=%dx%d, InputContent=%dx%d, Output=%dx%d, DynamicInput=%s, ContentScale=%.3f-%.3f"), bHasScaler ? TEXT("recreate requested") : TEXT("creation requested"), *RecreateReason, InputTextureExtent.X, InputTextureExtent.Y, InputContentExtent.X, InputContentExtent.Y, OutputExtent.X, OutputExtent.Y, bDynamicInputEnabled ? TEXT("true") : TEXT("false"), RequestedScaleRange.Min, RequestedScaleRange.Max);
 
@@ -467,7 +475,9 @@ bool FMetalFXTemporalUpscalerCore::EnsureUpscalerForConfiguration(FIntPoint Inpu
 	ConfiguredInputContentExtent = InputContentExtent;
 	ConfiguredOutputExtent = OutputExtent;
 	bConfiguredDynamicInputEnabled = bDynamicInputEnabled;
+	bConfiguredAutoExposureEnabled = bAutoExposureEnabled;
 	Resources->Formats = Formats;
+	UE_LOG(LogMetalFX, Log, TEXT("MetalFX Temporal exposure source: %s"), bAutoExposureEnabled ? TEXT("MetalFX Auto") : TEXT("Unreal Eye Adaptation"));
 
 	return GenerateUpscaler();
 }
@@ -524,13 +534,13 @@ bool FMetalFXTemporalUpscalerCore::PrepareToEncode(const FMetalFXTemporalEncodeI
 	}
 #endif
 
-	if (!EnsureUpscalerForConfiguration(Inputs.DescriptorInputExtent, Inputs.InputContentExtent, Inputs.OutputExtent, Inputs.bDynamicInputEnabled, Formats))
+	if (!EnsureUpscalerForConfiguration(Inputs.DescriptorInputExtent, Inputs.InputContentExtent, Inputs.OutputExtent, Inputs.bDynamicInputEnabled, Inputs.bAutoExposureEnabled, Formats))
 	{
 		UE_LOG(LogMetalFX, Verbose, TEXT("MetalFX Temporal Upscaler is not ready. Skip upscaling this frame."));
 		return false;
 	}
 
-	SetHistoryReset(Inputs.bResetHistory);
+	SetHistoryReset(Inputs.bResetHistory || bPendingHistoryReset);
 	SetDepthReversed(Inputs.bDepthReversed);
 	SetPreExposure(Inputs.PreExposure);
 	SetJitterOffset(Inputs.JitterOffset);
@@ -574,6 +584,7 @@ void FMetalFXTemporalUpscalerCore::Encode(FRHICommandList& CmdList, FMetalFXTemp
 
 #if METALFX_METALCPP
 	Resources->CppScaler->setColorTexture(TextureGroup.ColorTexture.GetTexture());
+	Resources->CppScaler->setExposureTexture(TextureGroup.ExposureTexture.GetTexture());
 	Resources->CppScaler->setDepthTexture(TextureGroup.DepthTexture.GetTexture());
 	Resources->CppScaler->setMotionTexture(TextureGroup.VelocityTexture.GetTexture());
 	Resources->CppScaler->setOutputTexture(TextureGroup.OutputTexture.GetTexture());
@@ -584,6 +595,7 @@ void FMetalFXTemporalUpscalerCore::Encode(FRHICommandList& CmdList, FMetalFXTemp
 		@autoreleasepool
 		{
 			Resources->CppScaler->encodeToCommandBuffer(MetalCommandBuffer);
+			bPendingHistoryReset = false;
 		}
 		TextureGroup.ReleaseAllTexturesDeferred(MetalCommandBuffer);
 	}
@@ -596,6 +608,7 @@ void FMetalFXTemporalUpscalerCore::Encode(FRHICommandList& CmdList, FMetalFXTemp
 	
 #if METALFX_NATIVE
 	id<MTLTexture> ColorTexture = TextureGroup.ColorTexture.GetTexture();
+	id<MTLTexture> ExposureTexture = TextureGroup.ExposureTexture.GetTexture();
 	id<MTLTexture> DepthTexture = TextureGroup.DepthTexture.GetTexture();
 	id<MTLTexture> MotionTexture = TextureGroup.VelocityTexture.GetTexture();
 	id<MTLTexture> OutputTexture = TextureGroup.OutputTexture.GetTexture();
@@ -603,7 +616,8 @@ void FMetalFXTemporalUpscalerCore::Encode(FRHICommandList& CmdList, FMetalFXTemp
 	if (MetalCommandBuffer != nil)
 	{
 		//Native는 Objective-C 로직에서 수행함.
-		MetalFXEncode(Resources->Scaler, MetalCommandBuffer, ColorTexture, DepthTexture, MotionTexture, OutputTexture);
+		MetalFXEncode(Resources->Scaler, MetalCommandBuffer, ColorTexture, DepthTexture, MotionTexture, OutputTexture, ExposureTexture);
+		bPendingHistoryReset = false;
 		TextureGroup.ReleaseAllTexturesDeferred(MetalCommandBuffer);
 	}
 	else
