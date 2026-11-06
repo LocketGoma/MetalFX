@@ -11,6 +11,7 @@
 #include "GlobalShader.h"
 #include "RenderGraphBuilder.h"
 #include "RenderGraphUtils.h"
+#include "SceneView.h"
 #include "SystemTextures.h"
 
 // Keep the shader type and its helpers private to this translation unit.

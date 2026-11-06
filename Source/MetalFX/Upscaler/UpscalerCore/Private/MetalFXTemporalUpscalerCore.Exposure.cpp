@@ -4,6 +4,7 @@
 #include "GlobalShader.h"
 #include "RenderGraphBuilder.h"
 #include "RenderGraphUtils.h"
+#include "SceneView.h"
 #include "SystemTextures.h"
 
 namespace
