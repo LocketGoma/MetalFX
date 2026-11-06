@@ -388,9 +388,10 @@ struct FMetalFXTemporalTextureGroup
 	FMetalFXTemporalTextureGroup& operator=(FMetalFXTemporalTextureGroup&&) noexcept = default;
 	~FMetalFXTemporalTextureGroup() = default;
 
-	bool IsValid() const
+	bool IsValid(bool bRequireExposure = true) const
 	{
-		const bool bInputTexturesValid = ColorTexture.IsValid() && ExposureTexture.IsValid() && DepthTexture.IsValid() && VelocityTexture.IsValid();
+		const bool bExposureValid = !bRequireExposure || ExposureTexture.IsValid();
+		const bool bInputTexturesValid = ColorTexture.IsValid() && bExposureValid && DepthTexture.IsValid() && VelocityTexture.IsValid();
 		return bInputTexturesValid && OutputTexture.IsValid();
 	}
 

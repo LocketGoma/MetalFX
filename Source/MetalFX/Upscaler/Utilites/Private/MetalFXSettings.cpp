@@ -56,7 +56,7 @@ TAutoConsoleVariable<int32> CVarMetalFXJitterMode(
 TAutoConsoleVariable<bool> CVarMetalFXAutoExposure(
 	TEXT("r.MetalFX.AutoExposure"),
 	false,
-	TEXT("Temporal exposure source. 0: use Unreal's eye adaptation (default). 1: use MetalFX's independent auto exposure for comparison. Changing this recreates the temporal scaler."),
+	TEXT("Temporal exposure source. 0: use Unreal's eye adaptation (default). 1: use legacy MetalFX auto exposure, bypassing the UE exposure compute pass and external exposure texture. Changing this recreates the temporal scaler."),
 	ECVF_RenderThreadSafe);
 
 TAutoConsoleVariable<int32> CVarMetalFXExperimentalInputExtentMode(

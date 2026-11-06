@@ -3,11 +3,15 @@
 
 #if METALFX_PLUGIN_ENABLED
 #include "MetalCommandBuffer.h"
+#include "MetalRHIUtility.h"
+#include "Misc/ScopeExit.h"
 #endif
 
 struct FMetalFXTemporalCoreResources
 {
 #if METALFX_PLUGIN_ENABLED
+	FMetalRHIExternalCommands ExternalCommands;
+
 	bool HasScaler() const
 	{
 #if METALFX_METALCPP
@@ -270,10 +274,10 @@ void FMetalFXTemporalUpscalerCore::UpdateInputContentSize(FIntPoint InputContent
 	ConfiguredInputContentExtent = InputContentExtent;
 }
 
-bool FMetalFXTemporalUpscalerCore::SetTexturesToGroup(const FMetalFXTemporalPassParameters& Parameters, FMetalFXTemporalTextureGroup& OutTextureGroup, FMetalFXTemporalTextureFormatGroup& OutFormats)
+bool FMetalFXTemporalUpscalerCore::SetTexturesToGroup(const FMetalFXTemporalPassParameters& Parameters, FMetalFXTemporalTextureGroup& OutTextureGroup, FMetalFXTemporalTextureFormatGroup& OutFormats, bool bAutoExposureEnabled)
 {
 	const bool bColorTextureValid = Parameters.ColorTexture != nullptr;
-	const bool bExposureTextureValid = Parameters.ExposureTexture != nullptr;
+	const bool bExposureTextureValid = bAutoExposureEnabled || Parameters.ExposureTexture != nullptr;
 	const bool bDepthTextureValid = Parameters.DepthTexture != nullptr;
 	const bool bVelocityTextureValid = Parameters.VelocityTexture != nullptr;
 	const bool bOutputTextureValid = Parameters.OutputTexture != nullptr;
@@ -285,12 +289,15 @@ bool FMetalFXTemporalUpscalerCore::SetTexturesToGroup(const FMetalFXTemporalPass
 	}
 
 	OutTextureGroup.ColorTexture = CreateMetalFXTextureView(Parameters.ColorTexture);
-	OutTextureGroup.ExposureTexture = CreateMetalFXTextureView(Parameters.ExposureTexture);
+	if (Parameters.ExposureTexture)
+	{
+		OutTextureGroup.ExposureTexture = CreateMetalFXTextureView(Parameters.ExposureTexture);
+	}
 	OutTextureGroup.DepthTexture = CreateMetalFXTextureView(Parameters.DepthTexture);
 	OutTextureGroup.VelocityTexture = CreateMetalFXTextureView(Parameters.VelocityTexture);
 	OutTextureGroup.OutputTexture = CreateMetalFXTextureView(Parameters.OutputTexture);
 
-	if (!OutTextureGroup.IsValid())
+	if (!OutTextureGroup.IsValid(!bAutoExposureEnabled))
 	{
 		UE_LOG(LogMetalFX, Error, TEXT("MetalFX temporal texture view conversion failed."));
 		return false;
@@ -477,14 +484,14 @@ bool FMetalFXTemporalUpscalerCore::EnsureUpscalerForConfiguration(FIntPoint Inpu
 	bConfiguredDynamicInputEnabled = bDynamicInputEnabled;
 	bConfiguredAutoExposureEnabled = bAutoExposureEnabled;
 	Resources->Formats = Formats;
-	UE_LOG(LogMetalFX, Log, TEXT("MetalFX Temporal exposure source: %s"), bAutoExposureEnabled ? TEXT("MetalFX Auto") : TEXT("Unreal Eye Adaptation"));
+	UE_LOG(LogMetalFX, Log, TEXT("MetalFX Temporal exposure source: %s"), bAutoExposureEnabled ? TEXT("MetalFX Auto (legacy; UE exposure pass bypassed)") : TEXT("Unreal Eye Adaptation"));
 
 	return GenerateUpscaler();
 }
 
 bool FMetalFXTemporalUpscalerCore::PrepareToEncode(const FMetalFXTemporalEncodeInputs& Inputs, const FMetalFXTemporalTextureFormatGroup& Formats, const FMetalFXTemporalTextureGroup& TextureGroup)
 {
-	if (!TextureGroup.IsValid())
+	if (!TextureGroup.IsValid(!Inputs.bAutoExposureEnabled))
 	{
 		UE_LOG(LogMetalFX, Error, TEXT("MetalFX TemporalScaler cannot encode with invalid texture views."));
 		return false;
@@ -567,20 +574,21 @@ void FMetalFXTemporalUpscalerCore::ExecuteMetalFX(FRHICommandList& CmdList, FMet
 
 void FMetalFXTemporalUpscalerCore::Encode(FRHICommandList& CmdList, FMetalFXTemporalTextureGroup& TextureGroup)
 {
-	if (!TextureGroup.IsValid())
+	if (!TextureGroup.IsValid(!bConfiguredAutoExposureEnabled))
 	{
 		UE_LOG(LogMetalFX, Error, TEXT("MetalFX TemporalScaler encode skipped because its texture views are invalid."));
 		TextureGroup.ReleaseAllTextures();
 		return;
 	}
 
-	FMetalCommandBuffer* CurrentCommandBuffer = GetCurrentMetalCommandBuffer(CmdList);
+	FMetalCommandBuffer* CurrentCommandBuffer = Resources->ExternalCommands.Begin(CmdList);
 	if (!CurrentCommandBuffer)
 	{
 		UE_LOG(LogMetalFX, Warning, TEXT("MetalFX could not find the active Metal command buffer."));
 		TextureGroup.ReleaseAllTextures();
 		return;
 	}
+	ON_SCOPE_EXIT { Resources->ExternalCommands.End(); };
 
 #if METALFX_METALCPP
 	Resources->CppScaler->setColorTexture(TextureGroup.ColorTexture.GetTexture());

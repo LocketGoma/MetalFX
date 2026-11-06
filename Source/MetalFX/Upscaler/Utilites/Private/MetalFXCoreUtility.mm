@@ -295,7 +295,8 @@ extern "C" void MetalFXEncode(id<MTLFXTemporalScaler> Scaler, id<MTLCommandBuffe
 		return;
 	}
 
-	const bool bInputTexturesValid = Color != nil && Depth != nil && Motion != nil && Exposure != nil;
+	// The caller requires exposure only for manual exposure; auto exposure accepts nil.
+	const bool bInputTexturesValid = Color != nil && Depth != nil && Motion != nil;
 	if (!bInputTexturesValid || Output == nil)
 	{
 		UE_LOG(LogMetalFX, Error, TEXT("MetalFX native encode received one or more invalid textures."));

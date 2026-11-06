@@ -38,7 +38,7 @@ public:
 	static FRDGTextureRef PrepareExposureTexture(FRDGBuilder& GraphBuilder, const FSceneView& View, FRDGTextureRef EyeAdaptationTexture, float PreExposure);
 
 #if METALFX_PLUGIN_ENABLED
-	bool SetTexturesToGroup(const FMetalFXTemporalPassParameters& Parameters, FMetalFXTemporalTextureGroup& OutTextureGroup, FMetalFXTemporalTextureFormatGroup& OutFormats);
+	bool SetTexturesToGroup(const FMetalFXTemporalPassParameters& Parameters, FMetalFXTemporalTextureGroup& OutTextureGroup, FMetalFXTemporalTextureFormatGroup& OutFormats, bool bAutoExposureEnabled);
 
 	bool PrepareToEncode(const FMetalFXTemporalEncodeInputs& Inputs, const FMetalFXTemporalTextureFormatGroup& Formats, const FMetalFXTemporalTextureGroup& TextureGroup);
 	void ExecuteMetalFX(FRHICommandList& CmdList, FMetalFXTemporalTextureGroup& TextureGroup);

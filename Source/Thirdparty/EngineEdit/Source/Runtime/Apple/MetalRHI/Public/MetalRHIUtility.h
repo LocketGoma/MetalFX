@@ -1,13 +1,22 @@
 #pragma once
+#include "CoreMinimal.h"
 // Metal RHI public headers.
 
 class FMetalCommandBuffer;
-class FMetalRHICommandContext;
+class FRHICommandList;
 
-//Utility Class
-class METALRHI_API FMetalRHIUtility
+// Owns native synchronization resources inside MetalRHI; no private engine types cross the module boundary.
+class METALRHI_API FMetalRHIExternalCommands
 {
-	public:
-	static FMetalCommandBuffer* GetCurrentCommandBuffer(FMetalRHICommandContext* Context);
-	static FMetalCommandBuffer* GetCurrentCommandBufferFromCmdList(FRHICommandList& CmdList);
+public:
+	FMetalRHIExternalCommands();
+	~FMetalRHIExternalCommands();
+	UE_NONCOPYABLE(FMetalRHIExternalCommands)
+
+	FMetalCommandBuffer* Begin(FRHICommandList& CmdList);
+	void End();
+
+private:
+	struct FImpl;
+	TUniquePtr<FImpl> Impl;
 };

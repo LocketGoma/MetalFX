@@ -7,8 +7,6 @@
 #include "HAL/CriticalSection.h"		//디버그 메시지 출력용
 #endif
 
-class FMetalCommandBuffer;
-
 struct FMetalFXEncodeGeometry
 {
 	FIntPoint DescriptorInputExtent = FIntPoint::ZeroValue;
@@ -56,7 +54,6 @@ public:
 protected:
 #if METALFX_PLUGIN_ENABLED
 	static FMetalFXTextureView CreateMetalFXTextureView(FRDGTextureRef Texture);
-	static FMetalCommandBuffer* GetCurrentMetalCommandBuffer(FRHICommandList& CmdList);
 	static void* GetMetalDevice();
 #endif
 

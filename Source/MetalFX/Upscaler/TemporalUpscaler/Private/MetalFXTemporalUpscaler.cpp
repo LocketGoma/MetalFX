@@ -229,7 +229,8 @@ ITemporalUpscaler::FOutputs FMetalFXTemporalUpscaler::AddPasses(FRDGBuilder& Gra
 
 	auto* PassParams = GraphBuilder.AllocParameters<FMetalFXTemporalPassParameters>();
 	PassParams->ColorTexture = Inputs.SceneColor.Texture;
-	PassParams->ExposureTexture = FMetalFXTemporalUpscalerCore::PrepareExposureTexture(GraphBuilder, View, Inputs.EyeAdaptationTexture, PreExposure);
+	// Legacy auto exposure must also bypass the UE exposure compute pass.
+	PassParams->ExposureTexture = bAutoExposureEnabled ? nullptr : FMetalFXTemporalUpscalerCore::PrepareExposureTexture(GraphBuilder, View, Inputs.EyeAdaptationTexture, PreExposure);
 	PassParams->DepthTexture = Inputs.SceneDepth.Texture;
 	PassParams->VelocityTexture = GeneratedVelocityTexture;
 	PassParams->OutputTexture = OutputTexture;
@@ -265,7 +266,7 @@ ITemporalUpscaler::FOutputs FMetalFXTemporalUpscaler::AddPasses(FRDGBuilder& Gra
 
 			FMetalFXTemporalTextureGroup LocalTextureGroup;
 			FMetalFXTemporalTextureFormatGroup Formats;
-			if (!PassUpscalerCore->SetTexturesToGroup(*PassParams, LocalTextureGroup, Formats))
+			if (!PassUpscalerCore->SetTexturesToGroup(*PassParams, LocalTextureGroup, Formats, EncodeInputs.bAutoExposureEnabled))
 			{
 				UE_LOG(LogMetalFX, Error, TEXT("MetalFX upscaler texture setup failed."));
 				return;

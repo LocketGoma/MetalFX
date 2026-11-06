@@ -2,6 +2,8 @@
 
 #if METALFX_PLUGIN_ENABLED
 #include "MetalCommandBuffer.h"
+#include "MetalRHIUtility.h"
+#include "Misc/ScopeExit.h"
 #endif
 
 //////////////////////////////////////////////////////////////////////////
@@ -11,6 +13,8 @@
 struct FMetalFXSpatialCoreResources
 {
 #if METALFX_PLUGIN_ENABLED
+	FMetalRHIExternalCommands ExternalCommands;
+
 	bool HasScaler() const
 	{
 #if METALFX_METALCPP
@@ -317,13 +321,14 @@ void FMetalFXSpatialUpscalerCore::ExecuteMetalFX(FRHICommandList& CmdList, FMeta
 
 void FMetalFXSpatialUpscalerCore::Encode(FRHICommandList& CmdList, FMetalFXSpatialTextureGroup& TextureGroup)
 {
-	FMetalCommandBuffer* CurrentCommandBuffer = GetCurrentMetalCommandBuffer(CmdList);
+	FMetalCommandBuffer* CurrentCommandBuffer = Resources->ExternalCommands.Begin(CmdList);
 	if (!CurrentCommandBuffer)
 	{
 		UE_LOG(LogMetalFX, Warning, TEXT("MetalFX Spatial could not find the active Metal command buffer. Skip upscaling this frame."));
 		TextureGroup.ReleaseAllTextures();
 		return;
 	}
+	ON_SCOPE_EXIT { Resources->ExternalCommands.End(); };
 
 #if METALFX_METALCPP
 	Resources->CppScaler->setColorTexture(TextureGroup.ColorTexture.GetTexture());

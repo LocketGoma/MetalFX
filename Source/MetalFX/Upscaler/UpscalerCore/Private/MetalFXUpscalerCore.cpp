@@ -2,11 +2,7 @@
 #include "MetalFXCoreUtility.h"
 
 #if METALFX_PLUGIN_ENABLED
-#include "MetalRHI.h"
-#include "MetalRHIPrivate.h"
-#include "MetalRHIContext.h"
-#include "MetalCommandBuffer.h"
-#include "MetalRHIUtility.h"
+#include "DynamicRHI.h"
 #endif
 
 FMetalFXUpscalerCore::FMetalFXUpscalerCore() = default;
@@ -139,11 +135,6 @@ FMetalFXTextureView FMetalFXUpscalerCore::CreateMetalFXTextureView(FRDGTextureRe
 #endif
 
 	return Result;
-}
-
-FMetalCommandBuffer* FMetalFXUpscalerCore::GetCurrentMetalCommandBuffer(FRHICommandList& CmdList)
-{
-	return FMetalRHIUtility::GetCurrentCommandBufferFromCmdList(CmdList);
 }
 
 void* FMetalFXUpscalerCore::GetMetalDevice()
