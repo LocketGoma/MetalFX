@@ -6,7 +6,11 @@
 #include "MetalFXUpscalerCore.h"
 #include "MetalFXViewExtension.h"
 #include "DataDrivenShaderPlatformInfo.h"
+#include "HAL/IConsoleManager.h"
 #include "Interfaces/IPluginManager.h"
+#include "Misc/CommandLine.h"
+#include "Misc/OutputDevice.h"
+#include "Misc/Parse.h"
 #include "Misc/Paths.h"
 #include "RenderingThread.h"
 #include "ShaderCore.h"
@@ -16,6 +20,14 @@ IMPLEMENT_MODULE(FMetalFXModule, MetalFX)
 DEFINE_LOG_CATEGORY(LogMetalFX);
 
 FMetalFXModule::~FMetalFXModule() = default;
+
+#if METALFX_PLUGIN_ENABLED
+static TAutoConsoleVariable<bool> CVarMetalFXInitializeOnStartup(
+	TEXT("r.MetalFX.InitializeOnStartup"),
+	false,
+	TEXT("Initialize MetalFX after the RHI is ready without changing r.MetalFX.Enabled. Set in Engine.ini or pass -MetalFXInitializeOnStartup."),
+	ECVF_ReadOnly);
+#endif
 
 static void SetBoolCVarWithCurrentPriorityIfChanged(IConsoleVariable* CVar, bool Value)
 {
@@ -59,9 +71,12 @@ static void ApplyMetalFXSettingsToCVars(const UMetalFXSettings& Settings)
 	// Refresh the controller only after both quality inputs are finalized.
 	ApplyMetalFXQualityModeToScreenPercentage(Settings.QualityMode);
 
-	// Apply Enabled last so its change callback observes the finalized
-	// quality CVar.
-	SetBoolCVarWithCurrentPriorityIfChanged(CVarEnableMetalFX.AsVariable(), Settings.bEnabled);
+	// Apply the project default while honoring higher-priority console variable settings.
+	IConsoleVariable* Enabled = CVarEnableMetalFX.AsVariable();
+	if ((Enabled->GetFlags() & ECVF_SetByMask) <= ECVF_SetByProjectSetting && Enabled->GetBool() != Settings.bEnabled)
+	{
+		Enabled->Set(Settings.bEnabled ? 1 : 0, ECVF_SetByProjectSetting);
+	}
 }
 
 template <typename TCore>
@@ -129,8 +144,7 @@ void FMetalFXModule::StartupModule()
 	if (FApp::IsGame() || GIsEditor)
 	{
 		//콘솔 설정 추가
-		// OnPostEngineInit runs after RHI initialization. One callback guarantees
-		// settings are applied before RHI-dependent support detection and Core creation.
+		// Apply startup settings after the RHI is ready so MetalFX can initialize on demand.
 		OnPostRHIInitialized = FCoreDelegates::OnPostEngineInit.AddRaw(this, &FMetalFXModule::HandlePostRHIInitialized);
 		UE_LOG(LogMetalFX, Log, TEXT("MetalFX Upscaling Module Start"));
 	}
@@ -143,8 +157,25 @@ void FMetalFXModule::ShutdownModule()
 	RestoreMetalFXScreenPercentage();
 
 	FCoreDelegates::OnPostEngineInit.Remove(OnPostRHIInitialized);
+	for (IConsoleCommand*& Command : InitializeConsoleCommands)
+	{
+		if (Command)
+		{
+			IConsoleManager::Get().UnregisterConsoleObject(Command, false);
+			Command = nullptr;
+		}
+	}
+	if (OnMetalFXEnabledChanged.IsValid())
+	{
+		CVarEnableMetalFX.AsVariable()->OnChangedDelegate().Remove(OnMetalFXEnabledChanged);
+		CVarMetalFXUpscalerMode.AsVariable()->OnChangedDelegate().Remove(OnMetalFXUpscalerModeChanged);
+		CVarEnableMetalFXInEditor.AsVariable()->OnChangedDelegate().Remove(OnMetalFXEnableInEditorChanged);
+	}
 
 	// Stop new ViewExtension activation before destroying the module-owned Core.
+	EligibleUpscalerType = EMetalFXUpscalerType::None;
+	bRuntimeInitializationAttempted = false;
+	bWasMetalFXEnabled = false;
 	MetalSupport = EMetalSupportDevice::NotSupported;
 	MetalFXSupport = EMetalFXSupportReason::NotSupported;
 	SupportedUpscalerType = EMetalFXUpscalerType::None;
@@ -248,8 +279,7 @@ FMetalFXUpscalerCore* FMetalFXModule::CreateMetalFXUpscaler(EMetalFXUpscalerType
 		MetalFXUpscaler.Reset();
 		SelectedUpscalerType = EMetalFXUpscalerType::None;
 	}
-	// Create the concrete Core for the validated configuration. Runtime Enabled
-	// changes only control adapter activation and do not call this path.
+	// Create the concrete Core for the validated configuration.
 	switch (RequestedType)
 	{
 	case EMetalFXUpscalerType::Temporal:
@@ -294,9 +324,7 @@ void FMetalFXModule::HandlePostRHIInitialized()
 		return;
 	}
 	
-	// Apply the startup CVars before selecting and creating the single Core.
-	// Import project settings after the engine has registered its CVars, then use
-	// that finalized startup configuration for the module-lifetime Core.
+	// Apply the startup CVars before listening for runtime activation changes.
 	if (const UMetalFXSettings* Settings = GetDefault<UMetalFXSettings>())
 	{
 		ApplyMetalFXSettingsToCVars(*Settings);
@@ -310,38 +338,145 @@ void FMetalFXModule::HandlePostRHIInitialized()
 	}
 	
 #if METALFX_PLUGIN_ENABLED
+	constexpr const TCHAR* Help = TEXT("Initialize MetalFX for this session. Use 1 to initialize; omit the value to show its status. 0 is unsupported.");
+	const FConsoleCommandWithArgsAndOutputDeviceDelegate InitializeHandler = FConsoleCommandWithArgsAndOutputDeviceDelegate::CreateRaw(this, &FMetalFXModule::HandleMetalFXInitializeCommand);
+	IConsoleManager& ConsoleManager = IConsoleManager::Get();
+	InitializeConsoleCommands[0] = ConsoleManager.RegisterConsoleCommand(TEXT("r.MetalFX.Initialize"), Help, InitializeHandler);
+	InitializeConsoleCommands[1] = ConsoleManager.RegisterConsoleCommand(TEXT("r.MetalFX.Init"), Help, InitializeHandler);
+
 	if (MetalSupport == EMetalSupportDevice::Supported)
 	{
-		SupportedUpscalerType = FMetalFXUpscalerCore::QuerySupportedUpscalerType();
-		MetalFXSupport = FMetalFXUpscalerCore::QuerySupportReason(SupportedUpscalerType);
-		const bool bMetalFXRuntimeSupported = MetalFXSupport == EMetalFXSupportReason::Supported;
-		const bool bHasSupportedUpscaler = SupportedUpscalerType != EMetalFXUpscalerType::None;
-		if (bMetalFXRuntimeSupported && bHasSupportedUpscaler)
-		{
-			CreateMetalFXUpscaler(SupportedUpscalerType);
-		}
-
-		// The view extension is also used to show debug status on Metal RHI,
-		// even when the current device cannot activate MetalFX.
-		MetalFXViewExtension = FSceneViewExtensions::NewExtension<FMetalFXViewExtension>();
+		IConsoleVariable* Enabled = CVarEnableMetalFX.AsVariable();
+		OnMetalFXEnabledChanged = Enabled->OnChangedDelegate().AddRaw(this, &FMetalFXModule::HandleMetalFXActivationSettingsChanged);
+		OnMetalFXUpscalerModeChanged = CVarMetalFXUpscalerMode.AsVariable()->OnChangedDelegate().AddRaw(this, &FMetalFXModule::HandleMetalFXActivationSettingsChanged);
+		OnMetalFXEnableInEditorChanged = CVarEnableMetalFXInEditor.AsVariable()->OnChangedDelegate().AddRaw(this, &FMetalFXModule::HandleMetalFXActivationSettingsChanged);
+		HandleMetalFXActivationSettingsChanged(Enabled);
 	}
 
-	if (IsMetalFXSupported())
+	const bool bInitializeOnStartup = CVarMetalFXInitializeOnStartup.GetValueOnGameThread() ||
+		FParse::Param(FCommandLine::Get(), TEXT("MetalFXInitializeOnStartup"));
+	if (bInitializeOnStartup && !bRuntimeInitializationAttempted)
 	{
-		if (MetalFXUpscaler)
-		{
-			UE_LOG(LogMetalFX, Log, TEXT("MetalFX is available and its upscaler Core is ready."));
-		}
-		else
-		{
-			UE_LOG(LogMetalFX, Error, TEXT("MetalFX is supported, but its upscaler Core could not be created."));
-		}
+		InitializeMetalFXRuntime();
+	}
+	if (!bRuntimeInitializationAttempted && MetalSupport == EMetalSupportDevice::Supported)
+	{
+		UE_LOG(LogMetalFX, Log, TEXT("MetalFX runtime initialization deferred until r.MetalFX.Init 1 or r.MetalFX.Enabled 1."));
 	}
 #endif
+}
 
+void FMetalFXModule::InitializeMetalFXRuntime()
+{
+#if METALFX_PLUGIN_ENABLED
+	check(IsInGameThread());
+	bRuntimeInitializationAttempted = true;
+	if (MetalSupport != EMetalSupportDevice::Supported)
+	{
+		return;
+	}
+
+	SupportedUpscalerType = FMetalFXUpscalerCore::QuerySupportedUpscalerType();
+	MetalFXSupport = FMetalFXUpscalerCore::QuerySupportReason(SupportedUpscalerType);
 	if (MetalFXSupport != EMetalFXSupportReason::Supported)
 	{
-		// QuerySupportReason already emitted the specific device/framework reason.
 		UE_LOG(LogMetalFX, Verbose, TEXT("MetalFX activation is unavailable. SupportReason=%d."), static_cast<int32>(MetalFXSupport));
 	}
+	else if (!CreateMetalFXUpscaler(SupportedUpscalerType))
+	{
+		UE_LOG(LogMetalFX, Error, TEXT("MetalFX is supported, but its upscaler Core could not be created."));
+	}
+
+	// Keep the status display available after an enable attempt, including on unsupported devices.
+	if (!MetalFXViewExtension.IsValid())
+	{
+		MetalFXViewExtension = FSceneViewExtensions::NewExtension<FMetalFXViewExtension>();
+	}
+#endif
+}
+
+void FMetalFXModule::HandleMetalFXInitializeCommand(const TArray<FString>& Args, FOutputDevice& Output)
+{
+	check(IsInGameThread());
+	if (Args.Num() == 1 && Args[0] == TEXT("0"))
+	{
+		Output.Log(TEXT("MetalFX initialization cannot be undone during this session. Use r.MetalFX.Enabled 0 to disable upscaling."));
+		return;
+	}
+	if (!Args.IsEmpty())
+	{
+		if (Args.Num() != 1 || Args[0] != TEXT("1"))
+		{
+			Output.Log(TEXT("Usage: r.MetalFX.Init [1]"));
+			return;
+		}
+		if (!bRuntimeInitializationAttempted)
+		{
+			InitializeMetalFXRuntime();
+		}
+	}
+
+	if (!bRuntimeInitializationAttempted)
+	{
+		Output.Log(TEXT("MetalFX Initialize = 0 (not attempted)."));
+	}
+	else if (IsMetalFXSupported() && MetalFXUpscaler && MetalFXUpscaler->IsInitialized())
+	{
+		Output.Log(TEXT("MetalFX Initialize = 1 (ready)."));
+	}
+	else
+	{
+		Output.Log(TEXT("MetalFX Initialize = 1 (initialization unavailable or failed; see LogMetalFX)."));
+	}
+}
+
+void FMetalFXModule::HandleMetalFXActivationSettingsChanged(IConsoleVariable*)
+{
+#if METALFX_PLUGIN_ENABLED
+	check(IsInGameThread());
+	const bool bEnabled = CVarEnableMetalFX.GetValueOnGameThread();
+	const bool bJustEnabled = bEnabled && !bWasMetalFXEnabled;
+	bWasMetalFXEnabled = bEnabled;
+	EligibleUpscalerType = EMetalFXUpscalerType::None;
+	if (!bEnabled)
+	{
+		UE_LOG(LogMetalFX, Verbose, TEXT("MetalFX activation skipped because r.MetalFX.Enabled is false."));
+		return;
+	}
+
+	if (bJustEnabled)
+	{
+		InitializeMetalFXRuntime();
+	}
+
+	const bool bAllowedInEditor = !GIsEditor || CVarEnableMetalFXInEditor.GetValueOnGameThread();
+	if (!bAllowedInEditor || !IsMetalFXSupported())
+	{
+		UE_LOG(LogMetalFX, Verbose, TEXT("MetalFX activation skipped because MetalFX is unsupported for this RHI or editor context."));
+		return;
+	}
+
+	if (SelectedUpscalerType != EMetalFXUpscalerType::Temporal && SelectedUpscalerType != EMetalFXUpscalerType::Spatial)
+	{
+		UE_LOG(LogMetalFX, Verbose, TEXT("MetalFX activation skipped because the selected upscaler mode is Off or invalid."));
+		return;
+	}
+
+	const EMetalFXUpscalerType RequestedType = static_cast<EMetalFXUpscalerType>(CVarMetalFXUpscalerMode.GetValueOnGameThread());
+	if (RequestedType != SelectedUpscalerType)
+	{
+		UE_LOG(LogMetalFX, Verbose, TEXT("MetalFX activation skipped because UpscalerMode (%d) does not match the initialized Core type (%d)."),
+			static_cast<int32>(RequestedType), static_cast<int32>(SelectedUpscalerType));
+		return;
+	}
+
+	if (!MetalFXUpscaler || !MetalFXUpscaler->IsInitialized() || MetalFXUpscaler->GetUpscalerType() != RequestedType)
+	{
+		UE_LOG(LogMetalFX, Warning, TEXT("MetalFX activation skipped because the initialized Core is not %s."),
+			RequestedType == EMetalFXUpscalerType::Temporal ? TEXT("Temporal") : TEXT("Spatial"));
+		return;
+	}
+
+	EligibleUpscalerType = RequestedType;
+#endif
 }

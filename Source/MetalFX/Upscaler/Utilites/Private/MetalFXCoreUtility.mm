@@ -59,7 +59,12 @@ static BOOL IsMetalFXSpatialSupported()
 		return NO;
 	}
 
-	return [MTLFXSpatialScalerDescriptor supportsDevice:MetalDevice];
+	const BOOL bSupported = [MTLFXSpatialScalerDescriptor supportsDevice:MetalDevice];
+	if (!bSupported)
+	{
+		UE_LOG(LogMetalFX, Error, TEXT("MetalFX SpatialScaler is not supported by the current Metal device."));
+	}
+	return bSupported;
 }
 
 //현재 Metal 장치가 MetalFX Temporal Scaler를 지원하는지 확인
@@ -103,13 +108,6 @@ static BOOL IsMetalFXTemporalSupported()
 	return [MTLFXTemporalScalerDescriptor supportsDevice:MetalDevice];
 }
 
-// MetalFX 전체 기동 가능 여부를 확인한다.
-// Spatial 또는 Temporal 중 하나만 지원되어도 YES이며, 아래의 Dynamic Input API 지원 여부와는 별개의 검사다.
-static BOOL IsMetalFXSupported()
-{
-	return IsMetalFXSpatialSupported() || IsMetalFXTemporalSupported();
-}
-
 // TemporalScaler 지원만으로는 Dynamic Input용 selector까지 존재한다고 보장할 수 없다.
 // 이 함수는 Dynamic Input 부가 API만 확인하며, MetalFX 전체 지원 여부를 대신하지 않는다.
 static BOOL IsMetalFXDynamicInputContentSupported()
@@ -133,12 +131,13 @@ static BOOL IsMetalFXDynamicInputContentSupported()
 // Temporal을 지원하면 Temporal만 선택하며, Spatial은 Temporal을 지원하지 않을 때만 선택한다.
 EMetalFXUpscalerType QuerySupportedMetalFXUpscalerType()
 {
-	if (!IsMetalFXSupported())
+	if (IsMetalFXTemporalSupported())
 	{
-		return EMetalFXUpscalerType::None;
+		return EMetalFXUpscalerType::Temporal;
 	}
+	UE_LOG(LogMetalFX, Verbose, TEXT("MetalFX TemporalScaler creation skipped because the environment is unsupported."));
 
-	return IsMetalFXTemporalSupported() ? EMetalFXUpscalerType::Temporal : EMetalFXUpscalerType::Spatial;
+	return IsMetalFXSpatialSupported() ? EMetalFXUpscalerType::Spatial : EMetalFXUpscalerType::None;
 }
 
 //------------Inner Utility Functions------------ (End)
@@ -217,13 +216,6 @@ extern "C" bool MetalFXSupportsDynamicInputContent()
 
 extern "C" id<MTLFXTemporalScaler> MetalFXCreateTemporalUpscaler(id<MTLDevice> Device, const FMetalFXTemporalTextureFormatGroup& Formats, int32 InputWidth, int32 InputHeight, int32 OutputWidth, int32 OutputHeight, bool bAutoExposureEnabled)
 {
-	// 이 버전 이하에선 MetalFX 자체를 못쓰도록 처리
-	if (!IsMetalFXTemporalSupported())
-	{
-		UE_LOG(LogMetalFX, Verbose, TEXT("MetalFX TemporalScaler creation skipped because the environment is unsupported."));
-		return nil;
-	}
-
 	if (Device == nil)
 	{
 		return nil;
@@ -240,12 +232,6 @@ extern "C" id<MTLFXTemporalScaler> MetalFXCreateTemporalUpscaler(id<MTLDevice> D
 	MTLFXTemporalScalerDescriptor* Desc = [MTLFXTemporalScalerDescriptor new];
 	if (Desc == nil)
 	{
-		return nil;
-	}
-
-	if (![MTLFXTemporalScalerDescriptor supportsDevice:Device])
-	{
-		[Desc release];
 		return nil;
 	}
 

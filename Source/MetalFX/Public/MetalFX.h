@@ -11,6 +11,8 @@ class FMetalFXViewExtension;
 class FMetalFXUpscalerCore;
 class FMetalFXSpatialUpscalerCore;
 class FMetalFXTemporalUpscalerCore;
+class FOutputDevice;
+struct IConsoleCommand;
 
 class METALFX_API FMetalFXModule : public IModuleInterface
 {
@@ -34,11 +36,13 @@ public:
 	EMetalFXSupportReason QueryMetalFXSupport() const { return GetMetalFXSupportReason(); }
 	EMetalFXUpscalerType QueryMetalFXUpscalerType() const { return GetSupportedUpscalerType(); }
 
-	/** Returns the Core created during startup RHI initialization. */
+	/** Returns the Core once the MetalFX runtime has been initialized. */
 	FMetalFXUpscalerCore* GetMetalFXUpscaler() const;
 	FMetalFXTemporalUpscalerCore* GetMetalFXTemporalUpscaler();
 	FMetalFXSpatialUpscalerCore* GetMetalFXSpatialUpscaler();
 	EMetalFXUpscalerType GetSelectedUpscalerType() const { return SelectedUpscalerType; }
+	/** Game-thread eligibility before checking the current view family. */
+	EMetalFXUpscalerType GetEligibleUpscalerType() const { return EligibleUpscalerType; }
 
 	bool IsMetalFXSupported() const;
 	bool GetIsSupportedByRHI() const { return IsMetalFXSupported(); }
@@ -46,7 +50,17 @@ public:
 private:
 	FMetalFXUpscalerCore* CreateMetalFXUpscaler(EMetalFXUpscalerType RequestedType);
 	void HandlePostRHIInitialized();
+	void InitializeMetalFXRuntime();
+	void HandleMetalFXInitializeCommand(const TArray<FString>& Args, FOutputDevice& Output);
+	void HandleMetalFXActivationSettingsChanged(IConsoleVariable*);
 	FDelegateHandle OnPostRHIInitialized;
+	FDelegateHandle OnMetalFXEnabledChanged;
+	FDelegateHandle OnMetalFXUpscalerModeChanged;
+	FDelegateHandle OnMetalFXEnableInEditorChanged;
+	IConsoleCommand* InitializeConsoleCommands[2] = {};
+	bool bRuntimeInitializationAttempted = false;
+	bool bWasMetalFXEnabled = false;
+	EMetalFXUpscalerType EligibleUpscalerType = EMetalFXUpscalerType::None;
 
 	// The module is the sole Core owner. Adapters keep non-owning typed pointers.
 	TUniquePtr<FMetalFXUpscalerCore> MetalFXUpscaler;

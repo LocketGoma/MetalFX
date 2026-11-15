@@ -7,6 +7,12 @@
 #include "Misc/ScopeExit.h"
 #endif
 
+struct FMetalFXContentScaleRange
+{
+	float Min = 1.0f;
+	float Max = 1.0f;
+};
+
 struct FMetalFXTemporalCoreResources
 {
 #if METALFX_PLUGIN_ENABLED
@@ -27,6 +33,10 @@ struct FMetalFXTemporalCoreResources
 
 #if METALFX_METALCPP
 	NS::SharedPtr<MTLFX::TemporalScaler> CppScaler;
+	// Hardware limits do not change when the scaler descriptor is recreated.
+	MTL::Device* ContentScaleRangeDevice = nullptr;
+	FMetalFXContentScaleRange DeviceContentScaleRange;
+	bool bDeviceContentScaleRangeAvailable = false;
 #endif
 #if METALFX_NATIVE
 	id<MTLFXTemporalScaler> Scaler = nil;
@@ -34,12 +44,6 @@ struct FMetalFXTemporalCoreResources
 #endif
 
 	FMetalFXTemporalTextureFormatGroup Formats;
-};
-
-struct FMetalFXContentScaleRange
-{
-	float Min = 1.0f;
-	float Max = 1.0f;
 };
 
 FMetalFXTemporalUpscalerCore::FMetalFXTemporalUpscalerCore()
@@ -177,9 +181,7 @@ bool FMetalFXTemporalUpscalerCore::GenerateUpscaler()
 	if (MetalDevice)
 	{
 		auto Descriptor = NS::TransferPtr(MTLFX::TemporalScalerDescriptor::alloc()->init());
-		const bool bDescriptorValid = Descriptor.get() != nullptr;
-		const bool bDeviceSupported = bDescriptorValid && MTLFX::TemporalScalerDescriptor::supportsDevice(MetalDevice);
-		if (bDeviceSupported)
+		if (Descriptor.get())
 		{
 			if (bConfiguredDynamicInputEnabled && !MetalFXSupportsDynamicInputContent())
 			{
@@ -195,8 +197,13 @@ bool FMetalFXTemporalUpscalerCore::GenerateUpscaler()
 				return false;
 			}
 
-			FMetalFXContentScaleRange DeviceScaleRange;
-			const bool bDeviceScaleRangeAvailable = GetMetalFXDeviceContentScaleRange(MetalDevice, DeviceScaleRange);
+			if (bConfiguredDynamicInputEnabled && Resources->ContentScaleRangeDevice != MetalDevice)
+			{
+				Resources->ContentScaleRangeDevice = MetalDevice;
+				Resources->bDeviceContentScaleRangeAvailable = GetMetalFXDeviceContentScaleRange(MetalDevice, Resources->DeviceContentScaleRange);
+			}
+			const FMetalFXContentScaleRange& DeviceScaleRange = Resources->DeviceContentScaleRange;
+			const bool bDeviceScaleRangeAvailable = Resources->bDeviceContentScaleRangeAvailable;
 			const bool bRequestedScaleSupported = !bDeviceScaleRangeAvailable || RequestedScaleRange.Min >= DeviceScaleRange.Min || FMath::IsNearlyEqual(RequestedScaleRange.Min, DeviceScaleRange.Min);
 			const bool bRequestedMaxScaleSupported = !bDeviceScaleRangeAvailable || RequestedScaleRange.Max <= DeviceScaleRange.Max || FMath::IsNearlyEqual(RequestedScaleRange.Max, DeviceScaleRange.Max);
 			if (bConfiguredDynamicInputEnabled && (!bRequestedScaleSupported || !bRequestedMaxScaleSupported))
@@ -385,6 +392,21 @@ bool FMetalFXTemporalUpscalerCore::EnsureUpscalerForConfiguration(FIntPoint Inpu
 		return false;
 	}
 
+	const bool bHasScaler = Resources->HasScaler();
+	const bool bDescriptorInputResolutionChanged = ConfiguredDescriptorInputExtent != InputTextureExtent;
+	const bool bInputContentResolutionChanged = ConfiguredInputContentExtent != InputContentExtent;
+	const bool bOutputResolutionChanged = ConfiguredOutputExtent != OutputExtent;
+	const bool bDynamicInputChanged = bConfiguredDynamicInputEnabled != bDynamicInputEnabled;
+	const bool bExposureModeChanged = bConfiguredAutoExposureEnabled != bAutoExposureEnabled;
+	const bool bFormatChanged = Resources->Formats != Formats;
+	const bool bDynamicInputScaleChanged = bDynamicInputEnabled && bInputContentResolutionChanged;
+	const bool bDescriptorGeometryChanged = bDescriptorInputResolutionChanged || bOutputResolutionChanged || bDynamicInputChanged || bDynamicInputScaleChanged;
+	const bool bNeedsScalerRecreation = !bHasScaler || bFormatChanged || bDescriptorGeometryChanged || bExposureModeChanged;
+	if (!bNeedsScalerRecreation && !bInputContentResolutionChanged)
+	{
+		return true;
+	}
+
 	if (!ValidateCommonExtents(InputTextureExtent, InputContentExtent, OutputExtent))
 	{
 		return false;
@@ -417,23 +439,9 @@ bool FMetalFXTemporalUpscalerCore::EnsureUpscalerForConfiguration(FIntPoint Inpu
 		return false;
 	}
 
-	const bool bHasScaler = Resources->HasScaler();
-	const bool bDescriptorInputResolutionChanged = ConfiguredDescriptorInputExtent != InputTextureExtent;
-	const bool bInputContentResolutionChanged = ConfiguredInputContentExtent != InputContentExtent;
-	const bool bOutputResolutionChanged = ConfiguredOutputExtent != OutputExtent;
-	const bool bDynamicInputChanged = bConfiguredDynamicInputEnabled != bDynamicInputEnabled;
-	const bool bExposureModeChanged = bConfiguredAutoExposureEnabled != bAutoExposureEnabled;
-	const bool bFormatChanged = Resources->Formats != Formats;
-	const bool bDynamicInputScaleChanged = bDynamicInputEnabled && bInputContentResolutionChanged;
-	const bool bDescriptorGeometryChanged = bDescriptorInputResolutionChanged || bOutputResolutionChanged || bDynamicInputChanged || bDynamicInputScaleChanged;
-	const bool bNeedsScalerRecreation = !bHasScaler || bFormatChanged || bDescriptorGeometryChanged || bExposureModeChanged;
-
 	if (!bNeedsScalerRecreation)
 	{
-		if (bInputContentResolutionChanged)
-		{
-			UpdateInputContentSize(InputContentExtent);
-		}
+		UpdateInputContentSize(InputContentExtent);
 		return true;
 	}
 

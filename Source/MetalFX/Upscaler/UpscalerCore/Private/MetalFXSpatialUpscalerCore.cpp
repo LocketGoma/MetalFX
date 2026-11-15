@@ -140,12 +140,6 @@ bool FMetalFXSpatialUpscalerCore::GenerateUpscaler()
 		return false;
 	}
 
-	if (!MTLFX::SpatialScalerDescriptor::supportsDevice(Device))
-	{
-		UE_LOG(LogMetalFX, Error, TEXT("MetalFX SpatialScaler is not supported by the current Metal device."));
-		return false;
-	}
-
 	Descriptor->setInputWidth(ConfiguredDescriptorInputExtent.X);
 	Descriptor->setInputHeight(ConfiguredDescriptorInputExtent.Y);
 	Descriptor->setOutputWidth(ConfiguredOutputExtent.X);
@@ -167,13 +161,6 @@ bool FMetalFXSpatialUpscalerCore::GenerateUpscaler()
 	if (Descriptor == nil)
 	{
 		UE_LOG(LogMetalFX, Error, TEXT("MetalFX SpatialScaler descriptor creation failed."));
-		return false;
-	}
-
-	if (![MTLFXSpatialScalerDescriptor supportsDevice:Device])
-	{
-		UE_LOG(LogMetalFX, Error, TEXT("MetalFX SpatialScaler is not supported by the current Metal device."));
-		[Descriptor release];
 		return false;
 	}
 
@@ -232,6 +219,15 @@ bool FMetalFXSpatialUpscalerCore::EnsureUpscalerForConfiguration(const FMetalFXS
 		return false;
 	}
 
+	const bool bInputContentResolutionChanged = ConfiguredInputContentExtent != Inputs.InputContentExtent;
+	const bool bHasScaler = Resources->HasScaler();
+	const bool bNeedsScalerRecreation = !bHasScaler || ConfiguredDescriptorInputExtent != Inputs.DescriptorInputExtent ||
+		ConfiguredOutputExtent != Inputs.OutputExtent || Resources->Formats != Formats;
+	if (!bNeedsScalerRecreation && !bInputContentResolutionChanged)
+	{
+		return true;
+	}
+
 	if (!ValidateCommonExtents(Inputs.DescriptorInputExtent, Inputs.InputContentExtent, Inputs.OutputExtent))
 	{
 		return false;
@@ -259,14 +255,6 @@ bool FMetalFXSpatialUpscalerCore::EnsureUpscalerForConfiguration(const FMetalFXS
 		return false;
 	}
 
-	const bool bDescriptorInputResolutionChanged = ConfiguredDescriptorInputExtent != Inputs.DescriptorInputExtent;
-	const bool bInputContentResolutionChanged = ConfiguredInputContentExtent != Inputs.InputContentExtent;
-	const bool bOutputResolutionChanged = ConfiguredOutputExtent != Inputs.OutputExtent;
-	const bool bFormatChanged = Resources->Formats != Formats;
-	const bool bHasScaler = Resources->HasScaler();
-	const bool bDescriptorGeometryChanged = bDescriptorInputResolutionChanged || bOutputResolutionChanged;
-	const bool bNeedsScalerRecreation = !bHasScaler || bDescriptorGeometryChanged || bFormatChanged;
-
 	if (bNeedsScalerRecreation)
 	{
 		UE_LOG(LogMetalFX, Log, TEXT("MetalFX SpatialScaler %s. DescriptorInput=%dx%d, InputContent=%dx%d, Output=%dx%d"), bHasScaler ? TEXT("recreate requested") : TEXT("creation requested"), Inputs.DescriptorInputExtent.X, Inputs.DescriptorInputExtent.Y, Inputs.InputContentExtent.X, Inputs.InputContentExtent.Y, Inputs.OutputExtent.X, Inputs.OutputExtent.Y);
@@ -278,10 +266,7 @@ bool FMetalFXSpatialUpscalerCore::EnsureUpscalerForConfiguration(const FMetalFXS
 		return GenerateUpscaler();
 	}
 
-	if (bInputContentResolutionChanged)
-	{
-		UpdateInputContentSize(Inputs.InputContentExtent);
-	}
+	UpdateInputContentSize(Inputs.InputContentExtent);
 	return true;
 }
 

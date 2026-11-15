@@ -17,9 +17,9 @@ public:
 protected:
 	virtual bool IsActiveThisFrame_Internal(const FSceneViewExtensionContext& Context) const override;
 private:
-	bool CanActivateForViewFamily(const FSceneViewFamily& ViewFamily, const FMetalFXModule& MetalFXModule, bool bLogFailure = true) const;
-	bool CanActivateTemporal(const FSceneViewFamily& ViewFamily, const FMetalFXModule& MetalFXModule) const;
-	bool CanActivateSpatial(const FSceneViewFamily& ViewFamily, const FMetalFXModule& MetalFXModule) const;
+	bool CanActivateForViewFamily(const FSceneViewFamily& ViewFamily, bool bLogFailure = true) const;
+	bool CanActivateTemporal(const FSceneViewFamily& ViewFamily) const;
+	bool CanActivateSpatial(const FSceneViewFamily& ViewFamily) const;
 	void InstallTemporalUpscaler(FSceneViewFamily& ViewFamily, FMetalFXModule& MetalFXModule) const;
 	void InstallSpatialUpscaler(FSceneViewFamily& ViewFamily, FMetalFXModule& MetalFXModule) const;
 	void InstallSharpeningUpscaler(FSceneViewFamily& ViewFamily) const;
