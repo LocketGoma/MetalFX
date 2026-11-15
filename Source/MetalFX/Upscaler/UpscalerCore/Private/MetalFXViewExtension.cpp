@@ -50,7 +50,7 @@ static const TCHAR* GetMetalFXUpscalerTypeName(EMetalFXUpscalerType UpscalerType
 	}
 }
 
-static void AddMetalFXStatusDebugMessages(bool bCanActivate, bool bEnableInEditor, bool bIsActive, EMetalFXUpscalerType UpscalerType, const FMetalFXActiveDebugInfo* ActiveDebugInfo = nullptr)
+static void AddMetalFXStatusDebugMessages(bool bIsActive, EMetalFXUpscalerType UpscalerType, const FMetalFXActiveDebugInfo& ActiveDebugInfo)
 {
 	// Stable, explicit keys avoid accidental collisions from character sums.
 	constexpr uint64 MetalFXMessageKeyBase = 0x4D465800ull; // "MFX\0"
@@ -60,43 +60,41 @@ static void AddMetalFXStatusDebugMessages(bool bCanActivate, bool bEnableInEdito
 	constexpr uint64 ActiveDetailsMessageKey = MetalFXMessageKeyBase + 4;
 	constexpr float MessageDuration = 0.1f;
 
-	// Availability means the current RHI and MetalFX device support checks passed.
-	GEngine->AddOnScreenDebugMessage(ActivationMessageKey, MessageDuration, bCanActivate ? FColor::Emerald : FColor::Red, FString::Printf(TEXT("Apple MetalFX : %s Activate"), bCanActivate ? TEXT("Can") : TEXT("Can NOT")), true);
+	GEngine->AddOnScreenDebugMessage(ActivationMessageKey, MessageDuration, FColor::Emerald, TEXT("Apple MetalFX : Ready"), true);
 
 	// Editor activation has its own status line because PIE requires opt-in.
 	if (GIsEditor)
 	{
+		const bool bEnableInEditor = CVarEnableMetalFXInEditor.GetValueOnGameThread();
 		GEngine->AddOnScreenDebugMessage(InEditorMessageKey, MessageDuration, bEnableInEditor ? FColor::Emerald : FColor::Yellow, FString::Printf(TEXT("Apple MetalFX Editor SupportState : %s"), bEnableInEditor ? TEXT("Enabled") : TEXT("Disabled")), true);
 	}
 
-	if (bCanActivate)
+	const FColor StatusColor = bIsActive ? FColor::Emerald : FColor::Yellow;
+	const TCHAR* ModeName = bIsActive ? GetMetalFXUpscalerTypeName(UpscalerType) : TEXT("Off");
+	GEngine->AddOnScreenDebugMessage(RuntimeMessageKey, MessageDuration, StatusColor, FString::Printf(TEXT("Apple MetalFX Mode : %s"), ModeName), true);
+
+	const FMetalFXResolutionDebugInfo& Resolution = ActiveDebugInfo.Resolution;
+	if (!Resolution.bIsValid)
 	{
-		// Runtime state means MetalFX is actively selected for the current view family.
-		GEngine->AddOnScreenDebugMessage(RuntimeMessageKey, MessageDuration, bIsActive ? FColor::Emerald : FColor::Yellow, FString::Printf(TEXT("Apple MetalFX Mode : %s"), bIsActive ? GetMetalFXUpscalerTypeName(UpscalerType) : TEXT("Off")), true);
-
-		if (ActiveDebugInfo && ActiveDebugInfo->Resolution.bIsValid)
-		{
-			const FMetalFXResolutionDebugInfo& Resolution = ActiveDebugInfo->Resolution;
-			const FMetalFXQualitySettings Quality = GetMetalFXQualitySettings(Resolution.QualityMode);
-			FString Details;
-
-			if (bIsActive && ActiveDebugInfo->bIsValid)
-			{
-				const float RequestedPrimaryScreenPercentage = Resolution.PrimaryResolutionFraction * METALFX_FULL_SCREEN_PERCENTAGE;
-				const FIntPoint ExpectedInputSize = GetMetalFXExpectedInputSize(ActiveDebugInfo->OutputRect, RequestedPrimaryScreenPercentage);
-				const FVector2D ActualScreenPercentage = GetMetalFXActualScreenPercentage(ActiveDebugInfo->InputRect, ActiveDebugInfo->OutputRect);
-				Details = FString::Printf(TEXT("Apple MetalFX Active Rects : Input[%s] Output[%s] ExpectedInput[Size=%dx%d]\nMetalFX Scale : Mode=%s Requested=%.2f%% Actual=%.2f%%/%.2f%%"), *FormatMetalFXRect(ActiveDebugInfo->InputRect), *FormatMetalFXRect(ActiveDebugInfo->OutputRect), ExpectedInputSize.X, ExpectedInputSize.Y, Quality.Name, RequestedPrimaryScreenPercentage, ActualScreenPercentage.X, ActualScreenPercentage.Y);
-			}
-			else
-			{
-				Details = FString::Printf(TEXT("Apple MetalFX Config : Mode=%s (Deactivated)"), Quality.Name);
-			}
-
-			Details += FString::Printf(TEXT("\nEngine Resolution : DynamicRes=%s Base=%.2f%% Output=%.2f%%\n%s Resolution : Primary=%.2f%% FinalInput=%.2f%% AutoScaling=%s"), Resolution.bDynamicResolutionActive ? TEXT("On") : TEXT("Off"), Resolution.EngineBaseResolutionFraction * METALFX_FULL_SCREEN_PERCENTAGE, Resolution.OutputResolutionFraction * METALFX_FULL_SCREEN_PERCENTAGE, bIsActive ? TEXT("Applied") : TEXT("Configured"), Resolution.PrimaryResolutionFraction * METALFX_FULL_SCREEN_PERCENTAGE, Resolution.FinalInputResolutionFraction * METALFX_FULL_SCREEN_PERCENTAGE, Resolution.bAutoScalingFromEngine ? TEXT("On") : TEXT("Off"));
-
-			GEngine->AddOnScreenDebugMessage(ActiveDetailsMessageKey, MessageDuration, bIsActive ? FColor::Emerald : FColor::Yellow, Details, true);
-		}
+		return;
 	}
+
+	const FMetalFXQualitySettings Quality = GetMetalFXQualitySettings(Resolution.QualityMode);
+	FString Details;
+	if (bIsActive && ActiveDebugInfo.bIsValid)
+	{
+		const float RequestedPrimaryScreenPercentage = Resolution.PrimaryResolutionFraction * METALFX_FULL_SCREEN_PERCENTAGE;
+		const FIntPoint ExpectedInputSize = GetMetalFXExpectedInputSize(ActiveDebugInfo.OutputRect, RequestedPrimaryScreenPercentage);
+		const FVector2D ActualScreenPercentage = GetMetalFXActualScreenPercentage(ActiveDebugInfo.InputRect, ActiveDebugInfo.OutputRect);
+		Details = FString::Printf(TEXT("Apple MetalFX Active Rects : Input[%s] Output[%s] ExpectedInput[Size=%dx%d]\nMetalFX Scale : Mode=%s Requested=%.2f%% Actual=%.2f%%/%.2f%%"), *FormatMetalFXRect(ActiveDebugInfo.InputRect), *FormatMetalFXRect(ActiveDebugInfo.OutputRect), ExpectedInputSize.X, ExpectedInputSize.Y, Quality.Name, RequestedPrimaryScreenPercentage, ActualScreenPercentage.X, ActualScreenPercentage.Y);
+	}
+	else
+	{
+		Details = FString::Printf(TEXT("Apple MetalFX Config : Mode=%s (Deactivated)"), Quality.Name);
+	}
+
+	Details += FString::Printf(TEXT("\nEngine Resolution : DynamicRes=%s Base=%.2f%% Output=%.2f%%\n%s Resolution : Primary=%.2f%% FinalInput=%.2f%% AutoScaling=%s"), Resolution.bDynamicResolutionActive ? TEXT("On") : TEXT("Off"), Resolution.EngineBaseResolutionFraction * METALFX_FULL_SCREEN_PERCENTAGE, Resolution.OutputResolutionFraction * METALFX_FULL_SCREEN_PERCENTAGE, bIsActive ? TEXT("Applied") : TEXT("Configured"), Resolution.PrimaryResolutionFraction * METALFX_FULL_SCREEN_PERCENTAGE, Resolution.FinalInputResolutionFraction * METALFX_FULL_SCREEN_PERCENTAGE, Resolution.bAutoScalingFromEngine ? TEXT("On") : TEXT("Off"));
+	GEngine->AddOnScreenDebugMessage(ActiveDetailsMessageKey, MessageDuration, StatusColor, Details, true);
 }
 #endif
 
@@ -109,10 +107,13 @@ static void UpdateMetalFXDebugStatus(const FSceneViewFamily& ViewFamily, FMetalF
 	}
 
 	FMetalFXActiveDebugInfo ActiveDebugInfo;
-#if METALFX_PLUGIN_ENABLED //&& !UE_BUILD_SHIPPING
-	if (FMetalFXUpscalerCore* Upscaler = MetalFXModule.GetMetalFXUpscaler())
+#if METALFX_PLUGIN_ENABLED
+	if (bIsActive)
 	{
-		ActiveDebugInfo = Upscaler->GetActiveDebugInfo();
+		if (FMetalFXUpscalerCore* Upscaler = MetalFXModule.GetMetalFXUpscaler())
+		{
+			ActiveDebugInfo = Upscaler->GetActiveDebugInfo();
+		}
 	}
 #endif
 
@@ -123,9 +124,7 @@ static void UpdateMetalFXDebugStatus(const FSceneViewFamily& ViewFamily, FMetalF
 		ActiveDebugInfo.Resolution = GetConfiguredMetalFXResolutionDebugInfo(ViewFamily, static_cast<EMetalFXQualityMode>(CVarMetalFXQualityMode.GetValueOnGameThread()));
 	}
 
-	const bool bEnableInEditor = CVarEnableMetalFXInEditor.GetValueOnGameThread();
-	const bool bMetalFXSupported = MetalFXModule.IsMetalFXSupported() && (!GIsEditor || bEnableInEditor);
-	AddMetalFXStatusDebugMessages(bMetalFXSupported, bEnableInEditor, bIsActive, UpscalerType, &ActiveDebugInfo);
+	AddMetalFXStatusDebugMessages(bIsActive, UpscalerType, ActiveDebugInfo);
 #endif
 }
 
@@ -163,7 +162,6 @@ static bool LogMetalFXActivationFailure(const TCHAR* Reason, ELogVerbosity::Type
 FMetalFXViewExtension::FMetalFXViewExtension(const FAutoRegister& AutoRegister)
 	: FSceneViewExtensionBase(AutoRegister)
 {
-	// The extension can exist on Metal RHI even when MetalFX itself is not supported.
 }
 
 void FMetalFXViewExtension::SetupView(FSceneViewFamily& InViewFamily, FSceneView& InView)
@@ -433,15 +431,19 @@ bool FMetalFXViewExtension::IsActiveThisFrame_Internal(const FSceneViewExtension
 	// Editor builds only allow MetalFX during PIE.
 	if (GIsEditor)
 	{
-		const bool bEnableInEditor = CVarEnableMetalFXInEditor.GetValueOnGameThread();
 		const UWorld* World = Context.GetWorld();
-
-		if (!IsValid(World))
+		if (!IsValid(World) || !World->IsPlayInEditor())
 		{
 			return false;
 		}
 
-		return bEnableInEditor && World->IsPlayInEditor();
+#if !UE_BUILD_SHIPPING
+		if (CVarMetalFXDebugDisplay.GetValueOnGameThread())
+		{
+			return true;
+		}
+#endif
+		return CVarEnableMetalFXInEditor.GetValueOnGameThread();
 	}
 
 	return true;

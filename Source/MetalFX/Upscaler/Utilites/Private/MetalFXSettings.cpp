@@ -9,8 +9,8 @@ static void HandleEnabledChanged(IConsoleVariable* Variable)
 	{
 		RestoreMetalFXScreenPercentage();
 	}
-	// Enabling is intentionally deferred until the first view family that can
-	// actually install MetalFX, so the engine's unmodified driver supplies Base.
+	// Acquire screen percentage on the first eligible view family so the
+	// engine's unmodified driver supplies the base resolution.
 }
 
 static void HandleQualityModeChanged(IConsoleVariable* Variable)
@@ -31,7 +31,7 @@ static void HandleAutoScalingChanged(IConsoleVariable*)
 TAutoConsoleVariable<bool> CVarEnableMetalFX(
 	TEXT("r.MetalFX.Enabled"),
 	false,
-	TEXT("Enable MetalFX upscaling"),
+	TEXT("Enable MetalFX upscaling. The first enable attempt initializes MetalFX if needed."),
 	FConsoleVariableDelegate::CreateStatic(&HandleEnabledChanged),
 	ECVF_RenderThreadSafe);
 
@@ -108,6 +108,7 @@ UMetalFXSettings::UMetalFXSettings(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
 	bEnabled = false;
+	bInitializeOnStartup = false;
 	bEnableInEditor = false;
 	bDebugDisplay = true;
 	UpscalerMode = EMetalFXUpscalerType::Temporal;

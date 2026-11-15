@@ -50,8 +50,9 @@ public:
 private:
 	FMetalFXUpscalerCore* CreateMetalFXUpscaler(EMetalFXUpscalerType RequestedType);
 	void HandlePostRHIInitialized();
-	void InitializeMetalFXRuntime();
+	void InitializeMetalFXRuntimeOnce();
 	void HandleMetalFXInitializeCommand(const TArray<FString>& Args, FOutputDevice& Output);
+	void HandleMetalFXEnabledChanged(IConsoleVariable* Enabled);
 	void HandleMetalFXActivationSettingsChanged(IConsoleVariable*);
 	FDelegateHandle OnPostRHIInitialized;
 	FDelegateHandle OnMetalFXEnabledChanged;
@@ -59,7 +60,6 @@ private:
 	FDelegateHandle OnMetalFXEnableInEditorChanged;
 	IConsoleCommand* InitializeConsoleCommands[2] = {};
 	bool bRuntimeInitializationAttempted = false;
-	bool bWasMetalFXEnabled = false;
 	EMetalFXUpscalerType EligibleUpscalerType = EMetalFXUpscalerType::None;
 
 	// The module is the sole Core owner. Adapters keep non-owning typed pointers.

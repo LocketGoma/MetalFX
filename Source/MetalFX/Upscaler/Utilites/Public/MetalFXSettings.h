@@ -155,6 +155,9 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "General Settings", meta = (ConsoleVariable = "r.MetalFX.Enabled", DisplayName = "Enabled"))
 	bool bEnabled;
 
+	UPROPERTY(Config, EditAnywhere, Category = "General Settings", meta = (DisplayName = "Initialize On Startup", ConfigRestartRequired = true, ToolTip = "Initializes the MetalFX runtime when the application starts. The Enabled setting controls upscaling."))
+	bool bInitializeOnStartup;
+
 	UPROPERTY(Config, EditAnywhere, Category = "Editor Settings", meta = (ConsoleVariable = "r.MetalFX.EnableInEditor", DisplayName = "Enable In Editor", ToolTip = "Allows MetalFX to be used in PIE. (MetalFX must still be turned on with the MetalFX Enable command.)"))
 	bool bEnableInEditor;
 
