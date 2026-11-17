@@ -1,5 +1,7 @@
 # MetalFX benchmark — iPhone 17 (A19)
 
+[Benchmark index](../../../PerformanceValidation.md) · [한국어](Readme_KOR.md)
+
 | Device | OS | App | Engine | Scene |
 |---|---|---|---|---|
 | iPhone 17 (A19) | iOS 27.2.1 | ElectricDreamsEnv 1.0 (0.0.28) | Unreal Engine 5.7.4 Development | Mobile Forest, default spawn |
@@ -41,9 +43,9 @@ Each row averages the three paired On − Off differences and their percentage d
 
 Round 3 screenshots use matching camera positions and 660 × 320 px crops at the original screenshot scale. Foliage positions vary between captures.
 
-[Foliage and fallen log](on-off-foliage.png) · [Rock edge and creek](on-off-rocks.png)
+[Foliage and fallen log](../../../ProfilingResults/on-off-foliage.png) · [Rock edge and creek](../../../ProfilingResults/on-off-rocks.png)
 
-![Round 3 foliage and log comparison across all five input scales](on-off-foliage.png)
+![Round 3 foliage and log comparison across all five input scales](../../../ProfilingResults/on-off-foliage.png)
 
 ## RCAS sharpening capture test
 
@@ -51,8 +53,8 @@ This still-image test was run separately after the performance benchmark. Each i
 
 | Input scale | Preset | Five-condition comparison |
 |---:|---|---|
-| 50% | Balanced | [50% captures](rcas-50.png) |
-| 42% | Performance | [42% captures](rcas-42.png) |
-| 34% | UltraPerformance | [34% captures](rcas-34.png) |
+| 50% | Balanced | [50% captures](../../../ProfilingResults/rcas-50.png) |
+| 42% | Performance | [42% captures](../../../ProfilingResults/rcas-42.png) |
+| 34% | UltraPerformance | [34% captures](../../../ProfilingResults/rcas-34.png) |
 
-![RCAS sharpening comparison at 42% input scale](rcas-42.png)
+![RCAS sharpening comparison at 42% input scale](../../../ProfilingResults/rcas-42.png)

@@ -1,6 +1,6 @@
 # MetalFX 벤치마크 · iPhone 17 (A19)
 
-[English](README.md)
+[벤치마크 목록](../../../PerformanceValidation.md) · [English](Readme.md)
 
 | 기기 | OS | 앱 | 엔진 | 장면 |
 |---|---|---|---|---|
@@ -43,9 +43,9 @@ MetalFX Temporal(On)과 Unreal Mobile TAA(Off)는 각 배율에서 같은 입력
 
 같은 기본 시점에서 찍은 3회차 화면에서 660 × 320 픽셀 영역을 원본 크기 그대로 잘랐습니다. 잎의 위치는 캡처 시점에 따라 달라집니다.
 
-[식생과 통나무](on-off-foliage.png) · [바위와 물가](on-off-rocks.png)
+[식생과 통나무](../../../ProfilingResults/on-off-foliage.png) · [바위와 물가](../../../ProfilingResults/on-off-rocks.png)
 
-![3회차 입력 배율 5종의 식생과 통나무 비교](on-off-foliage.png)
+![3회차 입력 배율 5종의 식생과 통나무 비교](../../../ProfilingResults/on-off-foliage.png)
 
 ## RCAS 샤프닝 캡처 테스트
 
@@ -53,8 +53,8 @@ MetalFX Temporal(On)과 Unreal Mobile TAA(Off)는 각 배율에서 같은 입력
 
 | 입력 배율 | 프리셋 | 5조건 비교 이미지 |
 |---:|---|---|
-| 50% | Balanced | [50% 캡처](rcas-50.png) |
-| 42% | Performance | [42% 캡처](rcas-42.png) |
-| 34% | UltraPerformance | [34% 캡처](rcas-34.png) |
+| 50% | Balanced | [50% 캡처](../../../ProfilingResults/rcas-50.png) |
+| 42% | Performance | [42% 캡처](../../../ProfilingResults/rcas-42.png) |
+| 34% | UltraPerformance | [34% 캡처](../../../ProfilingResults/rcas-34.png) |
 
-![입력 배율 42%의 RCAS 샤프닝 비교](rcas-42.png)
+![입력 배율 42%의 RCAS 샤프닝 비교](../../../ProfilingResults/rcas-42.png)
