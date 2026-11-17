@@ -6,18 +6,11 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PLUGIN_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 ENGINE_DIR="$(cd "$PLUGIN_DIR/../.." && pwd)"
 EDITED_DIR="$SCRIPT_DIR/EngineEdit"
-PYTHON_SCRIPT="$SCRIPT_DIR/Helper/replace_function.py"
-
-MARKER_KEYWORD="# EDITED_FROM_METALFX_PLUGIN"
-MARKER_BEGIN="// # EDITED_FROM_METALFX_PLUGIN BEGIN"
-MARKER_END="// # EDITED_FROM_METALFX_PLUGIN END"
-
 RESOLVED_EDITED_FILE=""
 RESOLVED_TARGET_FILE=""
 
 declare -a MODIFIED_FILES=()
 declare -a ADDED_FILES=()
-declare -a SKIPPED_FILES=()
 
 log() {
     echo "[INFO] $1"
@@ -49,16 +42,6 @@ add_added_file() {
         fi
     done
     ADDED_FILES+=("$file")
-}
-
-add_skipped_file() {
-    local file="$1"
-    for existing in "${SKIPPED_FILES[@]:-}"; do
-        if [[ "$existing" == "$file" ]]; then
-            return
-        fi
-    done
-    SKIPPED_FILES+=("$file")
 }
 
 confirm_proceed() {
@@ -189,11 +172,6 @@ require_paths() {
         exit 1
     fi
 
-    if [[ ! -f "$PYTHON_SCRIPT" ]]; then
-        err "Python helper script not found: $PYTHON_SCRIPT"
-        exit 1
-    fi
-
     if ! command -v python3 >/dev/null 2>&1; then
         err "python3 is required but was not found."
         exit 1
@@ -201,25 +179,6 @@ require_paths() {
 
     validate_plugin_dir
     validate_engine_version
-}
-
-resolve_target_from_relative_path() {
-    local relative_path="$1"
-    local edited_file="$EDITED_DIR/$relative_path"
-    local target_file="$ENGINE_DIR/$relative_path"
-
-    if [[ ! -f "$edited_file" ]]; then
-        err "Edited file not found: $edited_file"
-        return 1
-    fi
-
-    if [[ ! -f "$target_file" ]]; then
-        err "Target file not found: $target_file"
-        return 1
-    fi
-
-    RESOLVED_EDITED_FILE="$edited_file"
-    RESOLVED_TARGET_FILE="$target_file"
 }
 
 resolve_source_for_new_file() {
@@ -233,78 +192,6 @@ resolve_source_for_new_file() {
 
     RESOLVED_EDITED_FILE="$edited_file"
     RESOLVED_TARGET_FILE="$ENGINE_DIR/$relative_path"
-}
-
-has_marker_keyword() {
-    local target_file="$1"
-    grep -Fq "$MARKER_KEYWORD" "$target_file"
-}
-
-append_file_bottom() {
-    local relative_path="$1"
-
-    resolve_target_from_relative_path "$relative_path" || return 1
-
-    local edited_file="$RESOLVED_EDITED_FILE"
-    local target_file="$RESOLVED_TARGET_FILE"
-
-    echo ""
-    echo "----------------------------------------"
-    echo "Appending content to target file"
-    echo "Edited file : $edited_file"
-    echo "Target file : $target_file"
-    echo "----------------------------------------"
-
-    if has_marker_keyword "$target_file"; then
-        warn "Marker keyword already found in target file."
-        warn "Append operation skipped: $target_file"
-        add_skipped_file "$target_file"
-        return 0
-    fi
-
-    {
-        echo ""
-        echo "$MARKER_BEGIN"
-        cat "$edited_file"
-        echo "$MARKER_END"
-        echo ""
-    } >> "$target_file"
-
-    add_modified_file "$target_file"
-
-    echo "Append completed."
-}
-
-replace_function_by_signature() {
-    local relative_path="$1"
-    local function_signature="$2"
-
-    if [[ -z "$function_signature" ]]; then
-        err "Function signature is empty."
-        return 1
-    fi
-
-    resolve_target_from_relative_path "$relative_path" || return 1
-
-    local edited_file="$RESOLVED_EDITED_FILE"
-    local target_file="$RESOLVED_TARGET_FILE"
-
-    echo ""
-    echo "----------------------------------------"
-    echo "Replacing function in target file"
-    echo "Edited file : $edited_file"
-    echo "Target file : $target_file"
-    echo "Signature   : $function_signature"
-    echo "----------------------------------------"
-
-    python3 "$PYTHON_SCRIPT" \
-        --edited "$edited_file" \
-        --target "$target_file" \
-        --signature "$function_signature"
-
-    add_modified_file "$target_file"
-
-    echo "Function replacement completed."
 }
 
 add_file_if_missing() {
@@ -343,19 +230,8 @@ add_file_if_missing() {
 }
 
 run_updates() {
-    append_file_bottom "Shaders/Private/PostProcessMobile.usf"
-    append_file_bottom "Source/Runtime/Renderer/Private/PostProcess/PostProcessMobile.h"
-    append_file_bottom "Source/Runtime/Renderer/Private/PostProcess/PostProcessMobile.cpp"
-
-    # Add files if missing
-    # Example:
     add_file_if_missing "Source/Runtime/Apple/MetalRHI/Public/MetalRHIUtility.h"
     add_file_if_missing "Source/Runtime/Apple/MetalRHI/Private/MetalRHIUtility.cpp"
-
-    # Must Check For newer version engine // Change "FRDGTextureRef" to "Void"
-    #replace_function_by_signature \
-    #    "Source/Runtime/Renderer/Private/PostProcess/PostProcessEyeAdaptation.cpp" \
-    #    "FRDGTextureRef AddCopyEyeAdaptationDataToTexturePass(FRDGBuilder& GraphBuilder, const FViewInfo& View)"
 }
 
 print_modified_files() {
@@ -379,17 +255,6 @@ print_modified_files() {
         echo "(none)"
     else
         printf '%s\n' "${ADDED_FILES[@]}"
-    fi
-
-    echo ""
-    echo "============================"
-    echo "Skipped files"
-    echo "============================"
-
-    if [[ ${#SKIPPED_FILES[@]} -eq 0 ]]; then
-        echo "(none)"
-    else
-        printf '%s\n' "${SKIPPED_FILES[@]}"
     fi
 }
 
