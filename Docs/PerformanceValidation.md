@@ -1,5 +1,7 @@
 # Performance Validation
 
+[iPhone 17 (A19) benchmark — Electric Dreams](BenchmarkEvidence/261117/README.md) · [한국어](BenchmarkEvidence/261117/README_KOR.md)
+
 ## Main Benchmark — Unreal Engine Lyra Sample
 
 | Device | CPU | GPU | Memory |
